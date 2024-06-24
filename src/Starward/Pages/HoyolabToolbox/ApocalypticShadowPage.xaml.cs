@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.UI.Xaml.Navigation;
 using Starward.Core;
 using Starward.Core.GameRecord;
@@ -14,6 +15,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
+using Starward.Services.Cache;
+using Windows.Storage;
+using System.Drawing;
+using System.IO;
+using System.ComponentModel;
 
 // To learn more about WinUI, the WinUI project structure,
 // and more about our project templates, see: http://aka.ms/winui-project-info.
@@ -151,5 +157,51 @@ public sealed partial class ApocalypticShadowPage : PageBase
         TextBlock_Battles.SetValue(Grid.RowProperty, 1);
         TextBlock_Battles.SetValue(Grid.ColumnProperty, 1);
         TextBlock_Battles.SetValue(Grid.ColumnSpanProperty, 2);
+    }
+
+
+    private static Dictionary<string, BitmapImage> convertedImages = new Dictionary<string, BitmapImage>();
+
+    public static object BossIcon(string Icon, bool BossDefeated)
+    {
+        if (BossDefeated)
+        {
+            if (convertedImages.TryGetValue(Icon, out BitmapImage? grayIcon))
+            {
+                return grayIcon;
+            }
+            else
+            {
+                var file = Task.Run(async () =>
+                {
+                    return await FileCacheService.Instance.GetFromCacheAsync(new Uri(Icon));
+                }).Result;
+                if (file is StorageFile)
+                {
+                    var iconBitmap = new Bitmap(file.Path);
+                    var grayBitmap = new Bitmap(iconBitmap.Width, iconBitmap.Height);
+                    for (int i = 0; i < iconBitmap.Width; i++)
+                    {
+                        for (int j = 0; j < iconBitmap.Height; j++)
+                        {
+                            var originalColor = iconBitmap.GetPixel(i, j);
+                            int grayScale = (int)((originalColor.R * 0.3) + (originalColor.G * 0.59) + (originalColor.B * 0.11));
+                            var newColor = Color.FromArgb(originalColor.A, grayScale, grayScale, grayScale);
+                            grayBitmap.SetPixel(i, j, newColor);
+                        }
+                    }
+                    grayIcon = new BitmapImage();
+                    using (MemoryStream stream = new MemoryStream())
+                    {
+                        grayBitmap.Save(stream, System.Drawing.Imaging.ImageFormat.Png);
+                        stream.Position = 0;
+                        grayIcon.SetSource(stream.AsRandomAccessStream());
+                    }
+                    convertedImages[Icon] = grayIcon;
+                    return grayIcon;
+                }
+            }
+        }
+        return Icon;
     }
 }

@@ -343,7 +343,7 @@ internal class GameRecordService
     public async Task<int> GetTravelersDiaryDetailAsync(GameRecordRole role, int month, int type, int limit = 100)
     {
         var detail = await _gameRecordClient.GetTravelsDiaryDetailAsync(role, month, type, limit);
-        if (detail.List is null || !detail.List.Any())
+        if (detail.List is null || detail.List.Count == 0)
         {
             return 0;
         }
