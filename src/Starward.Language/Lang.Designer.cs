@@ -1809,7 +1809,7 @@ namespace Starward.Language {
                 return ResourceManager.GetString("HoyolabToolboxPage_PureFiction", resourceCulture);
             }
         }
-
+        
         /// <summary>
         ///   查找类似 Refresh Info 的本地化字符串。
         /// </summary>
@@ -3497,6 +3497,15 @@ namespace Starward.Language {
         }
         
         /// <summary>
+        ///   查找类似 File verification failed, need to download resources. Click on Confirm to download. 的本地化字符串。
+        /// </summary>
+        public static string SwitchClientPage_FileVerificationFailedNeedToDownloadResources {
+            get {
+                return ResourceManager.GetString("SwitchClientPage_FileVerificationFailedNeedToDownloadResources", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   查找类似 File verification failed, please try again. 的本地化字符串。
         /// </summary>
         public static string SwitchClientPage_FileVerificationFailedPleaseTryAgain {
@@ -3538,6 +3547,15 @@ namespace Starward.Language {
         public static string SwitchClientPage_StartSwitching {
             get {
                 return ResourceManager.GetString("SwitchClientPage_StartSwitching", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Switching 的本地化字符串。
+        /// </summary>
+        public static string SwitchClientPage_Switching {
+            get {
+                return ResourceManager.GetString("SwitchClientPage_Switching", resourceCulture);
             }
         }
         

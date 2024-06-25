@@ -1413,4 +1413,10 @@
   <data name="HoyolabToolboxPage_ApocalypticShadow" xml:space="preserve">
     <value>末日幻影</value>
   </data>
+  <data name="SwitchClientPage_FileVerificationFailedNeedToDownloadResources" xml:space="preserve">
+    <value>文件校验失败，需要下载资源。点击确认以下载。</value>
+  </data>
+  <data name="SwitchClientPage_Switching" xml:space="preserve">
+    <value>切换中</value>
+  </data>
 </root>

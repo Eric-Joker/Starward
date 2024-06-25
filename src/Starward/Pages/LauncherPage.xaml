@@ -303,6 +303,7 @@
                             HorizontalAlignment="Stretch"
                             BorderThickness="0"
                             Command="{x:Bind SwitchClientCommand}"
+                            CommandParameter="true"
                             CornerRadius="20,0,0,20"
                             FontSize="14"
                             Style="{ThemeResource AccentButtonStyle}"
