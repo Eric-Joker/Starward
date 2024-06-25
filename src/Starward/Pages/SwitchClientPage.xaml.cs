@@ -99,7 +99,7 @@ public sealed partial class SwitchClientPage : PageBase
     private Version? gameVersion;
 
     /// <summary>
-    /// ������Ϸ�汾�������µ�
+    /// 本地游戏版本不是最新的
     /// </summary>
     [ObservableProperty]
     private bool isLocalGameVersionNotLatest;
@@ -120,7 +120,7 @@ public sealed partial class SwitchClientPage : PageBase
     private TargetGameBiz? selectedTargetGameBiz;
 
     /// <summary>
-    /// ������Ϸ�汾��Ŀ����Ϸ�汾��ͬ
+    /// 本地游戏版本与目标游戏版本不同
     /// </summary>
     [ObservableProperty]
     private bool isTowGameBizVersionDifferent;
@@ -263,7 +263,7 @@ public sealed partial class SwitchClientPage : PageBase
                 string os_data = Path.Join(installPath, "GenshinImpact_Data");
                 if (Directory.Exists(cn_data) && Directory.Exists(os_data))
                 {
-                    // �����͹��ʷ������ļ���ͬʱ����
+                    // 国服和国际服数据文件夹同时存在
                     IsLocalGameVersionNotLatest = true;
                     Button_Prepair.IsEnabled = false;
                     ErrorText = Lang.SwitchClientPage_TheTowFoldersExistAtTheSameTime;
