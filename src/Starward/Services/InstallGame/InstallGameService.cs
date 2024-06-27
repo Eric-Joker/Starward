@@ -685,7 +685,7 @@ internal abstract class InstallGameService
                     await DecompressFileAsync(file).ConfigureAwait(false);
                 }
             }
-            await ApplyDiffPackageAsync().ConfigureAwait(false);
+            await ApplyhdifffilesAsync().ConfigureAwait(false);
         }
     }
 
@@ -942,6 +942,20 @@ internal abstract class InstallGameService
             await Task.Run(() =>
             {
                 using var extra = new ArchiveFile(fs);
+
+                var deletefiles = Task.Run(async () =>
+                {
+                    foreach (Entry entry in extra.Entries)
+                    {
+                        if (entry.FileName == "deletefiles.txt")
+                        {
+                            var target = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"Starward", "game", entry.CRC.ToString());
+                            entry.Extract(target);
+                            await ApplydeletefilesAsync(target);
+                            break;
+                        }
+                    }
+                });
                 double ratio = (double)fs.Length / extra.Entries.Sum(x => (long)x.Size);
                 long sum = 0;
                 extra.ExtractProgress += (_, e) =>
@@ -952,6 +966,7 @@ internal abstract class InstallGameService
                 };
                 extra.Extract(InstallPath, true);
                 progressBytes += fs.Length - sum;
+                deletefiles.Wait();
             }).ConfigureAwait(false);
         }
         else
@@ -972,6 +987,8 @@ internal abstract class InstallGameService
                         var target = Path.Combine(InstallPath, item.FullName);
                         Directory.CreateDirectory(Path.GetDirectoryName(target)!);
                         item.ExtractToFile(target, true);
+                        if (item.FullName == "deletefiles.txt")
+                            Task.Run(() => ApplydeletefilesAsync(target));
                         progressBytes += item.CompressedLength;
                         sum += item.CompressedLength;
                     }
@@ -1016,12 +1033,11 @@ internal abstract class InstallGameService
 
 
     /// <summary>
-    /// 合并差分文件 deletefiles/hdifffiles
+    /// 删除 deletefiles.txt 里的文件
     /// </summary>
     /// <returns></returns>
-    protected async Task ApplyDiffPackageAsync()
+    protected async Task ApplydeletefilesAsync(string delete)
     {
-        var delete = Path.Combine(InstallPath, "deletefiles.txt");
         if (File.Exists(delete))
         {
             var deleteFiles = await File.ReadAllLinesAsync(delete).ConfigureAwait(false);
@@ -1035,7 +1051,15 @@ internal abstract class InstallGameService
             }
             File.Delete(delete);
         }
+    }
 
+
+    /// <summary>
+    /// 合并差分文件 hdifffiles
+    /// </summary>
+    /// <returns></returns>
+    protected async Task ApplyhdifffilesAsync()
+    {
         var hdifffiles = Path.Combine(InstallPath, "hdifffiles.txt");
         if (File.Exists(hdifffiles))
         {
@@ -1074,6 +1098,7 @@ internal abstract class InstallGameService
                 progressCount++;
             }
             File.Delete(hdifffiles);
+            File.Delete(Path.Combine(InstallPath, "deletefiles.txt"));
             TotalCount = tmp_TotalCount;
             progressCount = tmp_ProgressCount;
             State = InstallGameState.Decompress;
