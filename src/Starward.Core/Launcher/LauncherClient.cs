@@ -237,6 +237,7 @@ public class LauncherClient
                 GameBiz.hkrpg_global => $"https://sg-hyp-api.hoyoverse.com/hyp/hyp-connect/api/getGamePackages?launcher_id=VYTpXlbWo8&game_ids[]=4ziysqXOQ8",
                 GameBiz.hkrpg_bilibili => "https://hyp-api.mihoyo.com/hyp/hyp-connect/api/getGamePackages?launcher_id=6P5gHMNyK3",
                 GameBiz.bh3_cn => $"https://hyp-api.mihoyo.com/hyp/hyp-connect/api/getGamePackages?launcher_id=jGHBHlcOq1&game_ids[]=osvnlOc0S8",
+                GameBiz.nap_cn => $"https://hyp-api.mihoyo.com/hyp/hyp-connect/api/getGamePackages?launcher_id=jGHBHlcOq1&game_ids[]=x6znKlJ0xK",
                 _ => throw new ArgumentOutOfRangeException($"Unknown region {biz}"),
             };
             var request = new HttpRequestMessage(HttpMethod.Get, url);
@@ -282,6 +283,7 @@ public class LauncherClient
                 GameBiz.hkrpg_global => $"https://sg-hyp-api.hoyoverse.com/hyp/hyp-connect/api/getGameDeprecatedFileConfigs?launcher_id=VYTpXlbWo8&game_ids[]=4ziysqXOQ8",
                 GameBiz.hkrpg_bilibili => "https://hyp-api.mihoyo.com/hyp/hyp-connect/api/getGameDeprecatedFileConfigs?launcher_id=6P5gHMNyK3",
                 GameBiz.bh3_cn => $"https://hyp-api.mihoyo.com/hyp/hyp-connect/api/getGameDeprecatedFileConfigs?launcher_id=jGHBHlcOq1&game_ids[]=osvnlOc0S8",
+                GameBiz.nap_cn => $"https://hyp-api.mihoyo.com/hyp/hyp-connect/api/getGameDeprecatedFileConfigs?launcher_id=jGHBHlcOq1&game_ids[]=x6znKlJ0xK",
                 _ => throw new ArgumentOutOfRangeException($"Unknown region {biz}"),
             };
             var request = new HttpRequestMessage(HttpMethod.Get, url);

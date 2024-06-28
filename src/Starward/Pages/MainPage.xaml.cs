@@ -199,7 +199,7 @@ public sealed partial class MainPage : PageBase
         GameBiz.bh3_jp => "Japan",
         GameBiz.bh3_kr => "Korea",
         GameBiz.bh3_overseas => "Southeast Asia",
-        GameBiz.nap_cn => "CBT3",
+        GameBiz.nap_cn => "China",
         _ => ""
     };
 

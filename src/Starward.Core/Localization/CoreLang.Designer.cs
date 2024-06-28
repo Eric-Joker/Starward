@@ -286,15 +286,6 @@ namespace Starward.Core.Localization {
         }
         
         /// <summary>
-        ///   查找类似 CBT3 的本地化字符串。
-        /// </summary>
-        internal static string GameServer_ZZZCBT3 {
-            get {
-                return ResourceManager.GetString("GameServer_ZZZCBT3", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   查找类似 Artifacts 的本地化字符串。
         /// </summary>
         internal static string GenshinQueryType_Artifact {

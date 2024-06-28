@@ -68,7 +68,7 @@ public static class EnumExtension
             GameBiz.bh3_kr => CoreLang.GameServer_KoreaServer,
             GameBiz.bh3_overseas => CoreLang.GameServer_SEAServer,
             GameBiz.bh3_tw => CoreLang.GameServer_TraditionalChineseServer,
-            GameBiz.nap_cn => CoreLang.GameServer_ZZZCBT3,
+            GameBiz.nap_cn => CoreLang.GameServer_ChinaServer,
             _ => "",
         };
     }

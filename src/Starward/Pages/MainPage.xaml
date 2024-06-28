@@ -185,8 +185,7 @@
                                          Width="36"
                                          Height="36"
                                          Margin="4,0,4,0"
-                                         Command="{x:Bind ChangeGameBizCommand}"
-                                         Visibility="Collapsed" />
+                                         Command="{x:Bind ChangeGameBizCommand}" />
                 <Border Height="32"
                         Margin="4,0,4,0"
                         Background="{ThemeResource DateTimePickerFlyoutButtonBackgroundPointerOver}"

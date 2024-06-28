@@ -153,11 +153,6 @@ public sealed partial class LauncherPage : PageBase
                 Button_UninstallGame.IsEnabled = false;
                 Grid_BannerAndPost.HorizontalAlignment = HorizontalAlignment.Right;
             }
-            if (CurrentGameBiz is GameBiz.nap_cn)
-            {
-                Button_RepairDropDown.IsEnabled = false;
-                Button_UninstallGame.IsEnabled = false;
-            }
 #pragma warning restore MVVMTK0034 // Direct field reference to [ObservableProperty] backing field 
         }
         catch { }
@@ -796,7 +791,7 @@ public sealed partial class LauncherPage : PageBase
     {
         try
         {
-            if (AppConfig.DisableGameAccountSwitcher || CurrentGameBiz.IsBilibiliServer() || CurrentGameBiz is GameBiz.nap_cn)
+            if (AppConfig.DisableGameAccountSwitcher || CurrentGameBiz.IsBilibiliServer())
             {
                 StackPanel_Account.Visibility = Visibility.Collapsed;
                 return;
@@ -1028,12 +1023,6 @@ public sealed partial class LauncherPage : PageBase
                 return;
             }
 
-            if (CurrentGameBiz is GameBiz.nap_cn)
-            {
-                await LauncherZZZCBTLauncherAsync();
-                return;
-            }
-
             if (await CheckRedirectInstanceAsync())
             {
                 return;
@@ -1164,27 +1153,6 @@ public sealed partial class LauncherPage : PageBase
 
 
 
-    private async Task LauncherZZZCBTLauncherAsync()
-    {
-        string? launcherFolder = Registry.GetValue(GameRegistry.LauncherPath_nap_cbt3, GameRegistry.InstallPath, null) as string;
-        string? launcher = Path.Join(launcherFolder, "launcher.exe");
-        if (File.Exists(launcher))
-        {
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = launcher,
-                UseShellExecute = true,
-                Verb = "runas",
-            });
-        }
-        else
-        {
-            await Launcher.LaunchUriAsync(new Uri("https://zzz.mihoyo.com/"));
-        }
-    }
-
-
-
 
     [RelayCommand]
     private async Task PreDownloadGameAsync()
@@ -1243,11 +1211,6 @@ public sealed partial class LauncherPage : PageBase
     {
         try
         {
-            if (CurrentGameBiz is GameBiz.nap_cn)
-            {
-                await LauncherZZZCBTLauncherAsync();
-                return;
-            }
             var lang = await _gameResourceService.GetVoiceLanguageAsync(CurrentGameBiz, InstallPath);
             var exe = Process.GetCurrentProcess().MainModule?.FileName;
             if (!File.Exists(exe))
