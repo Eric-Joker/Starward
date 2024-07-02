@@ -187,6 +187,10 @@ public sealed partial class SelectGamePage : PageBase
                 ComboBox_GameServer.Items.Add(new ComboBoxItem { Content = GameBiz.hkrpg_global.ToGameServer(), Tag = GameBiz.hkrpg_global });
                 ComboBox_GameServer.Items.Add(new ComboBoxItem { Content = GameBiz.hkrpg_bilibili.ToGameServer(), Tag = GameBiz.hkrpg_bilibili });
             }
+            if (item.Tag is GameBiz.ZZZ)
+            {
+                ComboBox_GameServer.Items.Add(new ComboBoxItem { Content = GameBiz.nap_cn.ToGameServer(), Tag = GameBiz.nap_cn });
+            }
         }
     }
 

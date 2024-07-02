@@ -163,6 +163,7 @@ public class LauncherContentService
                 GameBiz.Honkai3rd => Path.Combine(baseFolder, @"Assets\Image\poster_honkai.png"),
                 GameBiz.GenshinImpact => Path.Combine(baseFolder, @"Assets\Image\poster_genshin.png"),
                 GameBiz.StarRail => Path.Combine(baseFolder, @"Assets\Image\poster_starrail.png"),
+                GameBiz.ZZZ => Path.Combine(baseFolder, @"Assets\Image\poster_zzz.png"),
                 _ => null,
             };
             if (File.Exists(path))

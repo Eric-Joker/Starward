@@ -78,7 +78,7 @@ public static class EnumExtension
     {
         return (int)biz switch
         {
-            11 or 13 or 14 or 21 or 24 or 31 => true,
+            11 or 13 or 14 or 21 or 24 or 31 or 41 => true,
             _ => false,
         };
     }
@@ -88,7 +88,7 @@ public static class EnumExtension
     {
         return (int)biz switch
         {
-            12 or 22 or (>= 32 and <= 36) => true,
+            12 or 22 or (>= 32 and <= 36) or 42 => true,
             _ => false,
         };
     }

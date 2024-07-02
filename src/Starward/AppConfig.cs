@@ -254,6 +254,7 @@ internal static class AppConfig
             sc.AddSingleton<Honkai3rdInstallGameService>();
             sc.AddSingleton<GenshinInstallGameService>();
             sc.AddSingleton<StarRailInstallGameService>();
+            sc.AddSingleton<ZZZInstallGameService>();
 
             _serviceProvider = sc.BuildServiceProvider();
             if (!string.IsNullOrWhiteSpace(UserDataFolder))

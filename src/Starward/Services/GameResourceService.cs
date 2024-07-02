@@ -125,10 +125,10 @@ internal class GameResourceService
         {
             return GameBiz.None;
         }
-        if (biz is GameBiz.nap_cn)
+        /*if (biz is GameBiz.nap_cn)
         {
             return GameBiz.nap_cn;
-        }
+        }*/
         GameBiz gameBiz = GameBiz.None;
         var config = Path.Join(installPath, "config.ini");
         if (File.Exists(config))

@@ -37,9 +37,9 @@ internal class GameAccountService
         var key = biz.GetGameRegistryKey();
         var keyName = (int)biz switch
         {
-            11 or 21 or 31 or 14 or 24 => GameRegistry.MIHOYOSDK_ADL_PROD_CN_h3123967166,
+            11 or 21 or 31 or 14 or 24 or 41=> GameRegistry.MIHOYOSDK_ADL_PROD_CN_h3123967166,
             13 => GameRegistry.MIHOYOSDK_ADL_0,
-            12 or 22 or (>= 32 and <= 36) => GameRegistry.MIHOYOSDK_ADL_PROD_OVERSEA_h1158948810,
+            12 or 22 or (>= 32 and <= 36) or 42=> GameRegistry.MIHOYOSDK_ADL_PROD_OVERSEA_h1158948810,
             _ => throw new ArgumentOutOfRangeException($"Unknown region {biz}"),
         };
 
@@ -172,9 +172,9 @@ internal class GameAccountService
         var key = account.GameBiz.GetGameRegistryKey();
         var keyName = (int)account.GameBiz switch
         {
-            11 or 21 or 31 or 14 or 24 => GameRegistry.MIHOYOSDK_ADL_PROD_CN_h3123967166,
+            11 or 21 or 31 or 14 or 24 or 41 => GameRegistry.MIHOYOSDK_ADL_PROD_CN_h3123967166,
             13 => GameRegistry.MIHOYOSDK_ADL_0,
-            12 or 22 or (>= 32 and <= 36) => GameRegistry.MIHOYOSDK_ADL_PROD_OVERSEA_h1158948810,
+            12 or 22 or (>= 32 and <= 36) or 42 => GameRegistry.MIHOYOSDK_ADL_PROD_OVERSEA_h1158948810,
             _ => throw new ArgumentOutOfRangeException($"Unknown region {account.GameBiz}"),
         };
         Registry.SetValue(key, keyName, account.Value);
