@@ -145,7 +145,7 @@ public sealed partial class GameLauncherPage : PageBase
             OnPropertyChanged(nameof(EnableCustomBg));
 #pragma warning restore MVVMTK0034 // Direct field reference to [ObservableProperty] backing field 
             CustomBg = AppConfig.GetCustomBg(CurrentGameBiz);
-            if (CurrentGameBiz is GameBiz.hk4e_cloud)
+            if (CurrentGameBiz == GameBiz.clgm_cn)
             {
                 Button_UninstallGame.IsEnabled = false;
                 Button_SettingRepairGame.IsEnabled = false;
@@ -176,7 +176,7 @@ public sealed partial class GameLauncherPage : PageBase
     {
         try
         {
-            if (CurrentGameBiz is GameBiz.hk4e_cloud)
+            if (CurrentGameBiz == GameBiz.clgm_cn)
             {
                 GameBannerAndPost.GameContent = await _hoYoPlayService.GetGameContentAsync(GameBiz.hk4e_cn);
             }
@@ -201,7 +201,7 @@ public sealed partial class GameLauncherPage : PageBase
     {
         try
         {
-            if (AppConfig.DisableGameNoticeRedHot || AppConfig.DisableGameAccountSwitcher || CurrentGameBiz.IsBilibiliServer())
+            if (AppConfig.DisableGameNoticeRedHot || AppConfig.DisableGameAccountSwitcher || CurrentGameBiz.IsBilibili())
             {
                 GameBannerAndPost.IsGameNoticesAlert = false;
                 return;
@@ -286,7 +286,7 @@ public sealed partial class GameLauncherPage : PageBase
     private string? hardLinkPath;
 
 
-    public bool IsGameSupportRepair => CurrentGameBiz.ToGame() != GameBiz.None && CurrentGameBiz != GameBiz.hk4e_cloud;
+    public bool IsGameSupportRepair => CurrentGameBiz.ToGame() != GameBiz.None && CurrentGameBiz != GameBiz.clgm_cn;
 
 
     public bool IsStartGameButtonEnable => LocalGameVersion != null && LocalGameVersion >= LatestGameVersion && IsGameExeExists && !IsGameRunning;
@@ -523,7 +523,7 @@ public sealed partial class GameLauncherPage : PageBase
     {
         try
         {
-            if (AppConfig.DisableGameAccountSwitcher || CurrentGameBiz.IsBilibiliServer())
+            if (AppConfig.DisableGameAccountSwitcher || CurrentGameBiz.IsBilibili())
             {
                 StackPanel_Account.Visibility = Visibility.Collapsed;
                 return;
@@ -833,7 +833,7 @@ public sealed partial class GameLauncherPage : PageBase
     {
         try
         {
-            if (CurrentGameBiz is GameBiz.hk4e_cloud)
+            if (CurrentGameBiz == GameBiz.clgm_cn)
             {
                 await Launcher.LaunchUriAsync(new Uri("https://ys.mihoyo.com/cloud/#/download"));
                 return;
@@ -1055,7 +1055,7 @@ public sealed partial class GameLauncherPage : PageBase
     {
         try
         {
-            if (CurrentGameBiz is GameBiz.hk4e_cloud)
+            if (CurrentGameBiz == GameBiz.clgm_cn)
             {
                 await Launcher.LaunchUriAsync(new Uri("https://ys.mihoyo.com/cloud/#/download"));
                 return;
