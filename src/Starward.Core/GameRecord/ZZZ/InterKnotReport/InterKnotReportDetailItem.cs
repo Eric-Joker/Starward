@@ -1,4 +1,5 @@
 ﻿using Starward.Core.GameRecord.Genshin.SpiralAbyss;
+using Starward.Core.JsonConverter;
 using System.Text.Json.Serialization;
 
 namespace Starward.Core.GameRecord.ZZZ.InterKnotReport;
@@ -25,7 +26,7 @@ public class InterKnotReportDetailItem
 
 
     [JsonPropertyName("time")]
-    [JsonConverter(typeof(SpiralAbyssTimeJsonConverter))]
+    [JsonConverter(typeof(TimestampStringJsonConverter))]
     public DateTimeOffset Time { get; set; }
 
 
