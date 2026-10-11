@@ -3,6 +3,7 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Starward.Core.GameRecord;
 using Starward.Frameworks;
+using System;
 using Windows.Graphics;
 
 
@@ -17,6 +18,8 @@ public sealed partial class BattleChronicleWindow : WindowEx
     {
         this.InitializeComponent();
         InitializeWindow();
+        // 网页里的登录按钮点了没反应：桥收下消息后没有回话，这里往上抛给工具箱页处理。
+        bbsWebBridge.LoginRequested += (_, _) => LoginRequested?.Invoke(this, EventArgs.Empty);
     }
 
 
@@ -53,6 +56,12 @@ public sealed partial class BattleChronicleWindow : WindowEx
 
 
     public GameRecordRole? CurrentRole { get; set => SetProperty(ref field, value); }
+
+
+
+
+    /// <summary>网页里请求登录，由工具箱页决定打开哪个登录入口。</summary>
+    public event EventHandler? LoginRequested;
 
 
 

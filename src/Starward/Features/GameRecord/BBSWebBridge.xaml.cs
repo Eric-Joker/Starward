@@ -111,6 +111,10 @@ public sealed partial class BBSWebBridge : UserControl
     public event EventHandler<object> WebPageClosed;
 
 
+    /// <summary>网页里点了登录：桥本身不做登录，交给宿主页面打开应用自己的登录入口。</summary>
+    public event EventHandler? LoginRequested;
+
+
 
     private async Task InitializeWebViewAsync()
     {
@@ -132,8 +136,9 @@ public sealed partial class BBSWebBridge : UserControl
             var coreWebView2 = webview2.CoreWebView2;
             coreWebView2.Settings.UserAgent = _gameRecordClient.UAContent;
 
-            coreWebView2.NavigationStarting -= Corewebview2_NavigationStarting;
-            coreWebView2.NavigationStarting += Corewebview2_NavigationStarting;
+            // 每个文档一创建就注入桥，别再挂在 NavigationStarting 上：
+            // 那时脚本还没落地，页面里的 mhyWebBridge 可能一个都不存在。
+            await coreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(miHoYoJSInterface);
             coreWebView2.DOMContentLoaded -= Corewebview2_DOMContentLoaded;
             coreWebView2.DOMContentLoaded += Corewebview2_DOMContentLoaded;
             coreWebView2.WebMessageReceived -= CoreWebView2_WebMessageReceived;
@@ -212,7 +217,9 @@ public sealed partial class BBSWebBridge : UserControl
         }
         foreach (var item in cookies)
         {
-            var kv = item.Split('=');
+            // 只按第一个等号切分：cookie_token 这类值本身就是 base64，
+            // 末尾的 '=' 用 Split('=') 会被当成新的键值对，整条凭据就丢了。
+            var kv = item.Split('=', 2);
             if (kv.Length == 2)
             {
                 var key = kv[0].Trim();
@@ -233,16 +240,6 @@ public sealed partial class BBSWebBridge : UserControl
 
     #region Core WebView
 
-
-
-    private async void Corewebview2_NavigationStarting(Microsoft.Web.WebView2.Core.CoreWebView2 sender, Microsoft.Web.WebView2.Core.CoreWebView2NavigationStartingEventArgs args)
-    {
-        try
-        {
-            await webview2.ExecuteScriptAsync(miHoYoJSInterface);
-        }
-        catch { }
-    }
 
 
     private async void Corewebview2_DOMContentLoaded(Microsoft.Web.WebView2.Core.CoreWebView2 sender, Microsoft.Web.WebView2.Core.CoreWebView2DOMContentLoadedEventArgs args)
@@ -314,7 +311,8 @@ public sealed partial class BBSWebBridge : UserControl
             "closePage" => ClosePage(param),
             "configure_share" => null,
             "eventTrack" => null,
-            //"getActionTicket" => await GetActionTicketAsync(param),
+            // 网页登录拿不到 action ticket，明确回一个错误，比不回应让它一直等下去好。
+            "getActionTicket" => new JsResult { Code = -1, Message = "Action tickets are not available with web login credentials." },
             "getCookieInfo" => GetCookieInfo(param),
             "getCookieToken" => GetCookieToken(param),
             "getDS" => GetDynamicSecrectV1(param),
@@ -323,7 +321,7 @@ public sealed partial class BBSWebBridge : UserControl
             "getStatusBarHeight" => GetStatusBarHeight(param),
             "getUserInfo" => GetUserInfo(param),
             "hideLoading" => null,
-            "login" => null,
+            "login" => RequestLogin(),
             "pushPage" => PushPage(param),
             "showLoading" => null,
             "share" => await HandleShareAsync(param),
@@ -331,6 +329,16 @@ public sealed partial class BBSWebBridge : UserControl
             _ => null,
         };
     }
+
+
+
+    /// <summary>网页里点了登录：把请求抛给宿主，登录怎么走由宿主页面决定。</summary>
+    private JsResult? RequestLogin()
+    {
+        LoginRequested?.Invoke(this, EventArgs.Empty);
+        return null;
+    }
+
 
 
 

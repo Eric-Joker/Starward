@@ -95,14 +95,30 @@ public sealed partial class GameLauncherPage : PageBase
         {
             Button_CloudGame.Visibility = Microsoft.UI.Xaml.Visibility.Visible;
         }
-        if (feature.SupportGameAccountSwitcher && AppConfig.EnableGameAccountSwitcher)
-        {
-            EnableGameAccountSwitcher = true;
-        }
+        // 账号中心只负责账号池，某个游戏用哪个账号在这里切换，显隐见 UpdateGameAccountSwitcherVisibility。
+        UpdateGameAccountSwitcherVisibility();
     }
 
 
-    public bool EnableGameAccountSwitcher { get; set => SetProperty(ref field, value); }
+    public bool ShowGameAccountSwitcher { get; set => SetProperty(ref field, value); }
+
+
+    /// <summary>
+    /// 启动页要不要显示游戏账号切换器。
+    /// <list type="bullet">
+    /// <item>「基于注册表的游戏账号切换」打开时显示：切账号就是读写游戏客户端自己记住的那份数据
+    /// （国际服和 B 服只能用这一套）；</item>
+    /// <item>这套没打开时国服走的是「米游社账号 + 启动参数」那条线：选中哪个账号，启动游戏时就用它签的
+    /// 授权票据登录。<b>关掉「启动时自动登录」之后这条线不再起作用</b>，切换器也就没有意义了，这时隐藏它。</item>
+    /// </list>
+    /// </summary>
+    private void UpdateGameAccountSwitcherVisibility()
+    {
+        GameFeatureConfig feature = GameFeatureConfig.FromGameId(CurrentGameId);
+        bool registrySwitcher = AppConfig.EnableRegistryGameAccountSwitcher;
+        bool passportSwitcher = CurrentGameBiz.IsChinaServer() && AppConfig.GetEnableAuthTicketLogin(CurrentGameBiz);
+        ShowGameAccountSwitcher = feature.SupportGameAccountSwitcher && (registrySwitcher || passportSwitcher);
+    }
 
 
 
@@ -912,6 +928,8 @@ public sealed partial class GameLauncherPage : PageBase
     private async Task OpenGameLauncherSettingDialogAsync()
     {
         await new GameLauncherSettingDialog { CurrentGameId = this.CurrentGameId, XamlRoot = this.XamlRoot }.ShowAsync();
+        // 对话框里可能改了这个游戏的「启动时自动登录」，账号切换器的显隐要跟着它走。
+        UpdateGameAccountSwitcherVisibility();
     }
 
 

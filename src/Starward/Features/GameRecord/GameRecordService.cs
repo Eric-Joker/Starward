@@ -223,6 +223,78 @@ internal class GameRecordService
 
 
 
+    /// <summary>
+    /// 按 UID 查询米游社账号。
+    /// </summary>
+    public GameRecordUser? GetRecordUser(long uid, bool isHoyolab)
+    {
+        using var dapper = DatabaseService.CreateConnection();
+        return dapper.QueryFirstOrDefault<GameRecordUser>("SELECT * FROM GameRecordUser WHERE Uid = @uid AND IsHoyolab = @isHoyolab LIMIT 1;", new { uid, isHoyolab });
+    }
+
+
+
+    /// <summary>
+    /// 只更新账号与角色的 Cookie，不请求任何接口。
+    /// 用于通行证令牌刷新后同步工具箱的鉴权数据。
+    /// <para>
+    /// 一个米游社账号在工具箱里可能对应多个游戏角色（不同游戏，甚至同一个游戏的多个账号），
+    /// 它们的 Cookie 是同一份鉴权信息，必须一起换掉，否则刷新令牌后工具箱里会留着旧的 Cookie。
+    /// 角色表里的 Uid 是游戏内 UID 而不是米游社 ID，所以这里按 Cookie 里的 account_id 对应。
+    /// </para>
+    /// </summary>
+    public void UpdateRecordUserCookie(long uid, bool isHoyolab, string cookie)
+    {
+        if (string.IsNullOrWhiteSpace(cookie))
+        {
+            return;
+        }
+        using var dapper = DatabaseService.CreateConnection();
+        string? oldCookie = dapper.QueryFirstOrDefault<string>("SELECT Cookie FROM GameRecordUser WHERE Uid = @uid AND IsHoyolab = @isHoyolab LIMIT 1;", new { uid, isHoyolab });
+        using var t = dapper.BeginTransaction();
+        dapper.Execute("UPDATE GameRecordUser SET Cookie = @cookie WHERE Uid = @uid AND IsHoyolab = @isHoyolab;", new { uid, isHoyolab, cookie }, t);
+        foreach (var role in dapper.Query<GameRecordRole>("SELECT * FROM GameRecordRole;", transaction: t))
+        {
+            bool sameAccount = GetCookieAccountId(role.Cookie) == uid;
+            bool sameCookie = !string.IsNullOrWhiteSpace(oldCookie) && string.Equals(role.Cookie, oldCookie, StringComparison.Ordinal);
+            if (sameAccount || sameCookie)
+            {
+                dapper.Execute("UPDATE GameRecordRole SET Cookie = @cookie WHERE GameBiz = @GameBiz AND Uid = @Uid;", new { cookie, role.GameBiz, role.Uid }, t);
+            }
+        }
+        t.Commit();
+    }
+
+
+
+
+    /// <summary>从工具箱 Cookie 里读出米游社账号 ID（account_id 或 luid）。读不到时返回 0。</summary>
+    public static long GetCookieAccountId(string? cookie)
+    {
+        if (string.IsNullOrWhiteSpace(cookie))
+        {
+            return 0;
+        }
+        foreach (string part in cookie.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            int index = part.IndexOf('=');
+            if (index <= 0)
+            {
+                continue;
+            }
+            if (part.AsSpan(0, index).Trim() is "account_id" or "ltuid")
+            {
+                if (long.TryParse(part.AsSpan(index + 1).Trim(), out long value))
+                {
+                    return value;
+                }
+            }
+        }
+        return 0;
+    }
+
+
+
     public async Task RefreshAllGameRolesInfoAsync()
     {
         var users = GetRecordUsers();
@@ -231,6 +303,42 @@ internal class GameRecordService
             await AddRecordUserAsync(user.Cookie!);
             await AddGameRolesAsync(user.Cookie!);
         }
+    }
+
+
+
+
+    /// <summary>
+    /// 刷新米游社账号的资料：昵称和头像。账号中心显示的就是这份资料，
+    /// 每个账号一次请求，不拉取游戏角色。
+    /// </summary>
+    public async Task<int> RefreshMiyousheAccountInfoAsync(CancellationToken cancellationToken = default)
+    {
+        int count = 0;
+        bool isHoyolab = IsHoyolab;
+        try
+        {
+            // 通行证账号只在国服，工具箱资料要走国服接口。
+            IsHoyolab = false;
+            foreach (var user in GetRecordUsers())
+            {
+                if (string.IsNullOrWhiteSpace(user.Cookie))
+                {
+                    continue;
+                }
+                await AddRecordUserAsync(user.Cookie, cancellationToken);
+                count++;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Refresh miyoushe account info");
+        }
+        finally
+        {
+            IsHoyolab = isHoyolab;
+        }
+        return count;
     }
 
 
@@ -280,6 +388,214 @@ internal class GameRecordService
         t.Commit();
         return deletedUser;
     }
+
+
+
+    #endregion
+
+
+
+
+    #region 刷新工具箱数据
+
+
+
+
+    /// <summary>
+    /// 刷新已经 pin 的国服游戏在工具箱里的全部数据。
+    /// <para>
+    /// 只刷新 pin 过的游戏，而且每个游戏只刷新当前选中的那个角色：
+    /// 工具箱的每个项目都是一次请求，把所有游戏的所有角色一起刷新会发出太多请求。
+    /// </para>
+    /// </summary>
+    public async Task<(int Games, int Succeeded, int Failed)> RefreshPinnedGamesToolboxDataAsync(CancellationToken cancellationToken = default)
+    {
+        int games = 0;
+        int succeeded = 0;
+        int failed = 0;
+        bool isHoyolab = IsHoyolab;
+        try
+        {
+            // 通行证账号只在国服，工具箱数据要走国服接口。
+            IsHoyolab = false;
+            await UpdateDeviceFpAsync(cancellationToken: cancellationToken);
+            foreach (GameBiz gameBiz in GetPinnedChinaGameBizs())
+            {
+                var role = GetLastSelectGameRecordRoleOrTheFirstOne(gameBiz);
+                if (role is null)
+                {
+                    continue;
+                }
+                games++;
+                var (ok, error) = await RefreshToolboxDataAsync(role, cancellationToken);
+                succeeded += ok;
+                failed += error;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Refresh pinned games toolbox data");
+        }
+        finally
+        {
+            IsHoyolab = isHoyolab;
+        }
+        return (games, succeeded, failed);
+    }
+
+
+
+
+    /// <summary>已经 pin 到待选区的国服游戏。</summary>
+    private static IEnumerable<GameBiz> GetPinnedChinaGameBizs()
+    {
+        foreach (string str in AppConfig.SelectedGameBizs?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) ?? [])
+        {
+            if (GameBiz.TryParse(str, out GameBiz gameBiz) && gameBiz.IsChinaServer())
+            {
+                yield return gameBiz;
+            }
+        }
+    }
+
+
+
+
+    /// <summary>
+    /// 刷新一个游戏角色在工具箱里所有能刷新的项目：各种深渊记录、月报的近三个月、模拟宇宙等。
+    /// 每个项目对应一次请求，单个项目失败不影响其它项目。
+    /// </summary>
+    public async Task<(int Succeeded, int Failed)> RefreshToolboxDataAsync(GameRecordRole role, CancellationToken cancellationToken = default)
+    {
+        int succeeded = 0;
+        int failed = 0;
+        if (role is null || role.Uid <= 0 || string.IsNullOrWhiteSpace(role.Cookie))
+        {
+            return (0, 0);
+        }
+        async Task RefreshAsync(Func<Task> action)
+        {
+            try
+            {
+                await action();
+                succeeded++;
+            }
+            catch (Exception ex)
+            {
+                failed++;
+                _logger.LogError(ex, "Refresh toolbox data ({gameBiz}, {uid})", role.GameBiz, role.Uid);
+            }
+        }
+        GameBiz.TryParse(role.GameBiz, out GameBiz gameBiz);
+        switch (gameBiz.Game)
+        {
+            case GameBiz.hk4e:
+                await RefreshAsync(() => RefreshSpiralAbyssInfoAsync(role, 1, cancellationToken));
+                await RefreshAsync(() => RefreshSpiralAbyssInfoAsync(role, 2, cancellationToken));
+                await RefreshAsync(() => RefreshImaginariumTheaterInfoAsync(role, cancellationToken));
+                await RefreshAsync(() => RefreshStygianOnslaughtInfosAsync(role, cancellationToken));
+                await RefreshAsync(() => RefreshTravelersDiaryAsync(role, cancellationToken));
+                break;
+            case GameBiz.hkrpg:
+                await RefreshAsync(() => RefreshForgottenHallInfoAsync(role, 1, cancellationToken));
+                await RefreshAsync(() => RefreshForgottenHallInfoAsync(role, 2, cancellationToken));
+                await RefreshAsync(() => RefreshPureFictionInfoAsync(role, 1, cancellationToken));
+                await RefreshAsync(() => RefreshPureFictionInfoAsync(role, 2, cancellationToken));
+                await RefreshAsync(() => RefreshApocalypticShadowInfoAsync(role, 1, cancellationToken));
+                await RefreshAsync(() => RefreshApocalypticShadowInfoAsync(role, 2, cancellationToken));
+                await RefreshAsync(() => RefreshStarRailChallengePeakDataAsync(role, cancellationToken));
+                await RefreshAsync(() => GetSimulatedUniverseInfoAsync(role, true));
+                await RefreshAsync(() => RefreshTrailblazeCalendarAsync(role, cancellationToken));
+                break;
+            case GameBiz.nap:
+                await RefreshAsync(() => RefreshShiyuDefenseInfoAsync(role, 1, cancellationToken));
+                await RefreshAsync(() => RefreshShiyuDefenseInfoAsync(role, 2, cancellationToken));
+                await RefreshAsync(() => RefreshDeadlyAssaultInfoAsync(role, 1, cancellationToken));
+                await RefreshAsync(() => RefreshDeadlyAssaultInfoAsync(role, 2, cancellationToken));
+                await RefreshAsync(() => RefreshInterKnotReportAsync(role, cancellationToken));
+                break;
+        }
+        return (succeeded, failed);
+    }
+
+
+
+
+    /// <summary>旅行者札记：当前月，以及最近三个月的月报与明细。</summary>
+    private async Task RefreshTravelersDiaryAsync(GameRecordRole role, CancellationToken cancellationToken)
+    {
+        var summary = await GetTravelersDiarySummaryAsync(role, 0);
+        foreach (int month in RecentMonths(summary?.OptionalMonth, DateTimeOffset.Now.Month, 3))
+        {
+            await GetTravelersDiarySummaryAsync(role, month);
+            await GetTravelersDiaryDetailAsync(role, month, 1);
+            await GetTravelersDiaryDetailAsync(role, month, 2);
+        }
+    }
+
+
+
+
+    /// <summary>开拓月历：当前月，以及最近三个月的月报与明细。</summary>
+    private async Task RefreshTrailblazeCalendarAsync(GameRecordRole role, CancellationToken cancellationToken)
+    {
+        var summary = await GetTrailblazeCalendarSummaryAsync(role, "");
+        foreach (string month in RecentMonths(summary?.OptionalMonth, 3))
+        {
+            await GetTrailblazeCalendarSummaryAsync(role, month);
+            await GetTrailblazeCalendarDetailAsync(role, month, 1);
+            await GetTrailblazeCalendarDetailAsync(role, month, 2);
+        }
+    }
+
+
+
+
+    /// <summary>绳网月报：当前月，以及最近三个月的月报与明细。</summary>
+    private async Task RefreshInterKnotReportAsync(GameRecordRole role, CancellationToken cancellationToken)
+    {
+        var summary = await GetInterKnotReportSummaryAsync(role, "");
+        foreach (string month in RecentMonths(summary?.OptionalMonth, 3))
+        {
+            var monthSummary = await GetInterKnotReportSummaryAsync(role, month);
+            foreach (string? type in monthSummary?.MonthData?.List?.Select(x => x.DataType) ?? [])
+            {
+                if (!string.IsNullOrWhiteSpace(type))
+                {
+                    await GetInterKnotReportDetailAsync(role, month, type);
+                }
+            }
+        }
+    }
+
+
+
+
+    /// <summary>可选月份里离当前月最近的几个月，由近到远。月份只有 1-12，需要按循环距离排序。</summary>
+    private static IEnumerable<int> RecentMonths(IEnumerable<int>? optionalMonth, int currentMonth, int count)
+    {
+        return (optionalMonth ?? []).Distinct()
+                                    .OrderBy(x =>
+                                    {
+                                        int distance = currentMonth - x;
+                                        while (distance < 0)
+                                        {
+                                            distance += 12;
+                                        }
+                                        return distance;
+                                    })
+                                    .Take(count);
+    }
+
+
+
+
+    /// <summary>可选月份（yyyyMM）里最近的几个月，由近到远。</summary>
+    private static IEnumerable<string> RecentMonths(IEnumerable<string>? optionalMonth, int count)
+    {
+        return (optionalMonth ?? []).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().OrderByDescending(x => x).Take(count);
+    }
+
 
 
 

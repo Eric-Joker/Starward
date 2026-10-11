@@ -259,6 +259,7 @@ internal static class DatabaseService
         Sql_v19,
         Sql_v20,
         Sql_v21,
+        Sql_v22,
     ];
 
 
@@ -1055,6 +1056,28 @@ internal static class DatabaseService
         CREATE UNIQUE INDEX IF NOT EXISTS IX_PlayTimeStats_GameBiz_StartTime_Pid ON PlayTimeStats (GameBiz, StartTime, Pid);
 
         PRAGMA USER_VERSION = 21;
+        COMMIT TRANSACTION;
+        """;
+
+    private const string Sql_v22 = """
+        BEGIN TRANSACTION;
+
+        CREATE TABLE IF NOT EXISTS PassportAccount
+        (
+            Key         TEXT    NOT NULL PRIMARY KEY,
+            Aid         INTEGER NOT NULL,
+            Mid         TEXT,
+            Nickname    TEXT,
+            AccountName TEXT,
+            LoginMethod TEXT,
+            LoginTime   TEXT    NOT NULL,
+            Token       BLOB    NOT NULL,
+            Time        TEXT    NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS IX_PassportAccount_Aid ON PassportAccount (Aid);
+        CREATE INDEX IF NOT EXISTS IX_PassportAccount_Time ON PassportAccount (Time);
+
+        PRAGMA USER_VERSION = 22;
         COMMIT TRANSACTION;
         """;
 

@@ -9,6 +9,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:sch="using:Starward.Core.HoYoPlay"
              xmlns:sf="using:Starward.Frameworks"
+             xmlns:sfa="using:Starward.Features.Account"
              xmlns:sfc="using:Starward.Features.CloudGame"
              xmlns:sfg="using:Starward.Features.GameInstall"
              xmlns:sfga="using:Starward.Features.GameAccount"
@@ -633,12 +634,12 @@
 
         </Grid>
 
-        <!--  游戏账号切换  -->
+        <!--  游戏账号切换（基于注册表，每个游戏各记一份）  -->
         <sfga:GameAccountSwitcher x:Name="GameLauncherPage_GameAccountSwitcher"
                                   Margin="0,0,40,100"
                                   HorizontalAlignment="Right"
                                   VerticalAlignment="Bottom"
-                                  x:Load="{x:Bind EnableGameAccountSwitcher}"
+                                  x:Load="{x:Bind ShowGameAccountSwitcher}"
                                   CurrentGameBiz="{x:Bind CurrentGameBiz}" />
 
         <!--  崩坏三区服选择  -->
@@ -673,10 +674,6 @@
             <sfgd:DailyNoteButton Width="40"
                                   Height="40"
                                   CurrentGameId="{x:Bind CurrentGameId}" />
-            <!--  通行证授权登录  -->
-            <local:GameAuthLoginButton Width="40"
-                                       Height="40"
-                                       CurrentGameId="{x:Bind CurrentGameId}" />
         </StackPanel>
 
     </Grid>

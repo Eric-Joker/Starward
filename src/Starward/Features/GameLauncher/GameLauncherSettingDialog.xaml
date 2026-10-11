@@ -402,6 +402,28 @@
                 <FlipViewItem>
                     <StackPanel Spacing="12">
 
+                        <!--  游戏启动后  -->
+                        <TextBlock Text="{x:Bind lang:Lang.ExperienceSettingPage_AfterStartingGame}" />
+                        <ComboBox Name="ComboBox_AfterStartGameAction"
+                                  Height="36"
+                                  MinWidth="280"
+                                  Padding="18.5,0,0,0"
+                                  BorderThickness="0"
+                                  CornerRadius="8"
+                                  SelectedIndex="{x:Bind StartGameAction, Mode=TwoWay}">
+                            <ComboBoxItem Content="{x:Bind lang:Lang.ExperienceSettingPage_DoNothing}" Tag="{x:Bind local:StartGameAction.DoNothing}" />
+                            <ComboBoxItem Content="{x:Bind lang:Lang.ExperienceSettingPage_MinimizeToTaskbar}" Tag="{x:Bind local:StartGameAction.Minimize}" />
+                            <ComboBoxItem Content="{x:Bind lang:Lang.ExperienceSettingPage_MinimizeToSystemTray}" Tag="{x:Bind local:StartGameAction.Hide}" />
+                        </ComboBox>
+
+                        <!--  启动游戏时自动登录：只有国服能申请授权票据，国际服不显示这个开关  -->
+                        <ToggleSwitch x:Name="ToggleSwitch_AutoLogin"
+                                      Margin="0,12,0,-4"
+                                      FontSize="14"
+                                      IsOn="{x:Bind EnableAuthTicketLogin, Mode=TwoWay}"
+                                      OffContent="{x:Bind lang:Lang.PassportLogin_AutoLogin}"
+                                      OnContent="{x:Bind lang:Lang.PassportLogin_AutoLogin}" />
+
                         <TextBlock Text="{x:Bind lang:Lang.GameLauncherSettingDialog_CommandLineArgument}" />
 
                         <!--  命令行参数  -->
@@ -415,20 +437,6 @@
                                 <Run Text="{x:Bind lang:Lang.GameLauncherSettingDialog_SeeMoreInformationAboutCommandLineArgument}" />
                             </Hyperlink>
                         </TextBlock>
-
-                        <!--  游戏启动后  -->
-                        <TextBlock Margin="0,12,0,0" Text="{x:Bind lang:Lang.ExperienceSettingPage_AfterStartingGame}" />
-                        <ComboBox Name="ComboBox_AfterStartGameAction"
-                                  Height="36"
-                                  MinWidth="280"
-                                  Padding="18.5,0,0,0"
-                                  BorderThickness="0"
-                                  CornerRadius="8"
-                                  SelectedIndex="{x:Bind StartGameAction, Mode=TwoWay}">
-                            <ComboBoxItem Content="{x:Bind lang:Lang.ExperienceSettingPage_DoNothing}" Tag="{x:Bind local:StartGameAction.DoNothing}" />
-                            <ComboBoxItem Content="{x:Bind lang:Lang.ExperienceSettingPage_MinimizeToTaskbar}" Tag="{x:Bind local:StartGameAction.Minimize}" />
-                            <ComboBoxItem Content="{x:Bind lang:Lang.ExperienceSettingPage_MinimizeToSystemTray}" Tag="{x:Bind local:StartGameAction.Hide}" />
-                        </ComboBox>
 
                         <!--  自定义启动程序  -->
                         <ToggleSwitch Margin="0,4,0,-4"

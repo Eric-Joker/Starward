@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml.Media.Animation;
 using NuGet.Versioning;
 using Starward.Core;
 using Starward.Core.HoYoPlay;
+using Starward.Features.Account;
 using Starward.Features.Gacha;
 using Starward.Features.GameLauncher;
 using Starward.Features.GamepadControl;
@@ -19,6 +20,8 @@ using Starward.Features.Setting;
 using Starward.Features.Update;
 using Starward.Helpers;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
@@ -67,6 +70,7 @@ public sealed partial class MainView : UserControl
         WeakReferenceMessenger.Default.Register<MainViewNavigateMessage>(this, OnMainViewNavigateMessageReceived);
         WeakReferenceMessenger.Default.Register<BH3GlobalGameServerChangedMessage>(this, OnBH3GlobalGameServerChanged);
         WeakReferenceMessenger.Default.Register<MainWindowStateChangedMessage>(this, (_, _) => _ = CheckUpdateOrShowRecentUpdateContentAsync());
+        WeakReferenceMessenger.Default.Register<PassportAccountChangedMessage>(this, (_, _) => UpdateAccountEntry());
     }
 
 
@@ -77,6 +81,7 @@ public sealed partial class MainView : UserControl
         CheckSystemProxy();
         HotkeyManager.InitializeHotkey(this.XamlRoot.GetWindowHandle());
         _ = CheckUpdateOrShowRecentUpdateContentAsync();
+        UpdateAccountEntry();
         AppConfig.GetService<RpcService>().TrySetEnviromentAsync();
         LogUploadService.Start();
         if (AppConfig.EnableGamepadController)
@@ -136,6 +141,7 @@ public sealed partial class MainView : UserControl
         NavigationViewItem_HoyolabToolbox.Visibility = CurrentGameFeatureConfig.SupportedPages.Contains(nameof(GameRecordPage)).ToVisibility();
         NavigationViewItem_SelfQuery.Visibility = CurrentGameFeatureConfig.SupportedPages.Contains(nameof(SelfQueryPage)).ToVisibility();
         NavigationViewItem_GenshinBeyondGacha.Visibility = CurrentGameFeatureConfig.SupportedPages.Contains(nameof(GenshinBeyondGachaPage)).ToVisibility();
+        UpdateAccountEntry();
 
         // 抽卡记录名称
         string gachalogText = CurrentGameId?.GameBiz.Game switch
@@ -166,6 +172,74 @@ public sealed partial class MainView : UserControl
             NavigateTo(MainView_Frame.SourcePageType);
         }
     }
+
+
+
+    /// <summary>
+    /// 刷新左侧导航栏里的账号入口：只有国服才有米游社通行证账号，国际服看不到这个入口。
+    /// 外显是列表里至多三个账号头像的叠影，一个账号都没有时退回通用图标。
+    /// </summary>
+    private void UpdateAccountEntry()
+    {
+        try
+        {
+            GameBiz gameBiz = CurrentGameId?.GameBiz ?? AppConfig.CurrentGameBiz;
+            bool visible = gameBiz.IsChinaServer();
+            Button_Account.Visibility = visible.ToVisibility();
+            if (!visible)
+            {
+                return;
+            }
+            var accounts = AppConfig.GetService<PassportAccountService>().GetAccounts();
+            var images = new[] { Image_AccountAvatar_1, Image_AccountAvatar_2, Image_AccountAvatar_3 };
+            int count = Math.Min(accounts.Count, images.Length);
+            // 头像从左到右排在「左 / 中 / 右」三个位置上，整体在按钮里居中：
+            // 三个账号占满三位，两个账号居中排在中间，只有一个账号时它就在中间那一层。
+            const int step = 8;
+            int start = step * (images.Length - count) / 2;
+            for (int i = 0; i < images.Length; i++)
+            {
+                if (i < count)
+                {
+                    images[i].Source = accounts[i].AvatarUrl;
+                    images[i].Margin = new Thickness(start + step * i, 0, 0, 0);
+                    images[i].Visibility = Visibility.Visible;
+                }
+                else
+                {
+                    images[i].Visibility = Visibility.Collapsed;
+                }
+            }
+            Glyph_Account.Visibility = count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            ToolTipService.SetToolTip(Button_Account, Lang.PassportLogin_Accounts);
+        }
+        catch { }
+    }
+
+
+
+
+    private void Flyout_Account_Opening(object? sender, object e)
+    {
+        try
+        {
+            Panel_AccountCenter.Refresh();
+        }
+        catch { }
+    }
+
+
+
+
+    private void Flyout_Account_Closed(object? sender, object e)
+    {
+        try
+        {
+            Panel_AccountCenter.Cleanup();
+        }
+        catch { }
+    }
+
 
 
 

@@ -1,0 +1,417 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<UserControl x:Class="Starward.Features.Account.AccountCenterPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:lang="using:Starward.Language"
+             xmlns:local="using:Starward.Features.Account"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:sc="using:Starward.Controls"
+             x:DefaultBindMode="OneWay"
+             mc:Ignorable="d">
+
+    <!--  宽度不写死：已登录时按底部两个按钮的宽度收缩，登录面板另有自己的宽度  -->
+    <Grid x:Name="RootGrid" MinWidth="240">
+        <!--  输入框与次要按钮也使用半透明的填充，让弹出层的模糊背景透出来  -->
+        <Grid.Resources>
+            <ResourceDictionary>
+                <!--  统一所有控件的圆角，避免同一个弹出层里出现好几种圆角  -->
+                <CornerRadius x:Key="ControlCornerRadius">8</CornerRadius>
+                <!--  输入框的上下内边距按 44 的高度算，文字才会真正垂直居中  -->
+                <Thickness x:Key="TextControlThemePadding">12,11,12,11</Thickness>
+                <ResourceDictionary.ThemeDictionaries>
+                    <ResourceDictionary x:Key="Light">
+                        <SolidColorBrush x:Key="TextControlBackground" Color="#1A000000" />
+                        <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="#24000000" />
+                        <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="#2E000000" />
+                        <SolidColorBrush x:Key="TextControlBackgroundDisabled" Color="#0D000000" />
+                        <SolidColorBrush x:Key="TextControlBorderBrush" Color="#1F000000" />
+                        <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="#33000000" />
+                        <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="#4D000000" />
+                        <SolidColorBrush x:Key="TextControlBorderBrushDisabled" Color="#12000000" />
+                        <SolidColorBrush x:Key="ButtonBackground" Color="#1A000000" />
+                        <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#29000000" />
+                        <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#12000000" />
+                        <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="#0D000000" />
+                        <SolidColorBrush x:Key="ButtonBorderBrush" Color="#1F000000" />
+                        <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="#33000000" />
+                        <SolidColorBrush x:Key="ButtonBorderBrushDisabled" Color="#12000000" />
+                    </ResourceDictionary>
+                    <ResourceDictionary x:Key="Dark">
+                        <SolidColorBrush x:Key="TextControlBackground" Color="#1AFFFFFF" />
+                        <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="#24FFFFFF" />
+                        <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="#2EFFFFFF" />
+                        <SolidColorBrush x:Key="TextControlBackgroundDisabled" Color="#0DFFFFFF" />
+                        <SolidColorBrush x:Key="TextControlBorderBrush" Color="#1FFFFFFF" />
+                        <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="#33FFFFFF" />
+                        <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="#4DFFFFFF" />
+                        <SolidColorBrush x:Key="TextControlBorderBrushDisabled" Color="#12FFFFFF" />
+                        <SolidColorBrush x:Key="ButtonBackground" Color="#1AFFFFFF" />
+                        <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#29FFFFFF" />
+                        <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#12FFFFFF" />
+                        <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="#0DFFFFFF" />
+                        <SolidColorBrush x:Key="ButtonBorderBrush" Color="#1FFFFFFF" />
+                        <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="#33FFFFFF" />
+                        <SolidColorBrush x:Key="ButtonBorderBrushDisabled" Color="#12FFFFFF" />
+                    </ResourceDictionary>
+                </ResourceDictionary.ThemeDictionaries>
+            </ResourceDictionary>
+        </Grid.Resources>
+
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!--  登录  -->
+        <Grid Width="280"
+              Margin="20,14,20,0"
+              Visibility="{x:Bind SignInVisibility}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!--  登录方式：水平居中的一行  -->
+            <SelectorBar x:Name="SelectorBar_Login"
+                         HorizontalAlignment="Center"
+                         SelectionChanged="SelectorBar_Login_SelectionChanged">
+                <SelectorBarItem x:Name="SelectorBarItem_Password"
+                                 IsSelected="True"
+                                 Text="{x:Bind lang:Lang.PassportLogin_TabPassword}" />
+                <SelectorBarItem x:Name="SelectorBarItem_Sms" Text="{x:Bind lang:Lang.PassportLogin_TabSms}" />
+                <SelectorBarItem x:Name="SelectorBarItem_QrCode" Text="{x:Bind lang:Lang.PassportLogin_TabQrCode}" />
+                <SelectorBarItem x:Name="SelectorBarItem_Token" Text="{x:Bind lang:Lang.PassportLogin_TabToken}" />
+            </SelectorBar>
+
+            <Grid Grid.Row="1">
+                <!--  密码  -->
+                <StackPanel Margin="0,18,0,0"
+                            Spacing="14"
+                            Visibility="{x:Bind PasswordPaneVisibility}">
+                    <TextBox x:Name="TextBox_Account"
+                             MinHeight="44"
+                             Padding="12,11,12,11"
+                             VerticalContentAlignment="Center"
+                             FontSize="15"
+                             IsSpellCheckEnabled="False"
+                             PlaceholderText="{x:Bind lang:Lang.PassportLogin_AccountPlaceholder}" />
+                    <PasswordBox x:Name="PasswordBox_Password"
+                                 MinHeight="44"
+                                 Padding="12,11,12,11"
+                                 VerticalContentAlignment="Center"
+                                 FontSize="15"
+                                 PlaceholderText="{x:Bind lang:Lang.PassportLogin_Password}" />
+                    <Button MinHeight="44"
+                            HorizontalAlignment="Stretch"
+                            Click="Button_PasswordLogin_Click"
+                            Content="{x:Bind lang:Lang.PassportLogin_SignIn}"
+                            Style="{ThemeResource AccentButtonStyle}" />
+                </StackPanel>
+
+                <!--  短信验证码：控件间距与密码页、令牌页保持一致  -->
+                <StackPanel Margin="0,18,0,0"
+                            Spacing="14"
+                            Visibility="{x:Bind SmsPaneVisibility}">
+                    <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="TextBox_Mobile"
+                                 MinHeight="44"
+                                 Padding="12,11,12,11"
+                                 VerticalContentAlignment="Center"
+                                 FontSize="15"
+                                 IsSpellCheckEnabled="False"
+                                 PlaceholderText="{x:Bind lang:Lang.PassportLogin_MobilePlaceholder}" />
+                        <Button x:Name="Button_SendSmsCode"
+                                Grid.Column="1"
+                                MinWidth="88"
+                                MinHeight="44"
+                                Click="Button_SendSmsCode_Click"
+                                Content="{x:Bind lang:Lang.PassportLogin_SendSmsCode}" />
+                    </Grid>
+
+                    <PasswordBox x:Name="PasswordBox_SmsCode"
+                                 MinHeight="44"
+                                 Padding="12,11,12,11"
+                                 VerticalContentAlignment="Center"
+                                 FontSize="15"
+                                 MaxLength="6"
+                                 PlaceholderText="{x:Bind lang:Lang.PassportLogin_SmsCode}"
+                                 PasswordChanged="PasswordBox_SmsCode_PasswordChanged" />
+
+                    <Button MinHeight="44"
+                            HorizontalAlignment="Stretch"
+                            Click="Button_SmsLogin_Click"
+                            Content="{x:Bind lang:Lang.PassportLogin_SignIn}"
+                            Style="{ThemeResource AccentButtonStyle}" />
+                </StackPanel>
+
+                <!--  扫码  -->
+                <StackPanel Margin="0,10,0,0"
+                            Spacing="8"
+                            Visibility="{x:Bind QrPaneVisibility}">
+                    <Grid Width="180"
+                          Height="180"
+                          HorizontalAlignment="Center">
+                        <Image x:Name="Image_QrCode"
+                               Source="{x:Bind QrCodeImage}"
+                               Stretch="Uniform"
+                               Visibility="{x:Bind QrCodeVisibility}" />
+                        <ProgressRing Width="32"
+                                      Height="32"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center"
+                                      IsIndeterminate="True"
+                                      Visibility="{x:Bind QrProgressVisibility}" />
+                    </Grid>
+                    <TextBlock HorizontalAlignment="Center"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               Text="{x:Bind QrCodeStatus}"
+                               TextAlignment="Center"
+                               TextWrapping="Wrap" />
+                    <StackPanel HorizontalAlignment="Center"
+                                Orientation="Horizontal"
+                                Spacing="12">
+                        <HyperlinkButton Click="Button_RefreshQrCode_Click"
+                                         Content="{x:Bind lang:Lang.PassportLogin_GetQrCode}"
+                                         Visibility="{x:Bind QrRefreshVisibility}" />
+                        <HyperlinkButton x:Name="Button_SaveQrCode"
+                                         Click="Button_SaveQrCode_Click"
+                                         Content="{x:Bind lang:Lang.PassportLogin_SaveQrCodeImage}"
+                                         Visibility="{x:Bind QrCodeVisibility}" />
+                    </StackPanel>
+                </StackPanel>
+
+                <!--  令牌导入  -->
+                <StackPanel Margin="0,18,0,0"
+                            Spacing="14"
+                            Visibility="{x:Bind TokenPaneVisibility}">
+                    <TextBlock FontSize="12"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               Text="{x:Bind lang:Lang.PassportLogin_TokenTip}"
+                               TextWrapping="Wrap" />
+                    <TextBox x:Name="TextBox_Stoken"
+                             AcceptsReturn="True"
+                             IsSpellCheckEnabled="False"
+                             MaxHeight="68"
+                             MinHeight="44"
+                             Padding="12,11,12,11"
+                             FontSize="15"
+                             VerticalContentAlignment="Center"
+                             PlaceholderText="{x:Bind lang:Lang.PassportLogin_Stoken}"
+                             TextWrapping="Wrap" />
+                    <TextBox x:Name="TextBox_Mid"
+                             MinHeight="44"
+                             Padding="12,11,12,11"
+                             VerticalContentAlignment="Center"
+                             FontSize="15"
+                             IsSpellCheckEnabled="False"
+                             PlaceholderText="{x:Bind lang:Lang.PassportLogin_Mid}" />
+                    <Button MinHeight="44"
+                            HorizontalAlignment="Stretch"
+                            Click="Button_ImportToken_Click"
+                            Content="{x:Bind lang:Lang.PassportLogin_Import}"
+                            Style="{ThemeResource AccentButtonStyle}" />
+                </StackPanel>
+            </Grid>
+
+            <StackPanel Grid.Row="2" Spacing="8">
+                <!--  从账号中心进来添加账号时，可以随时退回账号列表  -->
+                <HyperlinkButton HorizontalAlignment="Center"
+                                 Click="Button_CancelAddAccount_Click"
+                                 Content="{x:Bind lang:Lang.PassportLogin_BackToAccounts}"
+                                 Visibility="{x:Bind AccountCancelVisibility}" />
+                <TextBlock FontSize="12"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           Text="{x:Bind StatusMessage}"
+                           TextAlignment="Center"
+                           TextWrapping="Wrap"
+                           Visibility="{x:Bind StatusVisibility}" />
+                <TextBlock Margin="0,4,0,0"
+                           FontSize="12"
+                           Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                           Text="{x:Bind lang:Lang.PassportLogin_Disclaimer}"
+                           TextAlignment="Center"
+                           TextWrapping="Wrap" />
+            </StackPanel>
+        </Grid>
+
+        <!--  人机验证：直接内嵌在卡片里，不再叠一层对话框；左右不留边距，控件按自身大小铺满  -->
+        <local:PassportCaptchaPanel x:Name="Panel_Captcha"
+                                    Margin="0,12,0,0"
+                                    Visibility="{x:Bind CaptchaVisibility}" />
+
+        <!--  已登录：账号中心。这里是全局的账号池，只负责增删账号和排序；
+              某个游戏用哪个账号，由启动页的游戏账号切换器决定  -->
+        <StackPanel x:Name="Panel_AccountList"
+                    MaxWidth="420"
+                    Margin="20,14,20,0"
+                    Visibility="{x:Bind AccountVisibility}">
+
+            <ListView Name="ListView_Accounts"
+                      MaxHeight="156"
+                      Padding="0"
+                      AllowDrop="True"
+                      CanDragItems="True"
+                      CanReorderItems="True"
+                      DragItemsCompleted="ListView_Accounts_DragItemsCompleted"
+                      IsTabStop="False"
+                      ItemsSource="{x:Bind AccountList}"
+                      SelectionMode="None">
+                <ListView.ItemContainerStyle>
+                    <Style TargetType="ListViewItem">
+                        <Setter Property="Padding" Value="0" />
+                        <Setter Property="MinHeight" Value="0" />
+                        <Setter Property="Margin" Value="0,0,0,4" />
+                        <Setter Property="CornerRadius" Value="8" />
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <!--  列表只是用来显示和拖动排序，不需要焦点框  -->
+                        <Setter Property="UseSystemFocusVisuals" Value="False" />
+                    </Style>
+                </ListView.ItemContainerStyle>
+                <ListView.ItemTemplate>
+                    <DataTemplate x:DataType="local:PassportAccountItem">
+                        <!--  整行占满宽度，和上下的分隔线、按钮对齐  -->
+                        <Grid Height="48">
+                            <Grid ColumnSpacing="10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <!--  米游社头像  -->
+                                <sc:CachedImage Width="32"
+                                                Height="32"
+                                                CornerRadius="100"
+                                                Source="{x:Bind AvatarUrl}" />
+
+                                <StackPanel Grid.Column="1"
+                                            VerticalAlignment="Center"
+                                            Spacing="1">
+                                    <TextBlock FontSize="14"
+                                               Text="{x:Bind DisplayName}"
+                                               TextTrimming="CharacterEllipsis" />
+                                    <TextBlock FontSize="11"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               Text="{x:Bind Detail}" />
+                                </StackPanel>
+
+                                <!--  删除  -->
+                                <Button Grid.Column="2"
+                                        Width="28"
+                                        Height="28"
+                                        Padding="0"
+                                        Style="{ThemeResource DateTimePickerFlyoutButtonStyle}">
+                                    <Button.Flyout>
+                                        <MenuFlyout>
+                                            <MenuFlyoutItem Click="MenuFlyoutItem_RemoveAccount_Click"
+                                                            Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                                                            Tag="{x:Bind Key}"
+                                                            Text="{x:Bind lang:Lang.PassportLogin_RemoveAccount}" />
+                                        </MenuFlyout>
+                                    </Button.Flyout>
+                                    <FontIcon FontSize="12" Glyph="&#xE74D;" />
+                                </Button>
+                            </Grid>
+                        </Grid>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+
+            <!--  账号列表出问题时的提示  -->
+            <TextBlock Margin="0,6,0,0"
+                       FontSize="12"
+                       Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                       Text="{x:Bind AccountErrorMessage}"
+                       TextWrapping="Wrap"
+                       Visibility="{x:Bind AccountErrorVisibility}" />
+
+            <!--  刷新按钮落在分隔线的右端：不额外占一行，上面也不会空出一块；
+                  和每行的删除按钮同一个中心：删除按钮 28 宽、刷新按钮 20 宽，右边留 4 就对齐了  -->
+            <Grid Margin="0,0,0,0">
+                <Rectangle Height="1"
+                           Margin="0,0,28,0"
+                           VerticalAlignment="Center"
+                           Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                <Button x:Name="Button_RefreshInfo"
+                        Width="20"
+                        Height="20"
+                        Margin="0,0,4,0"
+                        Padding="0"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Center"
+                        Click="Button_RefreshInfo_Click"
+                        Style="{ThemeResource DateTimePickerFlyoutButtonStyle}"
+                        ToolTipService.ToolTip="{x:Bind lang:Lang.HoyolabToolboxPage_RefreshInfo}">
+                    <FontIcon FontSize="12" Glyph="&#xE72C;" />
+                </Button>
+            </Grid>
+        </StackPanel>
+
+        <!--  已登录的操作按钮  -->
+        <StackPanel x:Name="Panel_AccountFooter"
+                    Grid.Row="1"
+                    MaxWidth="420"
+                    Margin="20,8,20,12"
+                    Spacing="8"
+                    Visibility="{x:Bind FooterVisibility}">
+            <TextBlock FontSize="12"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       Text="{x:Bind StatusMessage}"
+                       TextAlignment="Center"
+                       TextWrapping="Wrap"
+                       Visibility="{x:Bind AccountStatusVisibility}" />
+
+            <!--  两个按钮各自正好等于自己的文字（图标 + 间距 + 文字），不留拉伸出来的空白；
+                   面板宽度就取这一行的宽度，昵称再长也只在这个宽度里省略  -->
+            <Grid x:Name="Grid_AccountActions"
+                  HorizontalAlignment="Left"
+                  ColumnSpacing="6"
+                  Visibility="{x:Bind AccountVisibility}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!--  添加账号  -->
+                <Button MinWidth="0"
+                        HorizontalContentAlignment="Left"
+                        Click="Button_AddAccount_Click"
+                        Style="{ThemeResource DateTimePickerFlyoutButtonStyle}">
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <FontIcon FontSize="16" Glyph="&#xE710;" />
+                        <TextBlock VerticalAlignment="Center" Text="{x:Bind lang:Lang.PassportLogin_AddAccount}" />
+                    </StackPanel>
+                </Button>
+
+                <!--  更新设备指纹：从米游社工具箱移过来，两个界面的鉴权信息保持一致  -->
+                <Button x:Name="Button_UpdateDeviceFp"
+                        Grid.Column="1"
+                        MinWidth="0"
+                        HorizontalContentAlignment="Left"
+                        Click="Button_UpdateDeviceFp_Click"
+                        Style="{ThemeResource DateTimePickerFlyoutButtonStyle}">
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <FontIcon FontSize="16" Glyph="&#xE928;" />
+                        <TextBlock VerticalAlignment="Center" Text="{x:Bind lang:Lang.HoyolabToolboxPage_UpdateDeviceFingerprint}" />
+                    </StackPanel>
+                </Button>
+            </Grid>
+
+            <TextBlock Margin="0,6,0,0"
+                       FontSize="11"
+                       Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                       Text="{x:Bind lang:Lang.PassportLogin_Disclaimer}"
+                       TextAlignment="Center"
+                       TextWrapping="Wrap"
+                       Visibility="{x:Bind AccountVisibility}" />
+        </StackPanel>
+
+    </Grid>
+
+</UserControl>

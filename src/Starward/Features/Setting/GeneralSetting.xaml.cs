@@ -180,16 +180,16 @@ public sealed partial class GeneralSetting : PageBase
 
 
 
-    public bool EnableGameAccountSwitcher
+    public bool EnableRegistryGameAccountSwitcher
     {
         get; set
         {
             if (SetProperty(ref field, value))
             {
-                AppConfig.EnableGameAccountSwitcher = value;
+                AppConfig.EnableRegistryGameAccountSwitcher = value;
             }
         }
-    } = AppConfig.EnableGameAccountSwitcher;
+    } = AppConfig.EnableRegistryGameAccountSwitcher;
 
 
 
