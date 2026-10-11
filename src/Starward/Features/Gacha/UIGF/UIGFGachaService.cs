@@ -384,6 +384,28 @@ internal class UIGFGachaService
 
 
 
+    /// <summary>
+    /// 按卡池类型推断星铁记录缺失的 gacha_id。
+    /// <para>
+    /// 跃迁记录的 gacha_id 由 <c>gacha_type + 1000</c> 组成，标准里是 required 字段，
+    /// 但很多第三方应用导出时省略它，这里退化成该卡池的常规值而不是拒绝整个文件。
+    /// </para>
+    /// </summary>
+    private static int InferStarRailGachaId(int gachaType)
+    {
+        return gachaType switch
+        {
+            StarRailGachaType.StellarWarp => 1001,
+            StarRailGachaType.DepartureWarp => 4001,
+            StarRailGachaType.CharacterEventWarp => 2003,
+            StarRailGachaType.LightConeEventWarp => 3003,
+            _ => gachaType + 1000,
+        };
+    }
+
+
+
+
     public async Task ImportAsync(params IEnumerable<GachaUidArchiveDisplay> archives)
     {
         foreach (GachaUidArchiveDisplay archive in archives)
@@ -574,7 +596,9 @@ internal class UIGFGachaService
             }
             if (clone.GachaId == 0)
             {
-                throw new UIGF4ImportException(archive.Game, archive.Uid, string.Format(Lang.UIGFGachaService_0FieldIsMissingInAGachaRecord, "gacha_id"));
+                // 部分第三方应用导出的文件省略 gacha_id（标准里是 required，但实际很常见）。
+                // 这里按 gacha_type 推断该卡池的首个 gacha_id，而不是直接拒绝整个文件。
+                clone.GachaId = InferStarRailGachaId(clone.GachaType);
             }
             if (string.IsNullOrWhiteSpace(clone.Name))
             {

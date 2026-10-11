@@ -163,7 +163,8 @@ internal class StarRailGachaService : GachaLogService
     {
         var str = File.ReadAllText(file);
         var obj = JsonSerializer.Deserialize<UIGF3File<StarRailGachaItem>>(str);
-        if (obj != null)
+        // info 缺失说明这不是 SRGF / UIGF v3.0 结构，直接返回而不是抛 NullReferenceException
+        if (obj?.Info is not null)
         {
             string lang = obj.Info.Lang ?? "";
             long uid = obj.Info.Uid;
