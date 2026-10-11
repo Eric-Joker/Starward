@@ -467,6 +467,45 @@ public sealed partial class GameRecordPage : PageBase
 
 
 
+    /// <summary>
+    /// 生成一个设备信息输入框，默认填当前值。
+    /// </summary>
+    private static TextBox CreateDeviceInfoBox(string placeholder, string text)
+    {
+        return new TextBox
+        {
+            IsSpellCheckEnabled = false,
+            PlaceholderText = placeholder,
+            Text = text,
+        };
+    }
+
+
+
+
+    /// <summary>一段小字说明，跟着输入框一起放进弹窗。</summary>
+    private static TextBlock CreateTipText(string text)
+    {
+        return new TextBlock
+        {
+            Text = text,
+            FontSize = 11,
+            TextWrapping = TextWrapping.Wrap,
+            Opacity = 0.7,
+        };
+    }
+
+
+
+
+    /// <summary>
+    /// 输入 Cookie：Cookie 与设备信息都可以单独填，弹窗里会互相解析/回填。
+    /// <para>
+    /// 便笺、绳网月报这些接口只认 <c>x-rpc-device_fp</c>，而服务端签发的指纹不一定被接受，
+    /// 所以额外留一个指纹输入框；留空则沿用已经保存的指纹。
+    /// 任意一栏粘贴整段请求头，其余几栏都会被识别出来。
+    /// </para>
+    /// </summary>
     [RelayCommand]
     private async Task InputCookieAsync()
     {
@@ -476,10 +515,25 @@ public sealed partial class GameRecordPage : PageBase
             {
                 IsSpellCheckEnabled = false,
             };
+            var fpTextBox = CreateDeviceInfoBox(Lang.PassportLogin_DeviceFp, "");
+            var deviceNameBox = CreateDeviceInfoBox(Lang.PassportLogin_DeviceName, AppConfig.HyperionDeviceName);
+            var systemVersionBox = CreateDeviceInfoBox(Lang.PassportLogin_SystemVersion, AppConfig.HyperionSystemVersion);
+            var appVersionBox = CreateDeviceInfoBox(Lang.PassportLogin_AppVersion, AppConfig.HyperionAppVersion);
+            var panel = new StackPanel
+            {
+                Spacing = 8,
+            };
+            panel.Children.Add(textbox);
+            panel.Children.Add(CreateTipText(Lang.PassportLogin_DeviceFpTip));
+            panel.Children.Add(fpTextBox);
+            panel.Children.Add(deviceNameBox);
+            panel.Children.Add(systemVersionBox);
+            panel.Children.Add(appVersionBox);
+            panel.Children.Add(CreateTipText(Lang.PassportLogin_DeviceInfoTip));
             var dialog = new ContentDialog
             {
                 Title = Lang.HoyolabToolboxPage_InputCookie,
-                Content = textbox,
+                Content = panel,
                 PrimaryButtonText = Lang.Common_Confirm,
                 SecondaryButtonText = Lang.Common_Cancel,
                 DefaultButton = ContentDialogButton.Primary,
@@ -489,14 +543,50 @@ public sealed partial class GameRecordPage : PageBase
             if (result is ContentDialogResult.Primary)
             {
                 var cookie = textbox.Text;
+                // 任意一栏粘贴整段请求头，其余几栏都能补全；填过的项不受影响。
+                var info = _gameRecordService.ParseDeviceInfoInputs(
+                    cookie, fpTextBox.Text, deviceNameBox.Text, systemVersionBox.Text, appVersionBox.Text);
+                // 解析结果填回输入框，方便用户核对。
+                fpTextBox.Text = info.DeviceFp ?? "";
+                deviceNameBox.Text = info.DeviceName ?? "";
+                systemVersionBox.Text = info.SystemVersion ?? "";
+                appVersionBox.Text = info.AppVersion ?? "";
+                bool fpSaved = _gameRecordService.SaveDeviceFp(info.DeviceFp);
+                bool infoSaved = _gameRecordService.SaveDeviceInfo(info.DeviceName, info.SystemVersion, info.AppVersion);
                 if (string.IsNullOrWhiteSpace(cookie))
                 {
-                    _logger.LogInformation("Input cookie is null or white space.");
+                    // 只填了指纹或设备信息：不用登录，已经生效。
+                    if (fpSaved)
+                    {
+                        InAppToast.MainWindow?.Success(Lang.PassportLogin_DeviceFpSaved);
+                    }
+                    else if (infoSaved)
+                    {
+                        InAppToast.MainWindow?.Success(Lang.PassportLogin_DeviceInfoSaved);
+                    }
+                    else
+                    {
+                        _logger.LogInformation("Input cookie, device fingerprint and device info are all null or white space.");
+                    }
                     return;
                 }
                 var user = await _gameRecordService.AddRecordUserAsync(cookie);
                 var roles = await _gameRecordService.AddGameRolesAsync(cookie);
-                InAppToast.MainWindow?.Success(null, string.Format(Lang.LoginPage_AlreadyAddedGameRoles, roles.Count, string.Join("\r\n", roles.Select(x => $"{x.Nickname}  {x.Uid}"))), 5000);
+                // 同时填了指纹的话，两个提示合并成一条：登录成功，且设备指纹已保存。
+                if (fpSaved)
+                {
+                    InAppToast.MainWindow?.Success(Lang.PassportLogin_DeviceFpSavedWithSignIn);
+                }
+                else
+                {
+                    string message = string.Format(Lang.LoginPage_AlreadyAddedGameRoles, roles.Count, string.Join("\r\n", roles.Select(x => $"{x.Nickname}  {x.Uid}")));
+                    if (infoSaved)
+                    {
+                        // 两条提示会互相顶掉，拼进同一条。
+                        message = $"{message}\r\n{Lang.PassportLogin_DeviceInfoSaved}";
+                    }
+                    InAppToast.MainWindow?.Success(null, message, 5000);
+                }
                 LoadGameRoles(roles.FirstOrDefault(x => x.GameBiz == CurrentGameBiz.ToString()));
             }
         }

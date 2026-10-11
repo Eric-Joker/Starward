@@ -150,6 +150,33 @@ public sealed partial class AccountCenterPanel : UserControl
 
 
 
+    /// <summary>
+    /// 让宿主浮窗重新量一次内容。
+    /// <para>
+    /// 卡片在「账号列表」和「登录表单」之间切换时高度差很大，而浮窗的大小是在 ShowAt 那一刻
+    /// 按当时的内容定死的，之后内容变矮不会自动缩回去，所以要主动作废一次测量。
+    /// </para>
+    /// </summary>
+    public void RefreshLayout()
+    {
+        try
+        {
+            RootGrid.InvalidateMeasure();
+            // 根元素自己作废不够，浮窗的 presenter 也要跟着重算。
+            if (Host is Flyout flyout && flyout.Content is FrameworkElement content)
+            {
+                content.InvalidateMeasure();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Refresh account center layout");
+        }
+    }
+
+
+
+
     private void AccountCenterPanel_Unloaded(object sender, RoutedEventArgs e)
     {
         Cleanup();
@@ -169,6 +196,8 @@ public sealed partial class AccountCenterPanel : UserControl
             UpdateAccountState();
             UpdatePanes();
             UpdatePanelWidth();
+            // 这里还在 Opening 阶段，浮窗尚未按内容量出大小，所以排到下一帧再作废测量。
+            DispatcherQueue.TryEnqueue(RefreshLayout);
         }
         catch (Exception ex)
         {
@@ -264,6 +293,8 @@ public sealed partial class AccountCenterPanel : UserControl
         OnPropertyChanged(nameof(AccountStatusVisibility));
         // 登录状态变了，账号列表和按钮会显示出来，宽度要重新按按钮算一次。
         UpdatePanelWidth();
+        // 卡片从「登录表单」换成「账号列表」时矮了一大截，浮窗也要跟着缩回去。
+        RefreshLayout();
     }
 
 
@@ -1420,6 +1451,9 @@ internal static class AccountCenter
             };
             _flyout = flyout;
             flyout.ShowAt(anchor);
+            // ShowAt 是同步的，浮窗在这一刻就按当前内容把大小定死了；
+            // 登录成功收起登录表单后卡片会矮一大截，所以排一次重算，让高度跟着内容走。
+            panel.DispatcherQueue.TryEnqueue(panel.RefreshLayout);
         }
         catch
         {

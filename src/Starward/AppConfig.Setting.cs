@@ -1,5 +1,6 @@
 using Dapper;
 using Starward.Core;
+using Starward.Core.GameRecord;
 using Starward.Features.Database;
 using Starward.Features.GameLauncher;
 using Starward.Features.ViewHost;
@@ -165,6 +166,30 @@ public static partial class AppConfig
     public static DateTimeOffset HyperionDeviceFpLastUpdateTime
     {
         get => GetValue<DateTimeOffset>();
+        set => SetValue(value);
+    }
+
+    /// <summary>
+    /// 设备名。UA、<c>x-rpc-device_name</c> 与 getFp 的 body 三处共用，默认取真机抓包里的值，
+    /// 免得 UA 自称一台机器、body 里的 ext_fields 又说另一台。
+    /// </summary>
+    public static string HyperionDeviceName
+    {
+        get => GetValue(HyperionClient.DefaultDeviceName)!;
+        set => SetValue(value);
+    }
+
+    /// <summary>Android 版本，同时用作 getFp body 里的 osVersion 与 sdkVersion。</summary>
+    public static string HyperionSystemVersion
+    {
+        get => GetValue(HyperionClient.DefaultSystemVersion)!;
+        set => SetValue(value);
+    }
+
+    /// <summary>米游社 App 版本，同时用于 UA 与 <c>x-rpc-app_version</c> 请求头。</summary>
+    public static string HyperionAppVersion
+    {
+        get => GetValue(HyperionClient.DefaultAppVersion)!;
         set => SetValue(value);
     }
 
