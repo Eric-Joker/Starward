@@ -8256,6 +8256,87 @@ namespace Starward.Language {
         }
 
         /// <summary>
+        ///   查找类似 Device fingerprint 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_DeviceFp {
+            get {
+                return ResourceManager.GetString("PassportLogin_DeviceFp", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Optional. If the daily note or the monthly report keeps reporting 10041 or 1034, paste the x-rpc-device_fp your browser is currently using. 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_DeviceFpTip {
+            get {
+                return ResourceManager.GetString("PassportLogin_DeviceFpTip", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 The device fingerprint has been saved. 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_DeviceFpSaved {
+            get {
+                return ResourceManager.GetString("PassportLogin_DeviceFpSaved", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Signed in, and the device fingerprint has been saved. 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_DeviceFpSavedWithSignIn {
+            get {
+                return ResourceManager.GetString("PassportLogin_DeviceFpSavedWithSignIn", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Device name 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_DeviceName {
+            get {
+                return ResourceManager.GetString("PassportLogin_DeviceName", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Android version 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_SystemVersion {
+            get {
+                return ResourceManager.GetString("PassportLogin_SystemVersion", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 App version 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_AppVersion {
+            get {
+                return ResourceManager.GetString("PassportLogin_AppVersion", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Optional. These are the device information this app sends for the toolbox. 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_DeviceInfoTip {
+            get {
+                return ResourceManager.GetString("PassportLogin_DeviceInfoTip", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Device information has been saved. 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_DeviceInfoSaved {
+            get {
+                return ResourceManager.GetString("PassportLogin_DeviceInfoSaved", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   查找类似 Import 的本地化字符串。
         /// </summary>
         public static string PassportLogin_Import {

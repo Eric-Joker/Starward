@@ -2882,6 +2882,33 @@ You are welcome to submit the exported data to the following repository:</value>
   <data name="PassportLogin_Mid" xml:space="preserve">
     <value>MiHoYo ID (mid)</value>
   </data>
+  <data name="PassportLogin_DeviceFp" xml:space="preserve">
+    <value>Device fingerprint</value>
+  </data>
+  <data name="PassportLogin_DeviceFpTip" xml:space="preserve">
+    <value>Optional. If the daily note or the monthly report keeps reporting 10041 or 1034, paste the x-rpc-device_fp your browser is currently using. Pasting the whole request headers fills in every device field below. You can save the fingerprint on its own with the Cookie left empty.</value>
+  </data>
+  <data name="PassportLogin_DeviceFpSaved" xml:space="preserve">
+    <value>The device fingerprint has been saved.</value>
+  </data>
+  <data name="PassportLogin_DeviceFpSavedWithSignIn" xml:space="preserve">
+    <value>Signed in, and the device fingerprint has been saved.</value>
+  </data>
+  <data name="PassportLogin_DeviceName" xml:space="preserve">
+    <value>Device name</value>
+  </data>
+  <data name="PassportLogin_SystemVersion" xml:space="preserve">
+    <value>Android version</value>
+  </data>
+  <data name="PassportLogin_AppVersion" xml:space="preserve">
+    <value>App version</value>
+  </data>
+  <data name="PassportLogin_DeviceInfoTip" xml:space="preserve">
+    <value>Optional. These are the device information this app sends for the toolbox: the device name, the Android version and the MiHoYo BBS app version. They go into the User-Agent, the x-rpc-device_name and x-rpc-sys_version headers and the fingerprint request as one consistent set.</value>
+  </data>
+  <data name="PassportLogin_DeviceInfoSaved" xml:space="preserve">
+    <value>Device information has been saved.</value>
+  </data>
   <data name="PassportLogin_Import" xml:space="preserve">
     <value>Import</value>
   </data>

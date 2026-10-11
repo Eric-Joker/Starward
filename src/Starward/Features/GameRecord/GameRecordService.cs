@@ -21,6 +21,7 @@ using Starward.Core.GameRecord.ZZZ.DeadlyAssault;
 using Starward.Core.GameRecord.ZZZ.GachaRecord;
 using Starward.Core.GameRecord.ZZZ.InterKnotReport;
 using Starward.Core.GameRecord.ZZZ.ShiyuDefense;
+using Starward.Core.Passport;
 using Starward.Features.Database;
 using System;
 using System.Collections.Generic;
@@ -82,30 +83,159 @@ internal class GameRecordService
 
 
     /// <summary>
-    /// 更新设备指纹信息
+    /// 更新设备指纹信息。
+    /// <para>
+    /// 已经有指纹时直接用存下来的；首次运行和超过 3 天时向服务端重新申请一个。
+    /// 便笺、绳网月报只认 <c>x-rpc-device_fp</c>，而服务端签发的指纹不一定被这些接口接受，
+    /// 所以工具箱里还留了手动填入的入口 <see cref="SaveDeviceFp"/>。
+    /// </para>
     /// </summary>
-    /// <param name="forceUpdate"></param>
-    /// <returns></returns>
+    /// <param name="forceUpdate">为 true 时无论是否过期都重新申请一个。</param>
     public async Task UpdateDeviceFpAsync(bool forceUpdate = false, CancellationToken cancellationToken = default)
     {
+        // 设备信息先写进去：国际服虽然不申请指纹，但鉴权信息在两边是共用的。
+        LoadDeviceInfo();
         if (IsHoyolab)
         {
             return;
         }
-        string? id = AppConfig.HyperionDeviceId;
         string? fp = AppConfig.HyperionDeviceFp;
         DateTimeOffset lastUpdateTime = AppConfig.HyperionDeviceFpLastUpdateTime;
-        if (!forceUpdate && !string.IsNullOrWhiteSpace(id) && !string.IsNullOrWhiteSpace(fp))
-        {
-            _gameRecordClient.DeviceId = id;
-            _gameRecordClient.DeviceFp = fp;
-        }
-        if (forceUpdate || DateTimeOffset.Now - lastUpdateTime > TimeSpan.FromDays(3))
+        if (forceUpdate || string.IsNullOrWhiteSpace(fp) || DateTimeOffset.Now - lastUpdateTime > TimeSpan.FromDays(3))
         {
             await _gameRecordClient.GetDeviceFpAsync(cancellationToken);
             AppConfig.HyperionDeviceId = _gameRecordClient.DeviceId;
             AppConfig.HyperionDeviceFp = _gameRecordClient.DeviceFp;
             AppConfig.HyperionDeviceFpLastUpdateTime = DateTimeOffset.Now;
+        }
+    }
+
+
+
+
+    /// <summary>
+    /// 保存用户指定的设备指纹，并立即对后续请求生效。
+    /// <para>
+    /// 服务端自己签发的指纹不一定被便笺、绳网月报这些接口接受，浏览器会话里正在用的那个反而能用，
+    /// 所以留一个手动填入的入口。这里同时把更新时间重置为现在，让 3 天的轮换从这一刻重新起算，
+    /// 免得刚填进去就被自动申请的新指纹覆盖掉。
+    /// </para>
+    /// </summary>
+    /// <param name="deviceFp">设备指纹，空白表示不写入。</param>
+    /// <returns>是否写入了一个有效的指纹。</returns>
+    public bool SaveDeviceFp(string? deviceFp)
+    {
+        deviceFp = deviceFp?.Trim();
+        if (string.IsNullOrWhiteSpace(deviceFp))
+        {
+            return false;
+        }
+        AppConfig.HyperionDeviceFp = deviceFp;
+        AppConfig.HyperionDeviceFpLastUpdateTime = DateTimeOffset.Now;
+        // 两个客户端都写上：国际服走 hoyolab 客户端，国服走 hyperion 客户端。
+        _hyperionClient.DeviceFp = deviceFp;
+        _hoyolabClient.DeviceFp = deviceFp;
+        // 设备信息也一并从配置刷一遍，保证发出去的东西是同一套。
+        LoadDeviceInfo();
+        _logger.LogInformation("Device fingerprint set to {DeviceFp}.", deviceFp);
+        return true;
+    }
+
+
+
+
+    /// <summary>
+    /// 保存用户指定的设备信息，并立即对后续请求生效。空白的项保持原值。
+    /// </summary>
+    /// <param name="deviceName">设备名。</param>
+    /// <param name="systemVersion">Android 版本。</param>
+    /// <param name="appVersion">米游社 App 版本。</param>
+    /// <returns>是否写入了至少一项。</returns>
+    public bool SaveDeviceInfo(string? deviceName, string? systemVersion, string? appVersion)
+    {
+        bool saved = false;
+        if (!string.IsNullOrWhiteSpace(deviceName))
+        {
+            AppConfig.HyperionDeviceName = deviceName.Trim();
+            saved = true;
+        }
+        if (!string.IsNullOrWhiteSpace(systemVersion))
+        {
+            AppConfig.HyperionSystemVersion = systemVersion.Trim();
+            saved = true;
+        }
+        if (!string.IsNullOrWhiteSpace(appVersion))
+        {
+            AppConfig.HyperionAppVersion = appVersion.Trim();
+            saved = true;
+        }
+        if (saved)
+        {
+            LoadDeviceInfo();
+            _logger.LogInformation("Device info set to {DeviceName} / {SystemVersion} / {AppVersion}.",
+                _hyperionClient.DeviceName, _hyperionClient.SystemVersion, _hyperionClient.AppVersion);
+        }
+        return saved;
+    }
+
+
+
+
+    /// <summary>
+    /// 把界面上几个输入框里的文字合起来解析成设备信息。
+    /// <para>
+    /// 任意一栏粘贴整段请求头、UA 或者 Cookie 都能把其余几栏补全；已经单独填过的项保持原样。
+    /// 调用方拿到结果后写回输入框，再交给 <see cref="SaveDeviceFp"/> 与 <see cref="SaveDeviceInfo"/>。
+    /// </para>
+    /// </summary>
+    /// <param name="cookie">Cookie 那一栏（工具箱的输入 Cookie 弹窗才有）。</param>
+    /// <param name="deviceFp">设备指纹那一栏。</param>
+    /// <param name="deviceName">设备名那一栏。</param>
+    /// <param name="systemVersion">Android 版本那一栏。</param>
+    /// <param name="appVersion">App 版本那一栏。</param>
+    public PassportDeviceInfo ParseDeviceInfoInputs(string? cookie, string? deviceFp, string? deviceName, string? systemVersion, string? appVersion)
+    {
+        var current = new PassportDeviceInfo
+        {
+            DeviceFp = NullIfWhiteSpace(deviceFp),
+            DeviceName = NullIfWhiteSpace(deviceName),
+            SystemVersion = NullIfWhiteSpace(systemVersion),
+            AppVersion = NullIfWhiteSpace(appVersion),
+        };
+        return current.Merge(cookie, deviceFp, deviceName, systemVersion, appVersion);
+    }
+
+
+
+
+    private static string? NullIfWhiteSpace(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+
+
+
+    /// <summary>
+    /// 把设备信息从配置写到客户端，并立即生效。
+    /// <para>
+    /// 这几项要参与请求头和 getFp 的 body，所以每次请求前都重新写一遍，改了以后不用重启。
+    /// </para>
+    /// </summary>
+    private void LoadDeviceInfo()
+    {
+        _hyperionClient.DeviceName = AppConfig.HyperionDeviceName;
+        _hyperionClient.SystemVersion = AppConfig.HyperionSystemVersion;
+        _hyperionClient.AppVersionOverride = AppConfig.HyperionAppVersion;
+        // 首次运行还没有设备 ID 时先落一个，别再让每次请求各发一个临时的。
+        string? id = AppConfig.HyperionDeviceId;
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            id = HyperionClient.GenerateDeviceId();
+            AppConfig.HyperionDeviceId = id;
+        }
+        _hyperionClient.DeviceId = id;
+        string? fp = AppConfig.HyperionDeviceFp;
+        if (!string.IsNullOrWhiteSpace(fp))
+        {
+            _hyperionClient.DeviceFp = fp;
         }
     }
 
