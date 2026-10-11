@@ -1076,6 +1076,13 @@ public sealed partial class GachaLogPage : PageBase
             var file = await FileDialogHelper.PickSingleFileAsync(this.XamlRoot, ("Json", ".json"));
             if (File.Exists(file))
             {
+                // 旧版导入只能解析 UIGF v3.0 / SRGF v1.0 结构（info + list），
+                // UIGF v4.x 是 info.version + 每游戏档案数组，直接反序列化会得到 null 并抛异常。
+                if (UIGF4FileDetector.IsUIGF4File(file))
+                {
+                    await ShowUIGF4ImportHintAsync();
+                    return;
+                }
                 var uid = _gachaLogService.ImportGachaLog(file);
                 if (uid == SelectUid)
                 {
@@ -1096,6 +1103,29 @@ public sealed partial class GachaLogPage : PageBase
         {
             _logger.LogError(ex, "Import gacha log");
             InAppToast.MainWindow?.Error(ex);
+        }
+    }
+
+
+
+
+    /// <summary>
+    /// 选到的文件是 UIGF v4.x，引导用户走 v4.2 的导入入口。
+    /// </summary>
+    private async Task ShowUIGF4ImportHintAsync()
+    {
+        var dialog = new ContentDialog
+        {
+            Title = Lang.GachaLogPage_ImportUIGF4UseUIGF4Window,
+            Content = Lang.GachaLogPage_ImportUIGF4UseUIGF4WindowDesc,
+            PrimaryButtonText = Lang.Common_Open,
+            CloseButtonText = Lang.Common_Cancel,
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = this.XamlRoot,
+        };
+        if (await dialog.ShowAsync() is ContentDialogResult.Primary)
+        {
+            OpenUIGF4Window();
         }
     }
 
