@@ -187,7 +187,7 @@
                 </StackPanel>
 
                 <!--  令牌导入  -->
-                <StackPanel Margin="0,18,0,0"
+                <StackPanel Margin="0,8,0,0"
                             Spacing="14"
                             Visibility="{x:Bind TokenPaneVisibility}">
                     <TextBlock FontSize="12"

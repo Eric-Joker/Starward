@@ -2882,6 +2882,33 @@
   <data name="PassportLogin_Mid" xml:space="preserve">
     <value>MiHoYo ID (mid)</value>
   </data>
+  <data name="PassportLogin_DeviceFp" xml:space="preserve">
+    <value>设备指纹</value>
+  </data>
+  <data name="PassportLogin_DeviceFpTip" xml:space="preserve">
+    <value>选填。便笺、绳网月报一直报 10041 或 1034 时，把浏览器当前使用的 x-rpc-device_fp 填进来。粘贴整段请求头会把下面几项设备信息一起识别出来。可以只填指纹、Cookie 留空直接确认。</value>
+  </data>
+  <data name="PassportLogin_DeviceFpSaved" xml:space="preserve">
+    <value>设备指纹已保存。</value>
+  </data>
+  <data name="PassportLogin_DeviceFpSavedWithSignIn" xml:space="preserve">
+    <value>账号登录成功，且设备指纹已保存。</value>
+  </data>
+  <data name="PassportLogin_DeviceName" xml:space="preserve">
+    <value>设备名</value>
+  </data>
+  <data name="PassportLogin_SystemVersion" xml:space="preserve">
+    <value>Android 版本</value>
+  </data>
+  <data name="PassportLogin_AppVersion" xml:space="preserve">
+    <value>App 版本</value>
+  </data>
+  <data name="PassportLogin_DeviceInfoTip" xml:space="preserve">
+    <value>选填。这是工具箱对外声明的设备信息：设备名、Android 版本、米游社 App 版本。三者会同源进入 User-Agent、x-rpc-device_name 与 x-rpc-sys_version 请求头以及指纹申请。</value>
+  </data>
+  <data name="PassportLogin_DeviceInfoSaved" xml:space="preserve">
+    <value>设备信息已保存。</value>
+  </data>
   <data name="PassportLogin_Import" xml:space="preserve">
     <value>导入</value>
   </data>

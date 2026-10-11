@@ -55,7 +55,13 @@ public class PassportTokenSet
     public long Aid { get; set; }
 
 
-    /// <summary>派生令牌（LToken / CookieToken）所属的账号 ID，用于校验是否与 SToken 匹配。</summary>
+    /// <summary>
+    /// 派生令牌（LToken / CookieToken）所属的账号 ID，仅用于校验它们是否和 SToken 属于同一个账号。
+    /// <para>
+    /// 这是服务端报回来的值，不可信：实测遇到过报的 UID 与账号本身不一致，把它写进 Cookie 会串号。
+    /// 生成 Cookie 一律用 <see cref="Aid"/>，这个字段只做校验。
+    /// </para>
+    /// </summary>
     [JsonPropertyName("ltoken_uid")]
     public long LtokenUid { get; set; }
 
@@ -158,6 +164,10 @@ public class PassportTokenSet
     /// <summary>
     /// 生成米游社（工具箱）使用的 Cookie。
     /// LToken（V1）必须与 ltuid 搭配，因此这里同时写入 account_id 与 ltuid。
+    /// <para>
+    /// 两个 ID 都用 <see cref="Aid"/>（账号自己），不用服务端报回来的 <see cref="LtokenUid"/>：
+    /// 工具箱那边是按 Aid 认账号的，用服务端报的值会出现"Cookie 说 A、账号是 B"的串号态。
+    /// </para>
     /// </summary>
     public string? CreateToolboxCookie()
     {
@@ -167,8 +177,8 @@ public class PassportTokenSet
         }
         var items = new List<string>(4)
         {
-            $"account_id={LtokenUid}",
-            $"ltuid={LtokenUid}",
+            $"account_id={Aid}",
+            $"ltuid={Aid}",
             $"ltoken={Ltoken}",
         };
         if (!string.IsNullOrWhiteSpace(CookieToken))

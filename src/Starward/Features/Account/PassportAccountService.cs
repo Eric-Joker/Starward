@@ -802,10 +802,20 @@ internal class PassportAccountService
             {
                 var info = ltokenResult.Deserialize<PassportTokenInfo>();
                 string? ltoken = info?.Ltoken ?? info?.Token;
-                if (!string.IsNullOrWhiteSpace(ltoken))
+                // 服务端报回来的 UID 不可信：遇到过它和账号本身不是一个人。
+                // 不匹配就丢掉这个令牌，别把它写进 Cookie 造成串号。
+                long owner = ParseUid(info?.Uid) ?? info?.AccountId ?? 0;
+                if (owner > 0 && owner != tokenSet.Aid)
+                {
+                    _logger.LogWarning("LToken owner {owner} does not match account {aid}, drop it.", owner, tokenSet.Aid);
+                    tokenSet.Ltoken = null;
+                    tokenSet.LtokenUid = 0;
+                }
+                else if (!string.IsNullOrWhiteSpace(ltoken))
                 {
                     tokenSet.Ltoken = ltoken;
-                    tokenSet.LtokenUid = ParseUid(info?.Uid) is long uid && uid > 0 ? uid : tokenSet.Aid;
+                    // Cookie 里用的是账号自己的 ID，这里只记下服务端报的值备查。
+                    tokenSet.LtokenUid = owner > 0 ? owner : tokenSet.Aid;
                 }
             }
             else
@@ -816,13 +826,16 @@ internal class PassportAccountService
             if (cookieResult.IsSuccess)
             {
                 var info = cookieResult.Deserialize<PassportTokenInfo>();
-                if (!string.IsNullOrWhiteSpace(info?.CookieToken))
+                if (info?.AccountId > 0 && info.AccountId != tokenSet.Aid)
                 {
-                    tokenSet.CookieToken = info.CookieToken;
+                    _logger.LogWarning("Cookie token owner {owner} does not match account {aid}, ignore it.", info.AccountId, tokenSet.Aid);
                 }
-                if (info?.AccountId > 0)
+                else
                 {
-                    tokenSet.LtokenUid = info.AccountId;
+                    if (!string.IsNullOrWhiteSpace(info?.CookieToken))
+                    {
+                        tokenSet.CookieToken = info.CookieToken;
+                    }
                 }
             }
             else
@@ -847,9 +860,10 @@ internal class PassportAccountService
 
 
 
+    /// <summary>只接受大于 0 的 UID，0 表示没解析到。</summary>
     private static long? ParseUid(string? uid)
     {
-        return long.TryParse(uid, out long value) ? value : null;
+        return long.TryParse(uid, out long value) && value > 0 ? value : null;
     }
 
 
