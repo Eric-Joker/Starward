@@ -6,10 +6,12 @@ using Starward.Features.HoYoPlay;
 using Starward.Features.PlayTime;
 using Starward.Helpers;
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
@@ -539,6 +541,26 @@ internal partial class GameLauncherService
             AppConfig.SetThirdPartyToolPath(gameId.GameBiz, null);
         }
         return path;
+    }
+
+
+
+
+    /// <summary>
+    /// 读取上次缓存的游戏信息，不发起网络请求。
+    /// </summary>
+    public static List<GameInfo> GetCachedGameInfos()
+    {
+        try
+        {
+            string? json = AppConfig.CachedGameInfo;
+            if (!string.IsNullOrWhiteSpace(json))
+            {
+                return JsonSerializer.Deserialize<List<GameInfo>>(json) ?? [];
+            }
+        }
+        catch { }
+        return [];
     }
 
 

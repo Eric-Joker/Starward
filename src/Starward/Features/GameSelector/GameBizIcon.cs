@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using Starward.Core;
 using Starward.Core.HoYoPlay;
 using System;
@@ -27,6 +27,20 @@ public partial class GameBizIcon : ObservableObject, IEquatable<GameBizIcon>
     public string ServerName { get; set => SetProperty(ref field, value); }
 
     public double MaskOpacity { get; set => SetProperty(ref field, value); } = 1.0;
+
+    /// <summary>
+    /// 启动游戏后整行按钮变暗，表示正在启动 / 运行中。
+    /// 用透明度而不是写死画刷颜色，亮色和暗色主题下都成立。
+    /// </summary>
+    public double TextOpacity
+    {
+        get;
+        set
+        {
+            field = value;
+            MaskOpacity = value;
+        }
+    } = 1.0;
 
     public bool IsPinned { get; set => SetProperty(ref field, value); }
 

@@ -91,6 +91,7 @@
                         Orientation="Horizontal"
                         Spacing="12">
                 <NumberBox MinWidth="100"
+                           Maximum="2097151"
                            Minimum="0"
                            Value="{x:Bind SpeedLimit, Mode=TwoWay}" />
                 <TextBlock VerticalAlignment="Center" Text="KB/s" />
