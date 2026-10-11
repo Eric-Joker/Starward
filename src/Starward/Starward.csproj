@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
 		<OutputType>WinExe</OutputType>
 		<TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
@@ -48,6 +48,7 @@
 		<PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.9169" />
 		<PackageReference Include="MiniExcel" Version="1.46.0" />
 		<PackageReference Include="NuGet.Versioning" Version="7.9.0" />
+		<PackageReference Include="QRCoder" Version="1.7.0" />
 		<PackageReference Include="Scighost.WinUI" Version="0.1.0" />
 		<PackageReference Include="Serilog.Extensions.Logging" Version="10.0.0" />
 		<PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />

@@ -416,6 +416,14 @@
                             </Hyperlink>
                         </TextBlock>
 
+                        <!--  启动游戏时自动登录：只有国服能申请授权票据，国际服不显示这个开关  -->
+                        <ToggleSwitch x:Name="ToggleSwitch_AutoLogin"
+                                      Margin="0,12,0,-4"
+                                      FontSize="14"
+                                      IsOn="{x:Bind EnableAuthTicketLogin, Mode=TwoWay}"
+                                      OffContent="{x:Bind lang:Lang.PassportLogin_AutoLogin}"
+                                      OnContent="{x:Bind lang:Lang.PassportLogin_AutoLogin}" />
+
                         <!--  游戏启动后  -->
                         <TextBlock Margin="0,12,0,0" Text="{x:Bind lang:Lang.ExperienceSettingPage_AfterStartingGame}" />
                         <ComboBox Name="ComboBox_AfterStartGameAction"

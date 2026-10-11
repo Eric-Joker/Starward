@@ -653,6 +653,18 @@ public sealed partial class GameLauncherSettingDialog : ContentDialog
 
 
     /// <summary>
+    /// 启动游戏时自动登录。用通行证令牌申请授权票据，只有国服的游戏才行，
+    /// 所以这个开关放在每个游戏的启动参数设置里、按游戏分别保存。
+    /// </summary>
+    [ObservableProperty]
+    public bool _EnableAuthTicketLogin;
+    partial void OnEnableAuthTicketLoginChanged(bool value)
+    {
+        AppConfig.SetEnableAuthTicketLogin(CurrentGameBiz, value);
+    }
+
+
+    /// <summary>
     /// 第三方工具路径
     /// </summary>
     [ObservableProperty]
@@ -672,10 +684,14 @@ public sealed partial class GameLauncherSettingDialog : ContentDialog
     {
         _StartGameArgument = AppConfig.GetStartArgument(CurrentGameBiz);
         _EnableThirdPartyTool = AppConfig.GetEnableThirdPartyTool(CurrentGameBiz);
+        _EnableAuthTicketLogin = AppConfig.GetEnableAuthTicketLogin(CurrentGameBiz);
         _ThirdPartyToolPath = GameLauncherService.GetThirdPartyToolPath(CurrentGameId);
         OnPropertyChanged(nameof(StartGameArgument));
         OnPropertyChanged(nameof(EnableThirdPartyTool));
+        OnPropertyChanged(nameof(EnableAuthTicketLogin));
         OnPropertyChanged(nameof(ThirdPartyToolPath));
+        // 自动登录用的是通行证令牌，只有国服的游戏才有。
+        ToggleSwitch_AutoLogin.Visibility = CurrentGameBiz.IsChinaServer() ? Visibility.Visible : Visibility.Collapsed;
     }
 
 

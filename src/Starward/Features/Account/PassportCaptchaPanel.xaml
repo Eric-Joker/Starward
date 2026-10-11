@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<UserControl x:Class="Starward.Features.Account.PassportCaptchaPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:lang="using:Starward.Language"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             x:DefaultBindMode="OneWay"
+             mc:Ignorable="d">
+
+    <!--  整块内容顶对齐：面板里不留多余空白，窗口高度由内容决定  -->
+    <StackPanel x:Name="StackPanel_Content"
+                VerticalAlignment="Top"
+                Spacing="10">
+
+        <TextBlock HorizontalAlignment="Center"
+                   FontSize="13"
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                   Text="{x:Bind lang:Lang.PassportLogin_CaptchaTitle}"
+                   TextAlignment="Center" />
+
+        <!--  尺寸由验证码控件自己的大小决定（见 PassportCaptchaPanel.xaml.cs），这里只负责承载。
+              控件下面不留东西：卡片下边缘就是控件的下边缘，取消用标题栏右上角的关闭按钮。
+              背景用和控件面板一样的白色：控件实测渲染出来的高度会比它的布局高度少二十几像素，
+              露出来的那一条由这层白色补上，下边缘再由窗口圆角收边。  -->
+        <Grid x:Name="Grid_Captcha"
+              MinHeight="120"
+              Background="#FFFFFFFF">
+            <WebView2 x:Name="WebView_Captcha"
+                      HorizontalAlignment="Left"
+                      VerticalAlignment="Top"
+                      DefaultBackgroundColor="Transparent" />
+            <StackPanel x:Name="StackPanel_Loading"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Spacing="12">
+                <ProgressRing Width="36"
+                              Height="36"
+                              IsActive="True" />
+                <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           Text="{x:Bind lang:Lang.PassportLogin_CaptchaLoading}" />
+            </StackPanel>
+            <TextBlock x:Name="TextBlock_Error"
+                       Margin="12"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       Foreground="{ThemeResource SystemFillColorCriticalBrush}"
+                       TextAlignment="Center"
+                       TextWrapping="Wrap"
+                       Visibility="Collapsed" />
+        </Grid>
+    </StackPanel>
+
+</UserControl>

@@ -1417,7 +1417,7 @@
     <value>展示集录祈愿</value>
   </data>
   <data name="HoyolabToolboxPage_UpdateDeviceFingerprint" xml:space="preserve">
-    <value>更新设备指纹</value>
+    <value>更新指纹</value>
   </data>
   <data name="HoyolabToolboxPage_TheDeviceFingerprintIsAlreadyUpdated" xml:space="preserve">
     <value>设备指纹已更新</value>
@@ -2800,5 +2800,191 @@
   </data>
   <data name="GachaLogPage_ImportUIGF4UseUIGF4WindowDesc" xml:space="preserve">
     <value>UIGF v4.x 的文件不能通过旧版格式导入。请改用「UIGF v4.2」按钮，在那里选择要导入的档案。</value>
+  </data>
+  <data name="PassportLogin_Disclaimer" xml:space="preserve">
+    <value>本程序为第三方工具，与米哈游无隶属关系</value>
+  </data>
+  <data name="PassportLogin_TabPassword" xml:space="preserve">
+    <value>密码</value>
+  </data>
+  <data name="PassportLogin_TabSms" xml:space="preserve">
+    <value>验证码</value>
+  </data>
+  <data name="PassportLogin_TabQrCode" xml:space="preserve">
+    <value>扫码</value>
+  </data>
+  <data name="PassportLogin_TabToken" xml:space="preserve">
+    <value>Cookie</value>
+  </data>
+  <data name="PassportLogin_AccountPlaceholder" xml:space="preserve">
+    <value>手机号或邮箱</value>
+  </data>
+  <data name="PassportLogin_Password" xml:space="preserve">
+    <value>密码</value>
+  </data>
+  <data name="PassportLogin_SignIn" xml:space="preserve">
+    <value>登录</value>
+  </data>
+  <data name="PassportLogin_MobilePlaceholder" xml:space="preserve">
+    <value>中国大陆手机号</value>
+  </data>
+  <data name="PassportLogin_SendSmsCode" xml:space="preserve">
+    <value>发送验证码</value>
+  </data>
+  <data name="PassportLogin_ResendIn" xml:space="preserve">
+    <value>{0} 秒后重发</value>
+  </data>
+  <data name="PassportLogin_SmsCode" xml:space="preserve">
+    <value>短信验证码</value>
+  </data>
+  <data name="PassportLogin_SmsCodeSent" xml:space="preserve">
+    <value>验证码已发送</value>
+  </data>
+  <data name="PassportLogin_QrCodeTip" xml:space="preserve">
+    <value>米游社 App 扫码并确认</value>
+  </data>
+  <data name="PassportLogin_GetQrCode" xml:space="preserve">
+    <value>刷新二维码</value>
+  </data>
+  <data name="PassportLogin_QrCodeLoading" xml:space="preserve">
+    <value>正在获取二维码…</value>
+  </data>
+  <data name="PassportLogin_QrCodeRefreshing" xml:space="preserve">
+    <value>二维码已失效，正在重新获取…</value>
+  </data>
+  <data name="PassportLogin_QrCodeFailed" xml:space="preserve">
+    <value>二维码获取失败，请重试</value>
+  </data>
+  <data name="PassportLogin_QrCodeScanned" xml:space="preserve">
+    <value>已扫描，请在手机上确认</value>
+  </data>
+  <data name="PassportLogin_QrCodeConfirmed" xml:space="preserve">
+    <value>已确认，正在登录…</value>
+  </data>
+  <data name="PassportLogin_QrCodeCancelled" xml:space="preserve">
+    <value>已在手机上取消登录</value>
+  </data>
+  <data name="PassportLogin_SaveQrCodeImage" xml:space="preserve">
+    <value>保存二维码图片</value>
+  </data>
+  <data name="PassportLogin_QrCodeImage" xml:space="preserve">
+    <value>二维码图片</value>
+  </data>
+  <data name="PassportLogin_QrCodeSaved" xml:space="preserve">
+    <value>二维码图片已保存</value>
+  </data>
+  <data name="PassportLogin_TokenTip" xml:space="preserve">
+    <value>如果你已经拥有登录令牌（SToken V2）与对应的 MiHoYo ID，可以直接导入。</value>
+  </data>
+  <data name="PassportLogin_Stoken" xml:space="preserve">
+    <value>SToken（V2）</value>
+  </data>
+  <data name="PassportLogin_Mid" xml:space="preserve">
+    <value>MiHoYo ID (mid)</value>
+  </data>
+  <data name="PassportLogin_Import" xml:space="preserve">
+    <value>导入</value>
+  </data>
+  <data name="PassportLogin_ImportCookieNotFound" xml:space="preserve">
+    <value>没有从这段文本里找到 stoken。可以把整段 Cookie 粘进来，或者分别填写 SToken 与 mid。</value>
+  </data>
+  <data name="PassportLogin_ImportNeedStuid" xml:space="preserve">
+    <value>V1 的 SToken 需要同时提供 stuid，建议直接粘贴整段 Cookie。</value>
+  </data>
+  <data name="PassportLogin_ImportNeedStokenV2" xml:space="preserve">
+    <value>只能导入 SToken（V2），并需要同时填写对应的 MiHoYo ID</value>
+  </data>
+  <data name="PassportLogin_NoTokenReturned" xml:space="preserve">
+    <value>服务端没有返回登录令牌</value>
+  </data>
+  <data name="PassportLogin_AccountId" xml:space="preserve">
+    <value>ID：{0}</value>
+  </data>
+  <data name="PassportLogin_AutoLogin" xml:space="preserve">
+    <value>启动游戏时自动登录</value>
+  </data>
+  <data name="PassportLogin_Cancel" xml:space="preserve">
+    <value>取消</value>
+  </data>
+  <data name="PassportLogin_InputRequired" xml:space="preserve">
+    <value>请填写完整信息</value>
+  </data>
+  <data name="PassportLogin_TooManyAttempts" xml:space="preserve">
+    <value>尝试次数过多，请稍后再试</value>
+  </data>
+  <data name="PassportLogin_SignInSuccess" xml:space="preserve">
+    <value>登录成功</value>
+  </data>
+  <data name="PassportLogin_NetworkError" xml:space="preserve">
+    <value>请求失败：{0}</value>
+  </data>
+  <data name="PassportLogin_ServiceError" xml:space="preserve">
+    <value>服务端返回异常</value>
+  </data>
+  <data name="PassportLogin_CaptchaTitle" xml:space="preserve">
+    <value>需要验证</value>
+  </data>
+  <data name="PassportLogin_CaptchaLoading" xml:space="preserve">
+    <value>正在加载验证码…</value>
+  </data>
+  <data name="PassportLogin_CaptchaFailed" xml:space="preserve">
+    <value>验证失败，请重试</value>
+  </data>
+  <data name="PassportLogin_CaptchaCancelled" xml:space="preserve">
+    <value>已取消验证</value>
+  </data>
+  <data name="PassportLogin_CaptchaUnavailable" xml:space="preserve">
+    <value>无法加载验证码组件</value>
+  </data>
+  <data name="PassportLogin_DeviceVerifyTip" xml:space="preserve">
+    <value>检测到新设备登录，请输入手机收到的验证码</value>
+  </data>
+  <data name="PassportLogin_DeviceVerifyCode" xml:space="preserve">
+    <value>短信验证码</value>
+  </data>
+  <data name="PassportLogin_DeviceVerifySubmit" xml:space="preserve">
+    <value>验证</value>
+  </data>
+  <data name="PassportLogin_CaptchaRequired" xml:space="preserve">
+    <value>短时间内登录次数过多，请完成人机验证后继续</value>
+  </data>
+  <data name="PassportLogin_Accounts" xml:space="preserve">
+    <value>账号</value>
+  </data>
+  <data name="PassportLogin_AddAccount" xml:space="preserve">
+    <value>添加账号</value>
+  </data>
+  <data name="PassportLogin_CredentialsRefreshed" xml:space="preserve">
+    <value>已刷新 {0} 个账号的凭据</value>
+  </data>
+  <data name="PassportLogin_CredentialsAreFresh" xml:space="preserve">
+    <value>凭据都是最新的</value>
+  </data>
+  <data name="PassportLogin_CredentialsExpired" xml:space="preserve">
+    <value>{0} 个账号的登录已失效，需要重新登录</value>
+  </data>
+  <data name="PassportLogin_Refreshing" xml:space="preserve">
+    <value>正在刷新…</value>
+  </data>
+  <data name="PassportLogin_ToolboxRefreshed" xml:space="preserve">
+    <value>已刷新 {0} 个游戏的工具箱数据，共 {1} 项</value>
+  </data>
+  <data name="PassportLogin_ToolboxRefreshFailed" xml:space="preserve">
+    <value>有 {0} 项工具箱数据刷新失败</value>
+  </data>
+  <data name="PassportLogin_RemoveAccount" xml:space="preserve">
+    <value>删除账号</value>
+  </data>
+  <data name="PassportLogin_BackToAccounts" xml:space="preserve">
+    <value>返回账号列表</value>
+  </data>
+  <data name="PassportLogin_AccountRemoved" xml:space="preserve">
+    <value>已删除该账号</value>
+  </data>
+  <data name="PassportLogin_SwitchAccountFailed" xml:space="preserve">
+    <value>账号数据无法读取</value>
+  </data>
+  <data name="PassportLogin_UnknownAccount" xml:space="preserve">
+    <value>未知账号</value>
   </data>
 </root>

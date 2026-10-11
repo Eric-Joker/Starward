@@ -8,7 +8,9 @@ using Starward.Core.Gacha.ZZZ;
 using Starward.Core.GameNotice;
 using Starward.Core.GameRecord;
 using Starward.Core.HoYoPlay;
+using Starward.Core.Passport;
 using Starward.Core.SelfQuery;
+using Starward.Features.Account;
 using Starward.Features.Background;
 using Starward.Features.Database;
 using Starward.Features.Gacha;
@@ -90,6 +92,11 @@ public static partial class AppConfig
 
             sc.AddSingleton<GameAuthLoginService>();
             sc.AddSingleton<GameAccountService>();
+
+            // 通行证客户端也走统一的 HttpClient 配置：连接池、自动解压、HTTP/2|3 与系统代理。
+            // User-Agent 会在发送时被 PassportClient 覆盖成米游社 App 的，其它默认头不影响通行证接口。
+            sc.AddHttpClient<PassportClient>().ConfigStarwardHttpClient();
+            sc.AddSingleton<PassportAccountService>();
 
             sc.AddSingleton<ScreenCaptureService>();
 

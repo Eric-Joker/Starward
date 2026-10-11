@@ -125,6 +125,36 @@ public class GameAccountService
 
 
 
+
+    /// <summary>
+    /// 把注册表里当前这个游戏账号存下来（切换之前调用，否则那段数据会被覆盖掉）。
+    /// 已经存过同样的数据时什么都不做，返回 false。
+    /// </summary>
+    public bool SaveCurrentGameAccount(GameBiz biz, string? name = null)
+    {
+        try
+        {
+            var account = GetGameAccountFromRegistry(biz);
+            if (account is null || GetGameAccountsFromDatabase(biz).Any(x => x.SHA256 == account.SHA256))
+            {
+                return false;
+            }
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                account.Name = name;
+            }
+            SaveGameAccount(account);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Save current game account ({biz})", biz);
+            return false;
+        }
+    }
+
+
+
     public void DeleteGameAccount(GameAccount account)
     {
         using var dapper = DatabaseService.CreateConnection();

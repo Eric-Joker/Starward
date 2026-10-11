@@ -1417,7 +1417,7 @@ Do you accept the risk and continue to use it?</value>
     <value>Show Chronicled Wish</value>
   </data>
   <data name="HoyolabToolboxPage_UpdateDeviceFingerprint" xml:space="preserve">
-    <value>Update Device Fingerprint</value>
+    <value>Update fingerprint</value>
   </data>
   <data name="HoyolabToolboxPage_TheDeviceFingerprintIsAlreadyUpdated" xml:space="preserve">
     <value>The device fingerprint is already updated.</value>
@@ -2800,5 +2800,191 @@ You are welcome to submit the exported data to the following repository:</value>
   </data>
   <data name="GachaLogPage_ImportUIGF4UseUIGF4WindowDesc" xml:space="preserve">
     <value>UIGF v4.x files cannot be imported through the legacy import. Use the "UIGF v4.2" button instead, where you can select the archives to import.</value>
+  </data>
+  <data name="PassportLogin_Disclaimer" xml:space="preserve">
+    <value>This app is a third-party tool and is not affiliated with miHoYo.</value>
+  </data>
+  <data name="PassportLogin_TabPassword" xml:space="preserve">
+    <value>Password</value>
+  </data>
+  <data name="PassportLogin_TabSms" xml:space="preserve">
+    <value>SMS</value>
+  </data>
+  <data name="PassportLogin_TabQrCode" xml:space="preserve">
+    <value>QR</value>
+  </data>
+  <data name="PassportLogin_TabToken" xml:space="preserve">
+    <value>Cookie</value>
+  </data>
+  <data name="PassportLogin_AccountPlaceholder" xml:space="preserve">
+    <value>Phone number or email</value>
+  </data>
+  <data name="PassportLogin_Password" xml:space="preserve">
+    <value>Password</value>
+  </data>
+  <data name="PassportLogin_SignIn" xml:space="preserve">
+    <value>Sign in</value>
+  </data>
+  <data name="PassportLogin_MobilePlaceholder" xml:space="preserve">
+    <value>Mainland China phone number</value>
+  </data>
+  <data name="PassportLogin_SendSmsCode" xml:space="preserve">
+    <value>Send code</value>
+  </data>
+  <data name="PassportLogin_ResendIn" xml:space="preserve">
+    <value>Resend in {0}s</value>
+  </data>
+  <data name="PassportLogin_SmsCode" xml:space="preserve">
+    <value>Verification code</value>
+  </data>
+  <data name="PassportLogin_SmsCodeSent" xml:space="preserve">
+    <value>The verification code has been sent.</value>
+  </data>
+  <data name="PassportLogin_QrCodeTip" xml:space="preserve">
+    <value>Scan with the Miyoushe app</value>
+  </data>
+  <data name="PassportLogin_GetQrCode" xml:space="preserve">
+    <value>Refresh the QR code</value>
+  </data>
+  <data name="PassportLogin_QrCodeLoading" xml:space="preserve">
+    <value>Requesting the QR code...</value>
+  </data>
+  <data name="PassportLogin_QrCodeRefreshing" xml:space="preserve">
+    <value>The QR code expired. Requesting a new one...</value>
+  </data>
+  <data name="PassportLogin_QrCodeFailed" xml:space="preserve">
+    <value>Failed to get the QR code. Please try again.</value>
+  </data>
+  <data name="PassportLogin_QrCodeScanned" xml:space="preserve">
+    <value>Scanned. Please confirm on your phone.</value>
+  </data>
+  <data name="PassportLogin_QrCodeConfirmed" xml:space="preserve">
+    <value>Confirmed. Signing in...</value>
+  </data>
+  <data name="PassportLogin_QrCodeCancelled" xml:space="preserve">
+    <value>Sign-in was cancelled on the phone.</value>
+  </data>
+  <data name="PassportLogin_SaveQrCodeImage" xml:space="preserve">
+    <value>Save QR image</value>
+  </data>
+  <data name="PassportLogin_QrCodeImage" xml:space="preserve">
+    <value>QR code image</value>
+  </data>
+  <data name="PassportLogin_QrCodeSaved" xml:space="preserve">
+    <value>The QR code image has been saved.</value>
+  </data>
+  <data name="PassportLogin_TokenTip" xml:space="preserve">
+    <value>If you already have a sign-in token (SToken V2) and the matching MiHoYo ID, you can import them directly.</value>
+  </data>
+  <data name="PassportLogin_Stoken" xml:space="preserve">
+    <value>SToken (V2)</value>
+  </data>
+  <data name="PassportLogin_Mid" xml:space="preserve">
+    <value>MiHoYo ID (mid)</value>
+  </data>
+  <data name="PassportLogin_Import" xml:space="preserve">
+    <value>Import</value>
+  </data>
+  <data name="PassportLogin_ImportCookieNotFound" xml:space="preserve">
+    <value>No stoken was found in the pasted text. Paste the full Cookie, or fill in the SToken and mid separately.</value>
+  </data>
+  <data name="PassportLogin_ImportNeedStuid" xml:space="preserve">
+    <value>An SToken (V1) needs the matching stuid. Paste the full Cookie instead.</value>
+  </data>
+  <data name="PassportLogin_ImportNeedStokenV2" xml:space="preserve">
+    <value>Only an SToken (V2) together with the matching MiHoYo ID can be imported.</value>
+  </data>
+  <data name="PassportLogin_NoTokenReturned" xml:space="preserve">
+    <value>The server did not return a sign-in token.</value>
+  </data>
+  <data name="PassportLogin_AccountId" xml:space="preserve">
+    <value>ID: {0}</value>
+  </data>
+  <data name="PassportLogin_AutoLogin" xml:space="preserve">
+    <value>Sign in automatically at launch</value>
+  </data>
+  <data name="PassportLogin_Cancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="PassportLogin_InputRequired" xml:space="preserve">
+    <value>Please fill in all required fields.</value>
+  </data>
+  <data name="PassportLogin_TooManyAttempts" xml:space="preserve">
+    <value>Too many attempts. Please try again later.</value>
+  </data>
+  <data name="PassportLogin_SignInSuccess" xml:space="preserve">
+    <value>Signed in successfully.</value>
+  </data>
+  <data name="PassportLogin_NetworkError" xml:space="preserve">
+    <value>Request failed: {0}</value>
+  </data>
+  <data name="PassportLogin_ServiceError" xml:space="preserve">
+    <value>The server returned an unexpected result.</value>
+  </data>
+  <data name="PassportLogin_CaptchaTitle" xml:space="preserve">
+    <value>Verification required</value>
+  </data>
+  <data name="PassportLogin_CaptchaLoading" xml:space="preserve">
+    <value>Loading the verification...</value>
+  </data>
+  <data name="PassportLogin_CaptchaFailed" xml:space="preserve">
+    <value>Verification failed. Please try again.</value>
+  </data>
+  <data name="PassportLogin_CaptchaCancelled" xml:space="preserve">
+    <value>Verification was cancelled.</value>
+  </data>
+  <data name="PassportLogin_CaptchaUnavailable" xml:space="preserve">
+    <value>The verification component is unavailable.</value>
+  </data>
+  <data name="PassportLogin_DeviceVerifyTip" xml:space="preserve">
+    <value>This is a new device. Enter the SMS verification code sent to your phone.</value>
+  </data>
+  <data name="PassportLogin_DeviceVerifyCode" xml:space="preserve">
+    <value>SMS verification code</value>
+  </data>
+  <data name="PassportLogin_DeviceVerifySubmit" xml:space="preserve">
+    <value>Verify</value>
+  </data>
+  <data name="PassportLogin_CaptchaRequired" xml:space="preserve">
+    <value>Too many sign-in attempts in a short time. Complete the human verification to continue.</value>
+  </data>
+  <data name="PassportLogin_Accounts" xml:space="preserve">
+    <value>Accounts</value>
+  </data>
+  <data name="PassportLogin_AddAccount" xml:space="preserve">
+    <value>Add account</value>
+  </data>
+  <data name="PassportLogin_CredentialsRefreshed" xml:space="preserve">
+    <value>Refreshed credentials for {0} account(s)</value>
+  </data>
+  <data name="PassportLogin_CredentialsAreFresh" xml:space="preserve">
+    <value>Credentials are up to date</value>
+  </data>
+  <data name="PassportLogin_CredentialsExpired" xml:space="preserve">
+    <value>{0} account(s) need to sign in again</value>
+  </data>
+  <data name="PassportLogin_Refreshing" xml:space="preserve">
+    <value>Refreshing…</value>
+  </data>
+  <data name="PassportLogin_ToolboxRefreshed" xml:space="preserve">
+    <value>Refreshed the toolbox data of {0} game(s), {1} item(s) in total</value>
+  </data>
+  <data name="PassportLogin_ToolboxRefreshFailed" xml:space="preserve">
+    <value>Failed to refresh {0} item(s) of the toolbox data</value>
+  </data>
+  <data name="PassportLogin_RemoveAccount" xml:space="preserve">
+    <value>Remove account</value>
+  </data>
+  <data name="PassportLogin_BackToAccounts" xml:space="preserve">
+    <value>Back to accounts</value>
+  </data>
+  <data name="PassportLogin_AccountRemoved" xml:space="preserve">
+    <value>Account removed</value>
+  </data>
+  <data name="PassportLogin_SwitchAccountFailed" xml:space="preserve">
+    <value>Cannot read the account data</value>
+  </data>
+  <data name="PassportLogin_UnknownAccount" xml:space="preserve">
+    <value>Unknown account</value>
   </data>
 </root>

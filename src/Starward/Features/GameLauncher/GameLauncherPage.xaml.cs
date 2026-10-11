@@ -95,14 +95,17 @@ public sealed partial class GameLauncherPage : PageBase
         {
             Button_CloudGame.Visibility = Microsoft.UI.Xaml.Visibility.Visible;
         }
-        if (feature.SupportGameAccountSwitcher && AppConfig.EnableGameAccountSwitcher)
+        // 账号中心只负责账号池，某个游戏用哪个账号在这里切换。
+        // 国际服的切换器就是「基于注册表」那套，开关关掉就完全隐藏（原逻辑）；
+        // 国服还有米游社账号这条线（只走启动参数登录），不受这个开关影响。
+        if (feature.SupportGameAccountSwitcher && (CurrentGameBiz.IsChinaServer() || AppConfig.EnableRegistryGameAccountSwitcher))
         {
-            EnableGameAccountSwitcher = true;
+            ShowGameAccountSwitcher = true;
         }
     }
 
 
-    public bool EnableGameAccountSwitcher { get; set => SetProperty(ref field, value); }
+    public bool ShowGameAccountSwitcher { get; set => SetProperty(ref field, value); }
 
 
 

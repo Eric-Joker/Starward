@@ -1,11 +1,12 @@
 using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Logging;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Input;
-using Microsoft.UI.Xaml.Media;
 using Starward.Core;
+using Starward.Core.GameRecord;
+using Starward.Features.Account;
+using Starward.Features.GameRecord;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,6 +15,16 @@ using System.Threading.Tasks;
 
 namespace Starward.Features.GameAccount;
 
+/// <summary>
+/// 启动页的游戏账号切换器，按两个完全分开的机制工作：
+/// <list type="bullet">
+/// <item>基于注册表（设置里的开关打开时，国际服只能这样）：切换游戏客户端自己记住的那个账号，
+/// 写的是注册表里那份数据，国际服的登录本来也只能靠它。</item>
+/// <item>只切米游社账号（开关关闭时的国服）：列表是账号池里的米游社账号，
+/// 选中只换通行证会话，登录数据通过启动参数传给游戏，一个字都不写注册表。</item>
+/// </list>
+/// 两种模式都显示游戏内的昵称、UID 和头像，**选择即切换**，没有单独的切换按钮。
+/// </summary>
 [INotifyPropertyChanged]
 public sealed partial class GameAccountSwitcher : UserControl
 {
@@ -22,6 +33,12 @@ public sealed partial class GameAccountSwitcher : UserControl
 
 
     private readonly GameAccountService _gameAccountService = AppConfig.GetService<GameAccountService>();
+
+
+    private readonly GameRecordService _gameRecordService = AppConfig.GetService<GameRecordService>();
+
+
+    private readonly PassportAccountService _passportAccountService = AppConfig.GetService<PassportAccountService>();
 
 
     public GameAccountSwitcher()
@@ -33,18 +50,36 @@ public sealed partial class GameAccountSwitcher : UserControl
 
 
 
+
     private void GameAccountSwitcher_Loaded(object sender, RoutedEventArgs e)
     {
         UpdateGameAccount();
+        // 账号池在别处变了（账号中心增删账号、切米游社账号），这边跟着刷新。
+        WeakReferenceMessenger.Default.Register<PassportAccountChangedMessage>(this, (_, _) => Refresh());
+        // 工具箱里的角色资料变了，能列出这个游戏的账号也会跟着变（可能从无到有，也可能反过来）。
+        WeakReferenceMessenger.Default.Register<GameRecordRoleChangedMessage>(this, (_, _) => Refresh());
+        WeakReferenceMessenger.Default.Register<GameRecordToolboxRefreshedMessage>(this, (_, _) => Refresh());
     }
+
+
 
 
     private void GameAccountSwitcher_Unloaded(object sender, RoutedEventArgs e)
     {
+        WeakReferenceMessenger.Default.UnregisterAll(this);
         SelectGameAccount = null;
         GameAccountList = null!;
-        suggestionUids = null!;
     }
+
+
+
+
+    /// <summary>消息可能从后台线程发出来，统一回到 UI 线程刷新。</summary>
+    private void Refresh()
+    {
+        DispatcherQueue.TryEnqueue(UpdateGameAccount);
+    }
+
 
 
 
@@ -52,31 +87,55 @@ public sealed partial class GameAccountSwitcher : UserControl
 
 
 
+
+    /// <summary>
+    /// 是不是「基于注册表」那套：国际服和 b 服只能用这个（它们没有米游社账号），
+    /// 国服还要看设置里的开关。关掉时国服就只切米游社账号，连注册表都不读。
+    /// </summary>
+    private bool UseRegistry => !CurrentGameBiz.IsChinaServer() || AppConfig.EnableRegistryGameAccountSwitcher;
+
+
+
+
     public List<GameAccount> GameAccountList { get; set => SetProperty(ref field, value); }
 
 
-    public GameAccount? SelectGameAccount
-    {
-        get; set
-        {
-            if (SetProperty(ref field, value) && value is not null)
-            {
-                CanChangeGameAccount = true;
-            }
-        }
-    }
 
 
-    public bool CanChangeGameAccount { get; set => SetProperty(ref field, value); }
+    /// <summary>当前这个游戏用的账号，显示在按钮上。</summary>
+    public GameAccount? SelectGameAccount { get; set => SetProperty(ref field, value); }
+
+
 
 
     public void UpdateGameAccount()
     {
         try
         {
-            GameAccountList = _gameAccountService.GetGameAccounts(CurrentGameBiz);
-            SelectGameAccount = GameAccountList.FirstOrDefault();
-            CanChangeGameAccount = false;
+            List<GameAccount> list;
+            if (UseRegistry)
+            {
+                list = _gameAccountService.GetGameAccounts(CurrentGameBiz);
+                for (int i = 0; i < list.Count; i++)
+                {
+                    // 服务会把注册表里当前那个账号排到最前面，它就是现在用的账号。
+                    list[i].IsCurrent = i == 0;
+                    FillRoleInfo(list[i]);
+                }
+            }
+            else
+            {
+                // 只切米游社账号：资料已经在服务里按这个游戏的角色填好了。
+                list = _passportAccountService.GetPassportGameAccounts(CurrentGameBiz);
+            }
+            GameAccountList = list;
+            SelectGameAccount = list.FirstOrDefault(x => x.IsCurrent) ?? list.FirstOrDefault();
+            // 没有可切换的账号时不要留一个空按钮：
+            // 基于注册表时列表里有记录就说明游戏客户端记着账号；
+            // 只切米游社账号时，登录的账号一个都没拿到这个游戏的角色（没有游戏内 UID），
+            // 说明它们在这个游戏里都没有账号，同样隐藏。
+            bool hasGameAccount = UseRegistry ? list.Count > 0 : list.Exists(x => x.Uid > 0);
+            this.Visibility = hasGameAccount ? Visibility.Visible : Visibility.Collapsed;
         }
         catch (Exception ex)
         {
@@ -85,172 +144,89 @@ public sealed partial class GameAccountSwitcher : UserControl
     }
 
 
-    [RelayCommand]
-    private void ChangeGameAccount()
+
+
+    /// <summary>
+    /// 用米游社工具箱里的角色资料补上这个游戏账号的昵称和头像：
+    /// 通行证 ID 和游戏内 UID 是两套编号，uid 相同就是同一个游戏账号。
+    /// <para>
+    /// 绝区零不会把 uid 写进注册表，那里读出来是 0，只能按当前通行证账号在这个游戏里的角色显示。
+    /// </para>
+    /// </summary>
+    private void FillRoleInfo(GameAccount account)
     {
         try
         {
-            if (SelectGameAccount is not null)
+            GameRecordRole? role;
+            if (account.Uid > 0)
             {
-                _gameAccountService.ChangeGameAccount(SelectGameAccount);
-                CanChangeGameAccount = false;
+                role = _gameRecordService.GetGameRoles(CurrentGameBiz).FirstOrDefault(x => x.Uid == account.Uid);
             }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Cannot change game {biz} account to {name}", CurrentGameBiz, SelectGameAccount?.Name);
-        }
-    }
-
-
-    [RelayCommand]
-    private async Task SaveGameAccountAsync()
-    {
-        try
-        {
-            if (SelectGameAccount is not null)
+            else
             {
-                var acc = SelectGameAccount;
-                if (GameAccountList.FirstOrDefault(x => x.SHA256 != acc.SHA256 && x.Uid == acc.Uid) is GameAccount lacc)
+                role = _passportAccountService.GetCurrentGameRole(CurrentGameBiz);
+                if (role is not null)
                 {
-                    var dialog = new ContentDialog
-                    {
-                        Title = Lang.Common_Attention,
-                        Content = string.Format(Lang.LauncherPage_AccountSaveNew, acc.Uid),
-                        PrimaryButtonText = Lang.LauncherPage_Replace,
-                        SecondaryButtonText = Lang.LauncherPage_SaveNew,
-                        DefaultButton = ContentDialogButton.Primary,
-                        XamlRoot = this.XamlRoot,
-                    };
-                    if (await dialog.ShowAsync() is ContentDialogResult.Primary)
-                    {
-                        GameAccountList.Remove(lacc);
-                        _gameAccountService.DeleteGameAccount(lacc);
-                    }
+                    account.Uid = role.Uid;
                 }
-                SelectGameAccount.Time = DateTime.Now;
-                _gameAccountService.SaveGameAccount(SelectGameAccount);
-                FontIcon_SaveGameAccount.Glyph = "\uE8FB";
-                await Task.Delay(3000);
-                FontIcon_SaveGameAccount.Glyph = "\uE74E";
+            }
+            if (role is null)
+            {
+                return;
+            }
+            account.HeadIcon = role.HeadIcon;
+            // 这里显示的是游戏内的昵称和 UID，注册表里那份记录也跟着用同一个名字。
+            if (!string.IsNullOrWhiteSpace(role.Nickname))
+            {
+                account.Name = role.Nickname;
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Save game account");
+            _logger.LogError(ex, "Fill game account role info ({biz}, {uid})", CurrentGameBiz, account.Uid);
         }
     }
 
 
-    [RelayCommand]
-    private void DeleteGameAccount()
+
+
+    /// <summary>
+    /// 选择即切换。只切米游社账号时换的是通行证会话，启动游戏时通过启动参数生效；
+    /// 基于注册表时先把当前账号存下来，再把它写回注册表让游戏客户端记住。
+    /// </summary>
+    private async void ListView_GameAccount_ItemClick(object sender, ItemClickEventArgs e)
     {
         try
         {
-            if (SelectGameAccount is not null)
+            Flyout_GameAccount.Hide();
+            if (e.ClickedItem is not GameAccount account)
             {
-                _gameAccountService.DeleteGameAccount(SelectGameAccount);
+                return;
+            }
+            if (account.PassportAccountKey is not null)
+            {
+                // 只切米游社账号：登录数据走启动参数，注册表一个字节都不动。
+                await _passportAccountService.UsePassportAccountAsync(CurrentGameBiz, account.PassportAccountKey);
                 UpdateGameAccount();
+                return;
             }
+            // 注册表里那份数据是会被覆盖的，切换前先把它存下来，否则就找不回来了。
+            if (GameAccountList?.FirstOrDefault(x => !x.IsSaved) is GameAccount current)
+            {
+                _gameAccountService.SaveCurrentGameAccount(CurrentGameBiz, current.Name);
+            }
+            _gameAccountService.ChangeGameAccount(account);
+            UpdateGameAccount();
+            // 界面上的选择和自动登录用的通行证要对得上，所以会话也跟着走。
+            await _passportAccountService.UsePassportAccountOfGameUidAsync(CurrentGameBiz, account.Uid);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Delete game account");
+            _logger.LogError(ex, "Cannot change game {biz} account", CurrentGameBiz);
         }
     }
 
 
-
-    private TextBox TextBox_AccountUid;
-
-
-    private List<string> suggestionUids;
-
-
-    private void AutoSuggestBox_Uid_Loaded(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            if (TextBox_AccountUid is null)
-            {
-                var ele1 = VisualTreeHelper.GetChild(AutoSuggestBox_Uid, 0);
-                var ele = VisualTreeHelper.GetChild(ele1, 0);
-                if (ele is TextBox textBox)
-                {
-                    TextBox_AccountUid = textBox;
-                    TextBox_AccountUid.InputScope = new InputScope { Names = { new InputScopeName { NameValue = InputScopeNameValue.Number } } };
-                    TextBox_AccountUid.BeforeTextChanging += TextBox_AccountUid_BeforeTextChanging;
-                }
-            }
-        }
-        catch { }
-    }
-
-
-    private void AutoSuggestBox_Uid_GotFocus(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            suggestionUids = _gameAccountService.GetSuggestionUids(CurrentGameBiz).Select(x => x.ToString()).ToList();
-            UpdateSuggestionUids(AutoSuggestBox_Uid.Text);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Get suggestion uids");
-        }
-    }
-
-
-    private void AutoSuggestBox_Uid_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
-    {
-        try
-        {
-            if (args.Reason is AutoSuggestionBoxTextChangeReason.UserInput)
-            {
-                UpdateSuggestionUids(sender.Text);
-            }
-        }
-        catch { }
-    }
-
-
-    private void TextBox_AccountUid_BeforeTextChanging(TextBox sender, TextBoxBeforeTextChangingEventArgs args)
-    {
-        args.Cancel = !args.NewText.All(x => char.IsDigit(x));
-    }
-
-
-    private void UpdateSuggestionUids(string text)
-    {
-        try
-        {
-            if (suggestionUids != null && suggestionUids.Count > 0)
-            {
-                if (string.IsNullOrWhiteSpace(text))
-                {
-                    AutoSuggestBox_Uid.ItemsSource = suggestionUids;
-                    AutoSuggestBox_Uid.IsSuggestionListOpen = true;
-                }
-                else
-                {
-                    var list = suggestionUids.Where(x => x != text && x.StartsWith(text)).ToList();
-                    if (list.Count == 0)
-                    {
-                        AutoSuggestBox_Uid.IsSuggestionListOpen = false;
-                    }
-                    else
-                    {
-                        if (!(AutoSuggestBox_Uid.ItemsSource is List<string> source && source.SequenceEqual(list)))
-                        {
-                            AutoSuggestBox_Uid.ItemsSource = list;
-                        }
-                        AutoSuggestBox_Uid.IsSuggestionListOpen = true;
-                    }
-                }
-            }
-        }
-        catch { }
-    }
 
 
 }

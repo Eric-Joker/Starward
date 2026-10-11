@@ -8011,5 +8011,662 @@ namespace Starward.Language {
                 return ResourceManager.GetString("ZZZGachaService_ImportSignalSearchRecordsSuccessfully", resourceCulture);
             }
         }
+
+        /// <summary>
+        ///   查找类似 Provided by this app. Not affiliated with miHoYo. 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_Disclaimer {
+            get {
+                return ResourceManager.GetString("PassportLogin_Disclaimer", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Password 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_TabPassword {
+            get {
+                return ResourceManager.GetString("PassportLogin_TabPassword", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 SMS code 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_TabSms {
+            get {
+                return ResourceManager.GetString("PassportLogin_TabSms", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 QR code 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_TabQrCode {
+            get {
+                return ResourceManager.GetString("PassportLogin_TabQrCode", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Cookie 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_TabToken {
+            get {
+                return ResourceManager.GetString("PassportLogin_TabToken", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Phone number or email 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_AccountPlaceholder {
+            get {
+                return ResourceManager.GetString("PassportLogin_AccountPlaceholder", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Password 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_Password {
+            get {
+                return ResourceManager.GetString("PassportLogin_Password", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Sign in 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_SignIn {
+            get {
+                return ResourceManager.GetString("PassportLogin_SignIn", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Mainland China phone number 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_MobilePlaceholder {
+            get {
+                return ResourceManager.GetString("PassportLogin_MobilePlaceholder", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Send code 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_SendSmsCode {
+            get {
+                return ResourceManager.GetString("PassportLogin_SendSmsCode", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Resend in {0} s 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_ResendIn {
+            get {
+                return ResourceManager.GetString("PassportLogin_ResendIn", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Verification code 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_SmsCode {
+            get {
+                return ResourceManager.GetString("PassportLogin_SmsCode", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 The verification code has been sent. 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_SmsCodeSent {
+            get {
+                return ResourceManager.GetString("PassportLogin_SmsCodeSent", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Scan with the Miyoushe app 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_QrCodeTip {
+            get {
+                return ResourceManager.GetString("PassportLogin_QrCodeTip", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Refresh the QR code 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_GetQrCode {
+            get {
+                return ResourceManager.GetString("PassportLogin_GetQrCode", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 The QR code expired. Requesting a new one... 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_QrCodeRefreshing {
+            get {
+                return ResourceManager.GetString("PassportLogin_QrCodeRefreshing", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Requesting the QR code... 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_QrCodeLoading {
+            get {
+                return ResourceManager.GetString("PassportLogin_QrCodeLoading", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Failed to get the QR code. Please try again. 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_QrCodeFailed {
+            get {
+                return ResourceManager.GetString("PassportLogin_QrCodeFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Scanned. Please confirm on your phone. 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_QrCodeScanned {
+            get {
+                return ResourceManager.GetString("PassportLogin_QrCodeScanned", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Confirmed. Signing in... 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_QrCodeConfirmed {
+            get {
+                return ResourceManager.GetString("PassportLogin_QrCodeConfirmed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Sign-in was cancelled on the phone. 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_QrCodeCancelled {
+            get {
+                return ResourceManager.GetString("PassportLogin_QrCodeCancelled", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Save QR image 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_SaveQrCodeImage {
+            get {
+                return ResourceManager.GetString("PassportLogin_SaveQrCodeImage", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 QR code image 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_QrCodeImage {
+            get {
+                return ResourceManager.GetString("PassportLogin_QrCodeImage", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 The QR code image has been saved. 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_QrCodeSaved {
+            get {
+                return ResourceManager.GetString("PassportLogin_QrCodeSaved", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 If you already have a sign-in token (SToken V2) and the matching MiHoYo ID, you can import them directly. 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_TokenTip {
+            get {
+                return ResourceManager.GetString("PassportLogin_TokenTip", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 SToken (V2) 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_Stoken {
+            get {
+                return ResourceManager.GetString("PassportLogin_Stoken", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 MiHoYo ID (mid) 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_Mid {
+            get {
+                return ResourceManager.GetString("PassportLogin_Mid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Import 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_Import {
+            get {
+                return ResourceManager.GetString("PassportLogin_Import", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 No stoken was found in the pasted text. Paste the full Cookie, or fill in the SToken and mid separately. 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_ImportCookieNotFound {
+            get {
+                return ResourceManager.GetString("PassportLogin_ImportCookieNotFound", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 An SToken (V1) needs the matching stuid. Paste the full Cookie instead. 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_ImportNeedStuid {
+            get {
+                return ResourceManager.GetString("PassportLogin_ImportNeedStuid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Only an SToken (V2) together with the matching MiHoYo ID can be imported. 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_ImportNeedStokenV2 {
+            get {
+                return ResourceManager.GetString("PassportLogin_ImportNeedStokenV2", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 The server did not return a sign-in token. 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_NoTokenReturned {
+            get {
+                return ResourceManager.GetString("PassportLogin_NoTokenReturned", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 ID: {0} 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_AccountId {
+            get {
+                return ResourceManager.GetString("PassportLogin_AccountId", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Sign in automatically at launch 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_AutoLogin {
+            get {
+                return ResourceManager.GetString("PassportLogin_AutoLogin", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Cancel 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_Cancel {
+            get {
+                return ResourceManager.GetString("PassportLogin_Cancel", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Please fill in all required fields. 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_InputRequired {
+            get {
+                return ResourceManager.GetString("PassportLogin_InputRequired", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Too many attempts. Please try again later. 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_TooManyAttempts {
+            get {
+                return ResourceManager.GetString("PassportLogin_TooManyAttempts", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Signed in successfully. 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_SignInSuccess {
+            get {
+                return ResourceManager.GetString("PassportLogin_SignInSuccess", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Request failed: {0} 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_NetworkError {
+            get {
+                return ResourceManager.GetString("PassportLogin_NetworkError", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 The server returned an unexpected result. 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_ServiceError {
+            get {
+                return ResourceManager.GetString("PassportLogin_ServiceError", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Verification required 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_CaptchaTitle {
+            get {
+                return ResourceManager.GetString("PassportLogin_CaptchaTitle", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Loading the verification... 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_CaptchaLoading {
+            get {
+                return ResourceManager.GetString("PassportLogin_CaptchaLoading", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Verification failed. Please try again. 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_CaptchaFailed {
+            get {
+                return ResourceManager.GetString("PassportLogin_CaptchaFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Verification was cancelled. 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_CaptchaCancelled {
+            get {
+                return ResourceManager.GetString("PassportLogin_CaptchaCancelled", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 The verification component is unavailable. 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_CaptchaUnavailable {
+            get {
+                return ResourceManager.GetString("PassportLogin_CaptchaUnavailable", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 This is a new device. Enter the SMS verification code sent to your phone. 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_DeviceVerifyTip {
+            get {
+                return ResourceManager.GetString("PassportLogin_DeviceVerifyTip", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 SMS verification code 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_DeviceVerifyCode {
+            get {
+                return ResourceManager.GetString("PassportLogin_DeviceVerifyCode", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Verify 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_DeviceVerifySubmit {
+            get {
+                return ResourceManager.GetString("PassportLogin_DeviceVerifySubmit", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Auto sign-in 的本地化字符串。
+        /// </summary>
+        public static string GameAuthLogin_Title {
+            get {
+                return ResourceManager.GetString("GameAuthLogin_Title", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Sign in to let the game sign in automatically. 的本地化字符串。
+        /// </summary>
+        public static string GameAuthLogin_NotSignedIn {
+            get {
+                return ResourceManager.GetString("GameAuthLogin_NotSignedIn", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Sign in 的本地化字符串。
+        /// </summary>
+        public static string GameAuthLogin_SignIn {
+            get {
+                return ResourceManager.GetString("GameAuthLogin_SignIn", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Auto sign-in enabled 的本地化字符串。
+        /// </summary>
+        public static string GameAuthLogin_Enabled {
+            get {
+                return ResourceManager.GetString("GameAuthLogin_Enabled", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Auto sign-in disabled 的本地化字符串。
+        /// </summary>
+        public static string GameAuthLogin_Disabled {
+            get {
+                return ResourceManager.GetString("GameAuthLogin_Disabled", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Refresh 的本地化字符串。
+        /// </summary>
+        public static string GameAuthLogin_Refresh {
+            get {
+                return ResourceManager.GetString("GameAuthLogin_Refresh", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Account 的本地化字符串。
+        /// </summary>
+        public static string GameAuthLogin_Manage {
+            get {
+                return ResourceManager.GetString("GameAuthLogin_Manage", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Signed in as {0} (ID: {1}) 的本地化字符串。
+        /// </summary>
+        public static string GameAuthLogin_Account {
+            get {
+                return ResourceManager.GetString("GameAuthLogin_Account", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 The sign-in has expired. Please sign in again. 的本地化字符串。
+        /// </summary>
+        public static string GameAuthLogin_TokenExpired {
+            get {
+                return ResourceManager.GetString("GameAuthLogin_TokenExpired", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Provided by this app, not affiliated with miHoYo. 的本地化字符串。
+        /// </summary>
+        public static string GameAuthLogin_Disclaimer {
+            get {
+                return ResourceManager.GetString("GameAuthLogin_Disclaimer", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Too many sign-in attempts in a short time. Complete the human verification to continue. 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_CaptchaRequired {
+            get {
+                return ResourceManager.GetString("PassportLogin_CaptchaRequired", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Account sign-in 的本地化字符串。
+        /// </summary>
+        public static string HoyolabToolboxPage_PassportLogin {
+            get {
+                return ResourceManager.GetString("HoyolabToolboxPage_PassportLogin", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Accounts 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_Accounts {
+            get {
+                return ResourceManager.GetString("PassportLogin_Accounts", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Add account 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_AddAccount {
+            get {
+                return ResourceManager.GetString("PassportLogin_AddAccount", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Refreshed credentials for {0} account(s) 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_CredentialsRefreshed {
+            get {
+                return ResourceManager.GetString("PassportLogin_CredentialsRefreshed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Credentials are up to date 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_CredentialsAreFresh {
+            get {
+                return ResourceManager.GetString("PassportLogin_CredentialsAreFresh", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 {0} account(s) need to sign in again 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_CredentialsExpired {
+            get {
+                return ResourceManager.GetString("PassportLogin_CredentialsExpired", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Refreshing… 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_Refreshing {
+            get {
+                return ResourceManager.GetString("PassportLogin_Refreshing", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Refreshed the toolbox data of {0} game(s), {1} item(s) in total 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_ToolboxRefreshed {
+            get {
+                return ResourceManager.GetString("PassportLogin_ToolboxRefreshed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Failed to refresh {0} item(s) of the toolbox data 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_ToolboxRefreshFailed {
+            get {
+                return ResourceManager.GetString("PassportLogin_ToolboxRefreshFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Remove account 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_RemoveAccount {
+            get {
+                return ResourceManager.GetString("PassportLogin_RemoveAccount", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Back to accounts 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_BackToAccounts {
+            get {
+                return ResourceManager.GetString("PassportLogin_BackToAccounts", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Account removed 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_AccountRemoved {
+            get {
+                return ResourceManager.GetString("PassportLogin_AccountRemoved", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Cannot read the account data 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_SwitchAccountFailed {
+            get {
+                return ResourceManager.GetString("PassportLogin_SwitchAccountFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Unknown account 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_UnknownAccount {
+            get {
+                return ResourceManager.GetString("PassportLogin_UnknownAccount", resourceCulture);
+            }
+        }
     }
 }

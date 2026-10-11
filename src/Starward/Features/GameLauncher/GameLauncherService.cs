@@ -361,7 +361,7 @@ internal partial class GameLauncherService
                 }
             }
             arg = AppConfig.GetStartArgument(gameId.GameBiz)?.Trim();
-            if (AppConfig.EnableLoginAuthTicket is true)
+            if (AppConfig.GetEnableAuthTicketLogin(gameId.GameBiz))
             {
                 string? ticket = await _gameAuthLoginService.CreateAuthTicketByGameBiz(gameId);
                 if (!string.IsNullOrWhiteSpace(ticket))
@@ -387,7 +387,7 @@ internal partial class GameLauncherService
                 arg = $"""/c start "" /d "{Path.GetDirectoryName(exe)}" "{exe}" {arg}""";
                 exe = "cmd.exe";
             }
-            _logger.LogInformation("Start game ({biz})\r\npath: {exe}\r\narg: {arg}", gameId, exe, arg);
+            _logger.LogInformation("Start game ({biz})\r\npath: {exe}\r\narg: {arg}", gameId, exe, MaskSensitiveArgument(arg));
             var info = new ProcessStartInfo
             {
                 FileName = exe,
@@ -416,6 +416,21 @@ internal partial class GameLauncherService
             _logger.LogInformation("Start game operation canceled.");
         }
         return null;
+    }
+
+
+
+
+    /// <summary>
+    /// 日志里不能出现授权票据（它可以直接用来登录游戏），替换成固定长度的占位符。
+    /// </summary>
+    private static string? MaskSensitiveArgument(string? arguments)
+    {
+        if (string.IsNullOrWhiteSpace(arguments))
+        {
+            return arguments;
+        }
+        return Regex.Replace(arguments, @"(login_auth_ticket=)[^\s""]+", "$1<masked>");
     }
 
 
