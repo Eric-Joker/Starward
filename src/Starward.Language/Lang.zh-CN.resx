@@ -2957,4 +2957,10 @@
   <data name="DailyNoteButton_WeekProgress" xml:space="preserve">
     <value>本周进度</value>
   </data>
+  <data name="GachaLogPage_ImportUIGF4UseUIGF4Window" xml:space="preserve">
+    <value>这是 UIGF v4.x 格式的文件</value>
+  </data>
+  <data name="GachaLogPage_ImportUIGF4UseUIGF4WindowDesc" xml:space="preserve">
+    <value>UIGF v4.x 的文件不能通过旧版格式导入。请改用「UIGF v4.2」按钮，在那里选择要导入的档案。</value>
+  </data>
 </root>

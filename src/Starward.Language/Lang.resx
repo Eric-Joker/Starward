@@ -2957,4 +2957,10 @@ You are welcome to submit the exported data to the following repository:</value>
   <data name="DailyNoteButton_WeekProgress" xml:space="preserve">
     <value>Week Progress</value>
   </data>
+  <data name="GachaLogPage_ImportUIGF4UseUIGF4Window" xml:space="preserve">
+    <value>This is a UIGF v4.x file</value>
+  </data>
+  <data name="GachaLogPage_ImportUIGF4UseUIGF4WindowDesc" xml:space="preserve">
+    <value>UIGF v4.x files cannot be imported through the legacy import. Use the "UIGF v4.2" button instead, where you can select the archives to import.</value>
+  </data>
 </root>
