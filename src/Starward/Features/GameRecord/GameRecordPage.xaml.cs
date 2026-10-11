@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.UI.Xaml.Navigation;
 using Starward.Core;
 using Starward.Core.GameRecord;
+using Starward.Features.Account;
 using Starward.Features.GameLauncher;
 using Starward.Features.GameRecord.Genshin;
 using Starward.Features.GameRecord.StarRail;
@@ -45,6 +46,9 @@ public sealed partial class GameRecordPage : PageBase
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
+        // b 服走的是国服的战绩接口，但它没有米游社账号，登录只能用网页登录，
+        // 所以先把原始区服记下来，再按国服处理数据。
+        _bilibiliServer = CurrentGameBiz.Server is "bilibili";
         CurrentGameBiz = CurrentGameBiz.Value switch
         {
             GameBiz.hk4e_bilibili => GameBiz.hk4e_cn,
@@ -53,13 +57,16 @@ public sealed partial class GameRecordPage : PageBase
             _ => CurrentGameBiz,
         };
         _gameRecordService.IsHoyolab = CurrentGameBiz.IsGlobalServer();
-        if (CurrentGameBiz.IsGlobalServer())
-        {
-            NavigationViewItem_UpdateDeviceInfo.Visibility = Visibility.Collapsed;
-        }
+        // 只有国服能用通行证登录（账密 / 短信 / 扫码 / 令牌导入）替代网页登录，
+        // 国际服和 b 服都保留原来的网页登录，因此这里按区服切换两种入口。
+        UpdateLoginMenuVisibility(CurrentGameBiz.IsGlobalServer() || _bilibiliServer);
         _gameRecordService.Language = System.Globalization.CultureInfo.CurrentUICulture.Name;
         InitializeNavigationViewItemVisibility();
     }
+
+
+    /// <summary>进来的是不是 b 服（数据按国服处理，但登录不归米游社账号管）。</summary>
+    private bool _bilibiliServer;
 
 
 
@@ -77,10 +84,23 @@ public sealed partial class GameRecordPage : PageBase
         WeakReferenceMessenger.Default.Register<GameRecordRoleChangedMessage>(this, (r, m) =>
         {
             LoadGameRoles(m.GameRole);
+            // 已经打开的战绩窗口跟着换成新的角色，登录之后不用再点一次。
+            if (_battleChronicleWindow?.AppWindow is not null && CurrentRole is not null)
+            {
+                _battleChronicleWindow.CurrentRole = CurrentRole;
+                _battleChronicleWindow.Activate();
+            }
         });
         WeakReferenceMessenger.Default.Register<GameRecordVerifyAccountMessage>(this, (r, m) =>
         {
-            ShowBattleChronicleWindow();
+            // 1034 / 10041 这类错误都要重新登录一次。国服直接用通行证在账号中心里登录，
+            // 国际服没有通行证账号，仍然走工具箱的网页登录（入口在战绩窗口里）。
+            RequestLogin();
+        });
+        WeakReferenceMessenger.Default.Register<GameRecordToolboxRefreshedMessage>(this, (r, m) =>
+        {
+            // 账号中心刚刷新过工具箱数据，当前页面重新加载一次，直接显示新记录。
+            ReloadCurrentPage();
         });
         await Task.Delay(16);
         NavigateTo(typeof(BlankPage));
@@ -98,7 +118,15 @@ public sealed partial class GameRecordPage : PageBase
     {
         WeakReferenceMessenger.Default.UnregisterAll(this);
         NavigationViewItem_BattleChronicle.Tapped -= NavigationViewItem_BattleChronicle_Tapped;
-        NavigationViewItem_UpdateDeviceInfo.Tapped -= NavigationViewItem_UpdateDeviceInfo_Tapped;
+        // 战绩窗口是工具箱页带出来的，页面上已经离开工具箱了，就别再留着它。
+        try
+        {
+            if (_battleChronicleWindow?.AppWindow is not null)
+            {
+                _battleChronicleWindow.Close();
+            }
+        }
+        catch { }
         CurrentRole = null;
         GameRoleList = null!;
         _battleChronicleWindow = null;
@@ -306,6 +334,49 @@ public sealed partial class GameRecordPage : PageBase
     private void WebLogin()
     {
         NavigateTo(typeof(LoginPage), CurrentGameBiz);
+    }
+
+
+
+
+    /// <summary>
+    /// 国服工具箱的登录入口和刷新信息都收在账号中心里，这里按区服决定工具箱里显示什么。
+    /// <para>
+    /// 国际服和 b 服没有米游社通行证账号，保留原来的网页登录菜单；只有国服把登录、
+    /// 刷新信息都收进左侧导航栏的账号中心。
+    /// </para>
+    /// </summary>
+    private void UpdateLoginMenuVisibility(bool keepWebLogin)
+    {
+        Visibility webVisibility = keepWebLogin ? Visibility.Visible : Visibility.Collapsed;
+        MenuItem_WebLogin_1.Visibility = webVisibility;
+        MenuItem_WebLogin_2.Visibility = webVisibility;
+        if (!keepWebLogin)
+        {
+            // 只剩「添加账号」这一项，直接点开账号中心，不再多一层菜单。
+            Button_Login.Flyout = null;
+            Button_RefreshGameRoleInfo.Visibility = Visibility.Collapsed;
+            Button_AddToolboxAccount.Visibility = Visibility.Collapsed;
+            Separator_LoginActions.Visibility = Visibility.Collapsed;
+        }
+    }
+
+
+
+
+    /// <summary>米游社通行证只有国服有，b 服和国际服都不走这条线。</summary>
+    private bool CanUsePassportAccount => CurrentGameBiz.Server is "cn" && !_bilibiliServer;
+
+
+
+
+    /// <summary>国服：打开统一的账号中心；其他区服的登录方式仍由菜单提供。</summary>
+    private void Button_Login_Click(object sender, RoutedEventArgs e)
+    {
+        if (CanUsePassportAccount)
+        {
+            ShowAccountCenter();
+        }
     }
 
 
@@ -546,12 +617,72 @@ public sealed partial class GameRecordPage : PageBase
             {
                 CurrentRole = CurrentRole,
             };
+            // 网页里的登录按钮原本点了没有反应（JS 桥收下了消息却没有回话），
+            // 现在把它转交给应用自己的登录入口。
+            _battleChronicleWindow.LoginRequested += (_, _) => RequestLogin();
         }
         else if (_battleChronicleWindow.CurrentRole != CurrentRole)
         {
             _battleChronicleWindow.CurrentRole = CurrentRole;
         }
         _battleChronicleWindow.Activate();
+    }
+
+
+
+
+    /// <summary>
+    /// 需要重新登录时打开登录入口：国服是账号中心（通行证登录，顺带刷新工具箱数据），
+    /// 国际服没有通行证账号，仍然是工具箱自己的网页登录页。
+    /// </summary>
+    private void RequestLogin()
+    {
+        try
+        {
+            if (CanUsePassportAccount)
+            {
+                ShowAccountCenter();
+            }
+            else
+            {
+                WebLogin();
+            }
+            // 登录入口在主窗口里，把主窗口带到前面来，否则用户看不到它。
+            ((App)Application.Current).EnsureMainWindow();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Request login ({gameBiz}).", CurrentGameBiz);
+        }
+    }
+
+
+
+
+    /// <summary>工具箱数据刚被刷新过，当前的子页面重新导航一次，显示的就是新记录。</summary>
+    private void ReloadCurrentPage()
+    {
+        try
+        {
+            LoadGameRoles();
+            var page = frame.SourcePageType;
+            if (page is not null && page != typeof(BlankPage))
+            {
+                NavigateTo(page, force_navigate: true);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Reload toolbox page.");
+        }
+    }
+
+
+
+
+    private void ShowAccountCenter()
+    {
+        AccountCenter.Show(Button_Login);
     }
 
 
@@ -564,13 +695,6 @@ public sealed partial class GameRecordPage : PageBase
 
     #region Device Info
 
-
-
-
-    private async void NavigationViewItem_UpdateDeviceInfo_Tapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
-    {
-        await UpdateDeviceInfoAsync(true);
-    }
 
 
 

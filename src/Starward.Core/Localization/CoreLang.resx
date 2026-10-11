@@ -316,4 +316,34 @@
   <data name="GachaType_WEngineReverberation" xml:space="preserve">
     <value>W-Engine Reverberation</value>
   </data>
+  <data name="PassportError_LoginFailed" xml:space="preserve">
+    <value>Incorrect account or password.</value>
+  </data>
+  <data name="PassportError_AccountNotFound" xml:space="preserve">
+    <value>The account does not exist.</value>
+  </data>
+  <data name="PassportError_AccountLocked" xml:space="preserve">
+    <value>Too many failed attempts. The account has been locked temporarily.</value>
+  </data>
+  <data name="PassportError_SmsCodeWrong" xml:space="preserve">
+    <value>Incorrect verification code.</value>
+  </data>
+  <data name="PassportError_CaptchaFailed" xml:space="preserve">
+    <value>Human verification failed. Please try again.</value>
+  </data>
+  <data name="PassportError_TooFrequent" xml:space="preserve">
+    <value>Too many requests. Please try again later.</value>
+  </data>
+  <data name="PassportError_DeviceVerifyRequired" xml:space="preserve">
+    <value>Complete the SMS verification to continue signing in.</value>
+  </data>
+  <data name="PassportError_TokenExpired" xml:space="preserve">
+    <value>The sign-in has expired. Please sign in again.</value>
+  </data>
+  <data name="PassportError_EmailVerifyRequired" xml:space="preserve">
+    <value>Email verification is required.</value>
+  </data>
+  <data name="PassportError_Unknown" xml:space="preserve">
+    <value>Request failed ({0}).</value>
+  </data>
 </root>

@@ -125,13 +125,18 @@ public static partial class AppConfig
     }
 
     /// <summary>
-    /// 游戏账号切换
+    /// 基于注册表的游戏账号切换：开启后启动页显示游戏账号切换器，
+    /// 切账号时读写游戏客户端自己记住的那个账号（注册表里那份，每个游戏各记一份）。
     /// </summary>
-    public static bool EnableGameAccountSwitcher
+    public static bool EnableRegistryGameAccountSwitcher
     {
-        get => GetValue<bool>();
-        set => SetValue(value);
+        get => GetValue(GetValue(false, ObsoleteGameAccountSwitcherKey), nameof(EnableRegistryGameAccountSwitcher));
+        set => SetValue(value, nameof(EnableRegistryGameAccountSwitcher));
     }
+
+
+    /// <summary>改名前的设置键，只当作默认值读一次，免得升级后把用户已经打开的开关关掉。</summary>
+    public const string ObsoleteGameAccountSwitcherKey = "EnableGameAccountSwitcher";
 
     public static bool DisableGameNoticeRedHot
     {
@@ -161,6 +166,107 @@ public static partial class AppConfig
     {
         get => GetValue<DateTimeOffset>();
         set => SetValue(value);
+    }
+
+    /// <summary>
+    /// 通行证令牌（JSON）。保存在数据库中，不再写入 config.ini 或注册表。
+    /// </summary>
+    public static string? PassportTokenJson
+    {
+        get => GetValue<string>();
+        set => SetValue(value);
+    }
+
+    /// <summary>
+    /// 账号中心里账号列表的排列顺序（账号标识，逗号分隔）。拖动排序后保存，重启后仍然有效。
+    /// </summary>
+    public static string? PassportAccountOrder
+    {
+        get => GetValue<string>();
+        set => SetValue(value);
+    }
+
+    /// <summary>
+    /// 游戏授权登录（自动登录）。默认开启，不再依赖 ini 或注册表中的旧开关。
+    /// <para>
+    /// 旧开关只要不存在就会被读成关闭，并把本应默认开启的功能关掉（数据库里留下 False），
+    /// 因此这里换用新的键名，旧值不再读取，等于一次性恢复默认值；关闭需要用户在界面上主动操作。
+    /// </para>
+    /// </summary>
+    public static bool EnableAuthTicketLogin
+    {
+        get => GetValue(true, EnableAuthTicketLoginKey);
+        set => SetValue(value, EnableAuthTicketLoginKey);
+    }
+
+
+    /// <summary>存储 <see cref="EnableAuthTicketLogin"/> 的设置键，见该属性的说明。</summary>
+    public const string EnableAuthTicketLoginKey = "EnableAuthTicketLoginV2";
+
+
+    /// <summary>
+    /// 某个游戏是否在启动时自动登录。开关放在该游戏的启动参数设置里，所以按游戏分别保存。
+    /// <para>
+    /// 没有单独设置过的游戏沿用 <see cref="EnableAuthTicketLogin"/> 的值，
+    /// 这样旧版本里关掉自动登录的用户升级后不会被重新打开。
+    /// </para>
+    /// </summary>
+    public static bool GetEnableAuthTicketLogin(GameBiz gameBiz)
+    {
+        string? key = GetEnableAuthTicketLoginKeyName(gameBiz);
+        if (key is null)
+        {
+            return EnableAuthTicketLogin;
+        }
+        return GetValue(EnableAuthTicketLogin, key);
+    }
+
+
+    public static void SetEnableAuthTicketLogin(GameBiz gameBiz, bool value)
+    {
+        string? key = GetEnableAuthTicketLoginKeyName(gameBiz);
+        if (key is null)
+        {
+            EnableAuthTicketLogin = value;
+        }
+        else
+        {
+            SetValue(value, key);
+        }
+    }
+
+
+    private static string? GetEnableAuthTicketLoginKeyName(GameBiz gameBiz)
+    {
+        return string.IsNullOrWhiteSpace(gameBiz.Value) ? null : $"EnableAuthTicketLogin_{gameBiz.Value}";
+    }
+
+
+    /// <summary>旧版本使用过的设置键，其中的值已不再读取，仅在启动时清理。</summary>
+    public const string ObsoleteEnableAuthTicketLoginKey = "EnableAuthTicketLogin";
+
+
+    /// <summary>
+    /// 某个游戏当前选用的通行证账号（账号标识，见 <c>PassportAccountRecord.GetKey</c>）。
+    /// <para>
+    /// 一个通行证账号在一个游戏里只对应一个游戏账号，所以每个游戏各记一份就够了。
+    /// </para>
+    /// </summary>
+    public static string? GetCurrentPassportAccountKey(GameBiz gameBiz)
+    {
+        return GetValue<string>(null, GetCurrentPassportAccountKeyName(gameBiz));
+    }
+
+
+    public static void SetCurrentPassportAccountKey(GameBiz gameBiz, string? key)
+    {
+        SetValue(key, GetCurrentPassportAccountKeyName(gameBiz));
+    }
+
+
+    private static string? GetCurrentPassportAccountKeyName(GameBiz gameBiz)
+    {
+        return string.IsNullOrWhiteSpace(gameBiz.Value) ? null : $"PassportAccountKey_{gameBiz.Value}";
     }
 
     public static string? LastAppVersion
@@ -713,6 +819,29 @@ public static partial class AppConfig
             _settingCache[key] = val;
             using var dapper = DatabaseService.CreateConnection();
             dapper.Execute("INSERT OR REPLACE INTO Setting (Key, Value) VALUES (@key, @val);", new { key, val });
+        }
+        catch { }
+    }
+
+
+    /// <summary>
+    /// 删除一个设置项（同时清掉缓存）。用于清理被旧版本写坏或已经废弃的键。
+    /// </summary>
+    public static void RemoveValue(string key)
+    {
+        if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(UserDataFolder))
+        {
+            return;
+        }
+        try
+        {
+            InitializeSettingProvider();
+            if (_settingCache is not null)
+            {
+                _settingCache.Remove(key);
+            }
+            using var dapper = DatabaseService.CreateConnection();
+            dapper.Execute("DELETE FROM Setting WHERE Key=@key;", new { key });
         }
         catch { }
     }

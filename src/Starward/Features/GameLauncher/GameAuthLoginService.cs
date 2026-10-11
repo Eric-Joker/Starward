@@ -1,247 +1,140 @@
 using Microsoft.Extensions.Logging;
 using Starward.Core;
 using Starward.Core.HoYoPlay;
-using Starward.Features.GameRecord;
+using Starward.Core.Passport;
+using Starward.Features.Account;
 using System;
-using System.Collections.Generic;
-using System.Net.Http;
-using System.Net.Http.Json;
-using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace Starward.Features.GameLauncher;
 
-public class GameAuthLoginService
+/// <summary>
+/// 游戏授权登录（自动登录）。
+/// <para>
+/// 使用通行证令牌向服务器申请游戏授权票据，游戏启动后会自动登录到对应的账号。
+/// 令牌由 <see cref="PassportAccountService"/> 统一维护，与米游社工具箱共用。
+/// </para>
+/// </summary>
+internal class GameAuthLoginService
 {
 
 
     private readonly ILogger<GameAuthLoginService> _logger;
 
+    private readonly PassportClient _client;
 
-    private readonly HttpClient _httpClient;
+    private readonly PassportAccountService _accountService;
 
 
-    public GameAuthLoginService(ILogger<GameAuthLoginService> logger, HttpClient httpClient)
+    public GameAuthLoginService(ILogger<GameAuthLoginService> logger, PassportClient client, PassportAccountService accountService)
     {
         _logger = logger;
-        _httpClient = httpClient;
+        _client = client;
+        _accountService = accountService;
     }
 
 
 
-    private long? hyperionAid;
+
+    /// <summary>是否已经登录通行证账号。</summary>
+    public bool IsLoggedIn => _accountService.IsLoggedIn;
+
+
+    /// <summary>当前登录的通行证 ID。</summary>
+    public long? HyperionAid => _accountService.Aid > 0 ? _accountService.Aid : null;
 
 
 
+
+    /// <summary>
+    /// 获取通行证 ID。令牌需要刷新时才会发出请求。
+    /// </summary>
     public async Task<long?> GetHyperionAidAsync(CancellationToken cancellationToken = default)
     {
-        if (!hyperionAid.HasValue)
+        if (!_accountService.IsLoggedIn)
         {
-            await VerifyStokenAsync(cancellationToken);
+            return null;
         }
-        return hyperionAid;
+        await _accountService.RefreshIfNeededAsync(false, cancellationToken);
+        return HyperionAid;
     }
 
 
 
-    public async Task VerifyStokenAsync(CancellationToken cancellationToken = default)
-    {
-        if (string.IsNullOrWhiteSpace(AppConfig.stoken) || string.IsNullOrWhiteSpace(AppConfig.mid))
-        {
-            return;
-        }
-        var obj = new
-        {
-            token = new
-            {
-                token_type = 1,
-                token = AppConfig.stoken,
-            },
-            refresh = true,
-            mid = AppConfig.mid,
-        };
-        var request = new HttpRequestMessage(HttpMethod.Post, "https://passport-api.mihoyo.com/account/ma-cn-session/app/verify")
-        {
-            Content = JsonContent.Create(obj),
-            VersionPolicy = HttpVersionPolicy.RequestVersionOrHigher,
-        };
-        request.Headers.Add("x-rpc-app_id", "ddxf5dufpuyo");
-        request.Headers.Add("x-rpc-client_type", "3");
-        request.Headers.Add("x-rpc-game_biz", "hyp_cn");
-        await AppConfig.GetService<GameRecordService>().UpdateDeviceFpAsync(false, cancellationToken);
-        request.Headers.Add("x-rpc-device_fp", AppConfig.HyperionDeviceFp);
-        var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-        response.EnsureSuccessStatusCode();
-        var node = await response.Content.ReadFromJsonAsync<Root<Data>>(cancellationToken);
-        if (node!.Retcode != 0)
-        {
-            throw new miHoYoApiException(node.Retcode, node.Message);
-        }
-        hyperionAid = node.Data.UserInfo.Aid;
-        if (node.Data.NewToken != null && node.Data.NewToken.Token != AppConfig.stoken)
-        {
-            AppConfig.stoken = node.Data.NewToken.Token;
-            AppConfig.SaveConfiguration();
-        }
-    }
 
-
-
+    /// <summary>
+    /// 申请指定游戏的授权票据，失败时返回 null。
+    /// <para>
+    /// 「基于注册表的游戏账号切换」打开时直接返回 null：那条线里游戏账号完全由游戏客户端自己记住的
+    /// 那份数据决定（注册表里的账号），不申请票据、不按游戏切换米游社账号，
+    /// 启用的自动登录也就不再产生 <c>login_auth_ticket=</c> 启动参数。
+    /// </para>
+    /// </summary>
     public async Task<string?> CreateAuthTicketByGameBiz(GameId gameId)
     {
         try
         {
+            if (AppConfig.EnableRegistryGameAccountSwitcher)
+            {
+                _logger.LogInformation("Skip auth ticket for {biz}: the registry based account switcher is enabled.", gameId?.GameBiz);
+                return null;
+            }
             if (gameId.GameBiz.Server is not "cn")
             {
                 return null;
             }
-            CancellationToken cancellationToken = new CancellationTokenSource(TimeSpan.FromSeconds(3)).Token;
-            long? aid = await GetHyperionAidAsync(cancellationToken);
-            if (!hyperionAid.HasValue)
+            var tokenSet = _accountService.TokenSet;
+            if (tokenSet?.HasStoken is not true || string.IsNullOrWhiteSpace(tokenSet.Mid))
             {
+                _logger.LogInformation("Skip auth ticket for {biz}: no passport account signed in.", gameId?.GameBiz);
                 return null;
             }
-            var obj = new
+            using var cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(6));
+            var cancellationToken = cancellationTokenSource.Token;
+            // 每个游戏各记一个通行证账号，启动前先让会话对到这个游戏记录过的账号。
+            await _accountService.UseAccountForGameAsync(gameId.GameBiz, cancellationToken);
+            tokenSet = _accountService.TokenSet;
+            if (tokenSet?.HasStoken is not true || string.IsNullOrWhiteSpace(tokenSet.Mid))
             {
-                game_biz = gameId.GameBiz.ToString(),
-                stoken = AppConfig.stoken,
-                uid = hyperionAid,
-                mid = AppConfig.mid,
-            };
-            var request = new HttpRequestMessage(HttpMethod.Post, "https://passport-api.mihoyo.com/account/ma-cn-verifier/app/createAuthTicketByGameBiz")
-            {
-                Content = JsonContent.Create(obj),
-                VersionPolicy = HttpVersionPolicy.RequestVersionOrHigher,
-            };
-            request.Headers.Add("x-rpc-app_id", "ddxf5dufpuyo");
-            request.Headers.Add("x-rpc-client_type", "3");
-            request.Headers.Add("x-rpc-game_biz", "hyp_cn");
-            await AppConfig.GetService<GameRecordService>().UpdateDeviceFpAsync(false, cancellationToken);
-            request.Headers.Add("x-rpc-device_fp", AppConfig.HyperionDeviceFp);
-            var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-            response.EnsureSuccessStatusCode();
-            var node = await response.Content.ReadFromJsonAsync<Root<AuthTicket>>(cancellationToken);
-            if (node!.Retcode != 0)
-            {
-                throw new miHoYoApiException(node.Retcode, node.Message);
+                _logger.LogInformation("Skip auth ticket for {biz}: the recorded passport account is not available.", gameId?.GameBiz);
+                return null;
             }
-            return node.Data.Ticket;
+            if (!await _accountService.RefreshIfNeededAsync(false, cancellationToken))
+            {
+                _logger.LogWarning("Skip auth ticket for {biz}: passport token can not be refreshed.", gameId?.GameBiz);
+                return null;
+            }
+            // 设备指纹只在本机数据库中读取，不会产生额外请求。
+            if (!string.IsNullOrWhiteSpace(AppConfig.HyperionDeviceId))
+            {
+                _client.DeviceId = AppConfig.HyperionDeviceId;
+            }
+            if (!string.IsNullOrWhiteSpace(AppConfig.HyperionDeviceFp))
+            {
+                _client.DeviceFp = AppConfig.HyperionDeviceFp;
+            }
+            var result = await _client.CreateAuthTicketByGameBizAsync(gameId.GameBiz.ToString(), tokenSet.Stoken!, tokenSet.Mid!, tokenSet.Aid, cancellationToken);
+            if (!result.IsSuccess)
+            {
+                _logger.LogWarning("Create auth ticket failed: {retcode} {message}", result.Retcode, result.Message);
+                return null;
+            }
+            string? ticket = result.Deserialize<PassportAuthTicket>()?.Value;
+            if (string.IsNullOrWhiteSpace(ticket))
+            {
+                _logger.LogWarning("Create auth ticket returned an empty ticket.");
+                return null;
+            }
+            _logger.LogInformation("Auth ticket created for {biz} (aid: {aid}).", gameId.GameBiz, tokenSet.Aid);
+            return ticket;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "CreateAuthTicketByGameBiz");
+            _logger.LogError(ex, "Create auth ticket by game biz ({biz})", gameId?.GameBiz);
         }
         return null;
     }
-
-
-
-
-    public class Data
-    {
-        [JsonPropertyName("user_info")]
-        public UserInfo UserInfo { get; set; }
-
-        [JsonPropertyName("realname_info")]
-        public object RealnameInfo { get; set; }
-
-        [JsonPropertyName("need_realperson")]
-        public bool NeedRealperson { get; set; }
-
-        [JsonPropertyName("new_token")]
-        public NewToken NewToken { get; set; }
-    }
-
-    public class NewToken
-    {
-        [JsonPropertyName("token_type")]
-        public int TokenType { get; set; }
-
-        [JsonPropertyName("token")]
-        public string Token { get; set; }
-    }
-
-    public class Root<T>
-    {
-        [JsonPropertyName("retcode")]
-        public int Retcode { get; set; }
-
-        [JsonPropertyName("message")]
-        public string Message { get; set; }
-
-        [JsonPropertyName("data")]
-        public T Data { get; set; }
-    }
-
-    public class UserInfo
-    {
-        [JsonPropertyName("aid")]
-        [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
-        public long Aid { get; set; }
-
-        [JsonPropertyName("mid")]
-        public string Mid { get; set; }
-
-        [JsonPropertyName("account_name")]
-        public string AccountName { get; set; }
-
-        [JsonPropertyName("email")]
-        public string Email { get; set; }
-
-        [JsonPropertyName("is_email_verify")]
-        public int IsEmailVerify { get; set; }
-
-        [JsonPropertyName("area_code")]
-        public string AreaCode { get; set; }
-
-        [JsonPropertyName("mobile")]
-        public string Mobile { get; set; }
-
-        [JsonPropertyName("safe_area_code")]
-        public string SafeAreaCode { get; set; }
-
-        [JsonPropertyName("safe_mobile")]
-        public string SafeMobile { get; set; }
-
-        [JsonPropertyName("realname")]
-        public string Realname { get; set; }
-
-        [JsonPropertyName("identity_code")]
-        public string IdentityCode { get; set; }
-
-        [JsonPropertyName("rebind_area_code")]
-        public string RebindAreaCode { get; set; }
-
-        [JsonPropertyName("rebind_mobile")]
-        public string RebindMobile { get; set; }
-
-        [JsonPropertyName("rebind_mobile_time")]
-        public string RebindMobileTime { get; set; }
-
-        [JsonPropertyName("links")]
-        public List<object> Links { get; set; }
-
-        [JsonPropertyName("country")]
-        public string Country { get; set; }
-
-        [JsonPropertyName("password_time")]
-        public string PasswordTime { get; set; }
-
-        [JsonPropertyName("unmasked_email")]
-        public string UnmaskedEmail { get; set; }
-
-        [JsonPropertyName("unmasked_email_type")]
-        public int UnmaskedEmailType { get; set; }
-    }
-
-
-    public class AuthTicket
-    {
-        [JsonPropertyName("ticket")]
-        public string Ticket { get; set; }
-    }
-
 
 
 

@@ -54,7 +54,7 @@
             </StackPanel>
 
             <ToggleSwitch Margin="0,12,0,0"
-                          IsOn="{x:Bind EnableGameAccountSwitcher, Mode=TwoWay}"
+                          IsOn="{x:Bind EnableRegistryGameAccountSwitcher, Mode=TwoWay}"
                           OffContent="{x:Bind lang:Lang.SettingPage_RegistryBasedGameAccountSwitchingFeature}"
                           OnContent="{x:Bind lang:Lang.SettingPage_RegistryBasedGameAccountSwitchingFeature}" />
 

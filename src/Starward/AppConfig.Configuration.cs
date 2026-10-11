@@ -41,10 +41,14 @@ public static partial class AppConfig
     public static string LogFile { get; private set; }
 
 
-    public static bool? EnableLoginAuthTicket { get; set; }
-
+    /// <summary>
+    /// 旧版 SToken。仅为迁移旧配置保留，新版本保存在数据库的通行证令牌中。
+    /// </summary>
     public static string? stoken { get; set; }
 
+    /// <summary>
+    /// 旧版 MiHoYo ID。仅为迁移旧配置保留。
+    /// </summary>
     public static string? mid { get; set; }
 
 
@@ -218,8 +222,6 @@ public static partial class AppConfig
         {
             string text = File.ReadAllText(path);
             string lang = Regex.Match(text, @"Language=(.+)").Groups[1].Value.Trim();
-            bool.TryParse(Regex.Match(text, @"EnableLoginAuthTicket=(.+)").Groups[1].Value.Trim(), out bool enabled);
-            EnableLoginAuthTicket = enabled;
             stoken = Regex.Match(text, @"stoken=(.+)").Groups[1].Value.Trim();
             mid = Regex.Match(text, @"mid=(.+)").Groups[1].Value.Trim();
             SetLanguage(lang);
@@ -235,7 +237,6 @@ public static partial class AppConfig
         using var key = Registry.CurrentUser.CreateSubKey(@"Software\Starward");
 #endif
         string? lang = (key.GetValue("Language") as string)?.Trim();
-        EnableLoginAuthTicket = key.GetValue("EnableLoginAuthTicket") is 1;
         stoken = (key.GetValue("stoken") as string)?.Trim();
         mid = (key.GetValue("mid") as string)?.Trim();
         SetLanguage(lang);
@@ -286,18 +287,11 @@ public static partial class AppConfig
             {
                 key.DeleteValue("UserDataFolder", false);
             }
-            if (EnableLoginAuthTicket.HasValue)
-            {
-                key.SetValue("EnableLoginAuthTicket", EnableLoginAuthTicket.Value ? 1 : 0);
-            }
-            if (!string.IsNullOrWhiteSpace(stoken))
-            {
-                key.SetValue("stoken", stoken);
-            }
-            if (!string.IsNullOrWhiteSpace(mid))
-            {
-                key.SetValue("mid", mid);
-            }
+            // 旧版游戏授权登录开关已废弃：自动登录默认为开启，并在界面上单独提供开关。
+            key.DeleteValue("EnableLoginAuthTicket", false);
+            // 令牌属于敏感信息，迁移到数据库后不再写入注册表。
+            key.DeleteValue("stoken", false);
+            key.DeleteValue("mid", false);
         }
         catch { }
     }
@@ -324,18 +318,7 @@ public static partial class AppConfig
                 sb.AppendLine($"Language={Language}");
                 sb.AppendLine($"UserDataFolder=");
             }
-            if (EnableLoginAuthTicket.HasValue)
-            {
-                sb.AppendLine($"{nameof(EnableLoginAuthTicket)}={EnableLoginAuthTicket}");
-            }
-            if (!string.IsNullOrWhiteSpace(stoken))
-            {
-                sb.AppendLine($"{nameof(stoken)}={stoken}");
-            }
-            if (!string.IsNullOrWhiteSpace(mid))
-            {
-                sb.AppendLine($"{nameof(mid)}={mid}");
-            }
+            // 令牌属于敏感信息，迁移到数据库后不再写入配置文件。
             Directory.CreateDirectory(Path.GetDirectoryName(ConfigPath)!);
             File.WriteAllText(ConfigPath, sb.ToString());
         }
