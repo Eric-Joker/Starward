@@ -39,6 +39,8 @@ public sealed partial class AppBackground : UserControl
 
     private readonly BackgroundService _backgroundService = AppConfig.GetService<BackgroundService>();
 
+    private readonly FavorWallpaperService _favorWallpaperService = AppConfig.GetService<FavorWallpaperService>();
+
 
     public AppBackground()
     {
@@ -80,6 +82,11 @@ public sealed partial class AppBackground : UserControl
     {
         get; set
         {
+            // 换了游戏：开了随机壁纸的话先换一张（未开启时这个方法什么都不做）。
+            if (value is not null && field?.GameBiz != value.GameBiz)
+            {
+                _favorWallpaperService.TryShuffleWallpaper(value.GameBiz);
+            }
             if (field is null)
             {
                 field = value;
