@@ -146,6 +146,11 @@ public sealed partial class InstallGameDialog : ContentDialog
                 if (branch is not null)
                 {
                     _gameSophonChunkBuild = await _hoYoPlayService.GetGameSophonChunkBuildAsync(branch, branch.Main);
+                    // 基础资源只在 Chunk 模式提供（官方同样如此），压缩包没有按分类拆分
+                    if (_gameSophonChunkBuild is not null && GameScenarioPackage.IsSupported(config, branch.Main))
+                    {
+                        InitializeScenarioPackage(config, branch.Main);
+                    }
                 }
             }
             if (_gameSophonChunkBuild is null)
@@ -180,6 +185,54 @@ public sealed partial class InstallGameDialog : ContentDialog
 
 
 
+    /// <summary>
+    /// 显示完整资源 / 基础资源选项，默认选接口标「推荐」的那个（通常为完整资源，与官方一致）
+    /// </summary>
+    /// <param name="config">游戏配置，提供两个选项的说明与是否标「推荐」</param>
+    /// <param name="package">要安装的分支，提供各分类属于哪个资源场景</param>
+    private void InitializeScenarioPackage(GameConfig config, GameBranchPackage package)
+    {
+        _scenarioPackageSupported = true;
+        _scenarioPackageInfo = config.ScenarioPackageInfo;
+        _fullOnlyMatchingFields = GameScenarioPackage.GetFullOnlyMatchingFields(package);
+        StackPanel_ScenarioPackage.Visibility = Visibility.Visible;
+        // 接口标「推荐」的是哪个就默认选哪个，没标时默认完整资源（与官方一致）
+        if (config.EnableFullPackageRecommend)
+        {
+            RadioButton_FullPackage.IsChecked = true;
+        }
+        else
+        {
+            RadioButton_BasePackage.IsChecked = true;
+        }
+    }
+
+
+
+    /// <summary>
+    /// 切换完整资源 / 基础资源
+    /// </summary>
+    private void RadioButton_ScenarioPackage_Checked(object sender, RoutedEventArgs e)
+    {
+        string? description = SelectedPackageType is GameScenarioPackageType.Base
+            ? _scenarioPackageInfo?.BasePackageDescription
+            : _scenarioPackageInfo?.FullPackageDescription;
+        ScenarioPackageDescription = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
+        ComputePackageSize();
+        CheckCanStartInstallation();
+    }
+
+
+
+    /// <summary>
+    /// 当前选择的资源场景；不区分资源场景的游戏为 <see cref="GameScenarioPackageType.Unknown"/>
+    /// </summary>
+    private GameScenarioPackageType SelectedPackageType => !_scenarioPackageSupported
+        ? GameScenarioPackageType.Unknown
+        : RadioButton_BasePackage.IsChecked is true ? GameScenarioPackageType.Base : GameScenarioPackageType.Full;
+
+
+
     private bool _needAudioPackage;
 
 
@@ -190,6 +243,21 @@ public sealed partial class InstallGameDialog : ContentDialog
 
 
     private GameSophonChunkBuild? _gameSophonChunkBuild;
+
+
+    /// <summary>
+    /// 是否提供完整资源 / 基础资源选项
+    /// </summary>
+    private bool _scenarioPackageSupported;
+
+
+    private GameScenarioPackageInfo? _scenarioPackageInfo;
+
+
+    /// <summary>
+    /// 只属于完整资源的分类，选基础资源时不下载
+    /// </summary>
+    private HashSet<string> _fullOnlyMatchingFields = [];
 
 
     private string _selectPath;
@@ -216,6 +284,38 @@ public sealed partial class InstallGameDialog : ContentDialog
 
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FullPackageSizeText))]
+    public partial long FullPackageSizeBytes { get; set; }
+
+    public string FullPackageSizeText => FullPackageSizeBytes == 0 ? "..." : $"{FullPackageSizeBytes / GB:F2} GB";
+
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(BasePackageSizeText))]
+    public partial long BasePackageSizeBytes { get; set; }
+
+    public string BasePackageSizeText => BasePackageSizeBytes == 0 ? "..." : $"{BasePackageSizeBytes / GB:F2} GB";
+
+
+    /// <summary>
+    /// 所选资源场景的说明，没有时隐藏
+    /// </summary>
+    public string? ScenarioPackageDescription { get; set => SetProperty(ref field, value); }
+
+
+    /// <summary>
+    /// 完整资源选项的名称，文案来自官方接口（随区服语言），接口没给时用英文兜底
+    /// </summary>
+    public string FullPackageName => string.IsNullOrWhiteSpace(_scenarioPackageInfo?.FullPackageName) ? "Full Resources" : _scenarioPackageInfo.FullPackageName;
+
+
+    /// <summary>
+    /// 基础资源选项的名称，文案来自官方接口（随区服语言），接口没给时用英文兜底
+    /// </summary>
+    public string BasePackageName => string.IsNullOrWhiteSpace(_scenarioPackageInfo?.BasePackageName) ? "Base Resources" : _scenarioPackageInfo.BasePackageName;
+
+
+    [ObservableProperty]
     public partial bool AutomaticallyCreateSubfolderForInstall { get; set; } = AppConfig.AutomaticallyCreateSubfolderForInstall;
     partial void OnAutomaticallyCreateSubfolderForInstallChanged(bool value)
     {
@@ -235,6 +335,9 @@ public sealed partial class InstallGameDialog : ContentDialog
 
 
 
+    /// <summary>
+    /// 按所选资源场景与语音统计解压所需空间，以及两个资源选项各自的大小
+    /// </summary>
     private void ComputePackageSize()
     {
         try
@@ -254,6 +357,8 @@ public sealed partial class InstallGameDialog : ContentDialog
             }
             else if (_gameSophonChunkBuild is not null)
             {
+                bool isBase = SelectedPackageType is GameScenarioPackageType.Base;
+                long fullSize = 0, baseSize = 0;
                 foreach (GameSophonChunkManifest manifest in _gameSophonChunkBuild.Manifests)
                 {
                     if (manifest.MatchingField.Length is 5 or 10 && manifest.MatchingField.Contains('-'))
@@ -261,7 +366,16 @@ public sealed partial class InstallGameDialog : ContentDialog
                         // 跳过语音包 zh-cn or mini-zh-cn
                         continue;
                     }
-                    size += manifest.Stats.UncompressedSize;
+                    bool fullOnly = _fullOnlyMatchingFields.Contains(manifest.MatchingField);
+                    fullSize += manifest.Stats.CompressedSize;
+                    if (!fullOnly)
+                    {
+                        baseSize += manifest.Stats.CompressedSize;
+                    }
+                    if (!(isBase && fullOnly))
+                    {
+                        size += manifest.Stats.UncompressedSize;
+                    }
                 }
                 foreach (string? lang in langs)
                 {
@@ -270,6 +384,8 @@ public sealed partial class InstallGameDialog : ContentDialog
                         size += audioManifest.Stats.UncompressedSize;
                     }
                 }
+                FullPackageSizeBytes = fullSize;
+                BasePackageSizeBytes = baseSize;
             }
             UnzipSpaceBytes = size;
             if (AvailableSpaceBytes > 0 && UnzipSpaceBytes > AvailableSpaceBytes)
@@ -392,7 +508,7 @@ public sealed partial class InstallGameDialog : ContentDialog
     {
         try
         {
-            GameInstallContext? task = await _gameInstallService.StartInstallAsync(CurrentGameId, InstallationPath, _audioLanguage);
+            GameInstallContext? task = await _gameInstallService.StartInstallAsync(CurrentGameId, InstallationPath, _audioLanguage, SelectedPackageType);
             if (task is not null && task.State is not GameInstallState.Stop and not GameInstallState.Error)
             {
                 GameLauncherService.ChangeGameInstallPath(CurrentGameId, InstallationPath);

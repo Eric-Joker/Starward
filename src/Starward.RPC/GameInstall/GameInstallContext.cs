@@ -24,6 +24,12 @@ public class GameInstallContext
     public AudioLanguage AudioLanguage { get; init; }
 
     /// <summary>
+    /// 安装时选择的资源场景（完整或基础资源），只在界面发起安装时指定，开始时写入游戏目录；
+    /// 其他操作为 <see cref="GameScenarioPackageType.Unknown"/>，按游戏目录里的记录处理
+    /// </summary>
+    public GameScenarioPackageType PackageType { get; set; }
+
+    /// <summary>
     /// 硬链接游戏的路径
     /// </summary>
     public string? HardLinkPath { get; init; }
@@ -104,6 +110,12 @@ public class GameInstallContext
 
 
     internal GameConfig? GameConfig { get; set; }
+
+    /// <summary>
+    /// 安装的是基础资源时，只属于完整资源的分类（matching_field）。安装时不下载；更新、修复时本地已有该分类的文件才处理。
+    /// 完整资源或不区分资源场景的游戏为空
+    /// </summary>
+    internal HashSet<string> BaseExcludedMatchingFields { get; set; } = [];
 
     internal GamePackage? GamePackage { get; set; }
 
@@ -229,6 +241,7 @@ public partial class GameInstallContextDTO
             GameId = GetGameId(),
             HardLinkPath = HardLinkPath,
             InstallPath = InstallPath,
+            PackageType = (GameScenarioPackageType)PackageType,
         };
         task.Operation = (GameInstallOperation)Operation;
         task.Timestamp = Timestamp;
@@ -246,6 +259,7 @@ public partial class GameInstallContextDTO
         task.StorageWriteSpeed = StorageWriteSpeed;
         task.RemainTimeSeconds = RemainTimeSeconds;
         task.DownloadMode = (GameInstallDownloadMode)DownloadMode;
+        task.PackageType = (GameScenarioPackageType)PackageType;
         return task;
     }
 
@@ -274,6 +288,7 @@ public partial class GameInstallContextDTO
         StorageWriteSpeed = task.StorageWriteSpeed,
         RemainTimeSeconds = task.RemainTimeSeconds,
         DownloadMode = (int)task.DownloadMode,
+        PackageType = (int)task.PackageType,
     };
 
 }
@@ -291,7 +306,8 @@ public partial class GameInstallRequest
         GameId = GetGameId(),
         HardLinkPath = HardLinkPath,
         InstallPath = InstallPath,
-        Operation = (GameInstallOperation)Operation
+        Operation = (GameInstallOperation)Operation,
+        PackageType = (GameScenarioPackageType)PackageType,
     };
 
 
@@ -305,6 +321,7 @@ public partial class GameInstallRequest
             Operation = (int)task.Operation,
             AudioLanguage = (int)task.AudioLanguage,
             HardLinkPath = task.HardLinkPath,
+            PackageType = (int)task.PackageType,
         };
     }
 

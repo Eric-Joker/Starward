@@ -75,6 +75,60 @@
 
 
 
+            <!--  Game Resources (Full / Base, only ZZ: Zero for now)  -->
+            <StackPanel x:Name="StackPanel_ScenarioPackage"
+                        Margin="0,8,0,0"
+                        Visibility="Collapsed">
+                <TextBlock FontSize="12"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           IsTextScaleFactorEnabled="False"
+                           Text="{x:Bind lang:Lang.FileSettingPage_GameResource}" />
+                <Grid Margin="0,4,0,0"
+                      ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition />
+                        <ColumnDefinition />
+                    </Grid.ColumnDefinitions>
+                    <RadioButton x:Name="RadioButton_FullPackage"
+                                 AutomationProperties.Name="{x:Bind FullPackageName}"
+                                 Checked="RadioButton_ScenarioPackage_Checked"
+                                 Content="{x:Bind FullPackageName}"
+                                 FontSize="14"
+                                 GroupName="ScenarioPackage"
+                                 IsTextScaleFactorEnabled="False" />
+                    <RadioButton x:Name="RadioButton_BasePackage"
+                                 Grid.Column="1"
+                                 AutomationProperties.Name="{x:Bind BasePackageName}"
+                                 Checked="RadioButton_ScenarioPackage_Checked"
+                                 Content="{x:Bind BasePackageName}"
+                                 FontSize="14"
+                                 GroupName="ScenarioPackage"
+                                 IsTextScaleFactorEnabled="False" />
+                </Grid>
+                <StackPanel Margin="1,4,0,0"
+                            Orientation="Horizontal"
+                            Spacing="8">
+                    <TextBlock FontSize="12"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               IsTextScaleFactorEnabled="False"
+                               Text="{x:Bind FullPackageSizeText}" />
+                    <AppBarSeparator Padding="2" />
+                    <TextBlock FontSize="12"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               IsTextScaleFactorEnabled="False"
+                               Text="{x:Bind BasePackageSizeText}" />
+                </StackPanel>
+                <TextBlock Margin="1,4,0,0"
+                           FontSize="12"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           IsTextScaleFactorEnabled="False"
+                           Text="{x:Bind ScenarioPackageDescription}"
+                           TextWrapping="Wrap"
+                           Visibility="{x:Bind ScenarioPackageDescription, Converter={StaticResource ObjectToVisibilityConverter}}" />
+            </StackPanel>
+
+
+
             <!--  Select Language  -->
             <cwc:Segmented x:Name="Segmented_SelectLanguage"
                            Margin="0,8,0,0"

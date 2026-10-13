@@ -95,6 +95,7 @@ internal class GameInstallService
                             InstallPath = item.InstallPath,
                             Operation = (GameInstallOperation)item.Operation,
                             AudioLanguage = (AudioLanguage)item.AudioLanguage,
+                            PackageType = (GameScenarioPackageType)item.PackageType,
                             HardLinkPath = item.HardLinkPath,
                             Timestamp = item.Timestamp,
                             State = (GameInstallState)item.State,
@@ -208,9 +209,17 @@ internal class GameInstallService
 
 
 
-    public async Task<GameInstallContext?> StartInstallAsync(GameId gameId, string installPath, AudioLanguage audioLanguage)
+    /// <summary>
+    /// 开始安装游戏
+    /// </summary>
+    /// <param name="gameId"></param>
+    /// <param name="installPath">安装目录</param>
+    /// <param name="audioLanguage">语音语言</param>
+    /// <param name="packageType">完整或基础资源，不区分资源场景的游戏为 <see cref="GameScenarioPackageType.Unknown"/></param>
+    /// <returns></returns>
+    public async Task<GameInstallContext?> StartInstallAsync(GameId gameId, string installPath, AudioLanguage audioLanguage, GameScenarioPackageType packageType = GameScenarioPackageType.Unknown)
     {
-        return await StartOrContinueTaskAsync(GameInstallOperation.Install, gameId, installPath, audioLanguage);
+        return await StartOrContinueTaskAsync(GameInstallOperation.Install, gameId, installPath, audioLanguage, packageType);
     }
 
 
@@ -236,7 +245,7 @@ internal class GameInstallService
 
 
 
-    private async Task<GameInstallContext?> StartOrContinueTaskAsync(GameInstallOperation operation, GameId gameId, string installPath, AudioLanguage audioLanguage)
+    private async Task<GameInstallContext?> StartOrContinueTaskAsync(GameInstallOperation operation, GameId gameId, string installPath, AudioLanguage audioLanguage, GameScenarioPackageType packageType = GameScenarioPackageType.Unknown)
     {
         var request = new GameInstallRequest
         {
@@ -246,6 +255,7 @@ internal class GameInstallService
             Operation = (int)operation,
             AudioLanguage = (int)audioLanguage,
             HardLinkPath = await GetHardLinkPathAsync(gameId, installPath),
+            PackageType = (int)packageType,
         };
         if (await _rpcService.EnsureRpcServerRunningAsync())
         {
@@ -255,8 +265,9 @@ internal class GameInstallService
                 GameId: {gameId} {gameBiz}
                 InstallPath: {installPath}
                 AudioLanguage: {audioLanguage}
+                PackageType: {packageType}
                 HardLinkPath: {hardLinkPath}
-                """, operation, gameId.Id, gameId.GameBiz, installPath, audioLanguage, request.HardLinkPath);
+                """, operation, gameId.Id, gameId.GameBiz, installPath, audioLanguage, packageType, request.HardLinkPath);
             var dto = await _gameInstallerClient.StartOrContinueTaskAsync(request, deadline: DateTime.UtcNow.AddSeconds(3));
             StartUpdateTaskProgress();
             return AddOrUpdateTask(dto);
