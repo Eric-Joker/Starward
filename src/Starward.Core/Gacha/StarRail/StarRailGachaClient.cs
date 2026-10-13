@@ -50,10 +50,11 @@ public class StarRailGachaClient : GachaLogClient
         if (match.Success)
         {
             gachaUrl = match.Groups[1].Value;
-            gachaUrl = Regex.Replace(gachaUrl, @"&gacha_type=\d", "");
-            gachaUrl = Regex.Replace(gachaUrl, @"&page=\d", "");
-            gachaUrl = Regex.Replace(gachaUrl, @"&size=\d", "");
-            gachaUrl = Regex.Replace(gachaUrl, @"&end_id=\d", "");
+            // 清理分页与类型参数；\d+ 才能完整匹配多位数（如 gacha_type=11、size=20）
+            gachaUrl = Regex.Replace(gachaUrl, @"&gacha_type=\d+", "");
+            gachaUrl = Regex.Replace(gachaUrl, @"&page=\d+", "");
+            gachaUrl = Regex.Replace(gachaUrl, @"&size=\d+", "");
+            gachaUrl = Regex.Replace(gachaUrl, @"&end_id=\d+", "");
             if (!string.IsNullOrWhiteSpace(lang))
             {
                 gachaUrl = Regex.Replace(gachaUrl, @"&lang=[^&]+", $"&lang={LanguageUtil.FilterLanguage(lang)}");
