@@ -1,0 +1,232 @@
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Messaging;
+using CommunityToolkit.WinUI.Controls;
+using Microsoft.Extensions.Logging;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
+using Starward.Core.GameRecord;
+using System;
+
+namespace Starward.Features.GameRecord.AutoRefresh;
+
+/// <summary>
+/// 「自动更新」的配置按钮：一个按钮 + 一个配置浮层。
+/// <para>
+/// 配置粒度是「当前账号 + 本页数据板块 + 月份」——同一个号的深渊和月报可以各配各的频率，
+/// 月报类板块还会拆成「当月」「上月」两个任务，各开各的；浮层里用月份切换选择编辑哪个任务。
+/// 主干把它收在工具箱页脚下的一个条目里（TZ 是每页工具栏最左边的小图标按钮），
+/// 页面只需给 <see cref="GameRole"/> 与 <see cref="Item"/> 赋值。
+/// </para>
+/// </summary>
+[INotifyPropertyChanged]
+public sealed partial class RecordRefreshConfigButton : UserControl
+{
+
+    private readonly ILogger<RecordRefreshConfigButton> _logger = AppConfig.GetLogger<RecordRefreshConfigButton>();
+
+    private readonly AutoRecordRefreshService _service = AppConfig.GetService<AutoRecordRefreshService>();
+
+
+    /// <summary>
+    /// 后台自动更新成功写入本地库后触发，供所在数据页从数据库重载列表。
+    /// 月报类的当月、上月任一跑完都会触发一次。
+    /// </summary>
+    public event EventHandler? LocalDataUpdated;
+
+
+    public RecordRefreshConfigButton()
+    {
+        InitializeComponent();
+        Loaded += RecordRefreshConfigButton_Loaded;
+        Unloaded += RecordRefreshConfigButton_Unloaded;
+    }
+
+
+    private void RecordRefreshConfigButton_Loaded(object sender, RoutedEventArgs e)
+    {
+        WeakReferenceMessenger.Default.Register<RecordRefreshCompletedMessage>(this, (_, message) => OnBackgroundCompleted(message));
+    }
+
+
+    private void RecordRefreshConfigButton_Unloaded(object sender, RoutedEventArgs e)
+    {
+        WeakReferenceMessenger.Default.Unregister<RecordRefreshCompletedMessage>(this);
+    }
+
+
+    /// <summary>
+    /// 后台更新当前账号的本板块结束后：刷新红点；成功则通知页面重载本地数据。
+    /// 红点与页面重载都不分月份——两个任务写的是同一张表。
+    /// </summary>
+    private void OnBackgroundCompleted(RecordRefreshCompletedMessage message)
+    {
+        if (GameRole is null || message.Uid != GameRole.Uid || message.GameBiz != GameRole.GameBiz || message.Item != Item)
+        {
+            return;
+        }
+        UpdateErrorState();
+        if (message.Succeeded)
+        {
+            LocalDataUpdated?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+
+    /// <summary>
+    /// 当前页在前台时，后台自动更新成功后从本地库重载。页面卸载时自动取消。
+    /// </summary>
+    /// <param name="host">所在页面，用它的 Unloaded 解绑。</param>
+    /// <param name="reloadFromLocal">只读本地库，不要再打网络。</param>
+    public void WatchPage(FrameworkElement host, Action reloadFromLocal)
+    {
+        ArgumentNullException.ThrowIfNull(host);
+        ArgumentNullException.ThrowIfNull(reloadFromLocal);
+        void OnUpdated(object? sender, EventArgs e) => reloadFromLocal();
+        LocalDataUpdated += OnUpdated;
+        RoutedEventHandler? onUnloaded = null;
+        onUnloaded = (_, _) =>
+        {
+            host.Unloaded -= onUnloaded;
+            LocalDataUpdated -= OnUpdated;
+        };
+        host.Unloaded += onUnloaded;
+    }
+
+
+    /// <summary>
+    /// 本按钮对应的数据板块，由所在页面赋值（工具箱页按当前打开的记录页换算）。
+    /// </summary>
+    public RecordRefreshItem Item
+    {
+        get => field;
+        set
+        {
+            field = value;
+            // 换板块一律回到「当月」：非月报板块只有当月那一份配置，
+            // 留着上一次选的「上月」会把键写成带 _Previous 后缀的另一份，用户看着像配置丢了。
+            MonthTarget = RecordRefreshMonthTarget.Current;
+            if (JobPanel is not null)
+            {
+                JobPanel.Item = value;
+            }
+            OnPropertyChanged(nameof(ItemName));
+            OnPropertyChanged(nameof(IsMonthlyReportItem));
+        }
+    }
+
+
+    /// <summary>
+    /// 当前账号。页面在 <c>OnNavigatedTo</c> / 换号时赋值；换号后配置会重新载入。
+    /// </summary>
+    public GameRecordRole? GameRole
+    {
+        get => field;
+        set
+        {
+            field = value;
+            if (JobPanel is not null)
+            {
+                JobPanel.GameRole = value;
+            }
+            OnPropertyChanged(nameof(RoleName));
+            UpdateErrorState();
+        }
+    }
+
+
+    /// <summary>数据板块显示名，复用工具箱左侧导航的文案。</summary>
+    public string ItemName => Item.GetDisplayName();
+
+    /// <summary>配置归属的账号，展示成「昵称 · uid」。</summary>
+    public string RoleName => GameRole is null ? string.Empty : $"{GameRole.Nickname} · {GameRole.Uid}";
+
+    /// <summary>月报类板块才显示「当月 / 上月」切换，其余板块浮层里没有月份选择。</summary>
+    public bool IsMonthlyReportItem => Item.IsMonthlyReport();
+
+    /// <summary>这个账号的这个板块留下过异常记录：按钮右上角点个红点。</summary>
+    public bool HasError { get; private set => SetProperty(ref field, value); }
+
+    /// <summary>
+    /// 当前在浮层里编辑的月份（月报类板块）。切换后配置块改读对应月份的配置；其余板块恒为当月。
+    /// </summary>
+    public RecordRefreshMonthTarget MonthTarget
+    {
+        get => field;
+        set
+        {
+            if (field == value)
+            {
+                return;
+            }
+            field = value;
+            if (Segmented_MonthTarget is not null)
+            {
+                Segmented_MonthTarget.SelectedIndex = (int)value;
+            }
+            if (JobPanel is not null)
+            {
+                JobPanel.MonthTarget = value;
+            }
+        }
+    }
+
+
+    /// <summary>
+    /// 重新判断这个板块当前有没有异常记录（当月、上月任一有都算）。
+    /// </summary>
+    private void UpdateErrorState()
+    {
+        if (GameRole is null)
+        {
+            HasError = false;
+            return;
+        }
+        try
+        {
+            HasError = _service.GetErrors().Exists(x => x.Uid == GameRole.Uid && x.GameBiz == GameRole.GameBiz && x.Item == Item);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Check record refresh error state ({biz}, {uid}, {item}).", GameRole.GameBiz, GameRole.Uid, Item);
+            HasError = false;
+        }
+    }
+
+
+    private void Flyout_Opening(object? sender, object e)
+    {
+        // 后台可能刚写过 lastRun / 清过异常；不重载的话会显示旧值，改频率还会把成功记录盖掉
+        JobPanel.Reload();
+        UpdateErrorState();
+    }
+
+
+    /// <summary>
+    /// 月份切换：把下面唯一那份配置块切到所选月份的配置。
+    /// </summary>
+    private void Segmented_MonthTarget_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (sender is not Segmented segmented)
+        {
+            return;
+        }
+        int index = segmented.SelectedIndex;
+        if (index < 0)
+        {
+            // 单选下 Ctrl+点击会取消选中，恢复到当前月份，不让它停在空选
+            DispatcherQueue.TryEnqueue(() => segmented.SelectedIndex = (int)MonthTarget);
+            return;
+        }
+        MonthTarget = (RecordRefreshMonthTarget)index;
+    }
+
+
+    private async void Button_ViewErrors_Click(object sender, RoutedEventArgs e)
+    {
+        Button_Root.Flyout?.Hide();
+        await new RecordRefreshErrorDialog { XamlRoot = this.XamlRoot }.ShowAsync();
+        // 对话框里可能清空了记录，回来立刻把红点同步掉
+        UpdateErrorState();
+    }
+
+}

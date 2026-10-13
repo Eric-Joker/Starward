@@ -110,6 +110,9 @@ public sealed partial class SimulatedUniversePage : PageBase
     [RelayCommand]
     private async Task GetSimulatedUniverseDetailAsync()
     {
+        // 用户点「获取详情」：这次算用户发起，允许弹人机验证；GetSimulatedUniverseInfoBasicAsync
+        // 本身不加作用域，所以别处调用它仍然走默认抑制。
+        using IDisposable captchaScope = GameRecordService.AllowInteractiveCaptcha();
         await GetSimulatedUniverseInfoBasicAsync(true);
         InitializeSimulatedUniverseRecord();
     }

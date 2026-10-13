@@ -10,6 +10,7 @@ using Starward.Core.Gacha.ZZZ;
 using Starward.Core.GameNotice;
 using Starward.Core.GameRecord;
 using Starward.Core.HoYoPlay;
+using Starward.Core.MiyoLive;
 using Starward.Core.Passport;
 using Starward.Core.SelfQuery;
 using Starward.Features.Account;
@@ -22,12 +23,15 @@ using Starward.Features.GameAccount;
 using Starward.Features.GameInstall;
 using Starward.Features.GameLauncher;
 using Starward.Features.GameRecord;
+using Starward.Features.GameRecord.AutoRefresh;
 using Starward.Features.GameRecord.SignIn;
 using Starward.Features.HoYoPlay;
 using Starward.Features.PlayTime;
 using Starward.Features.RPC;
+using Starward.Features.RedeemCode;
 using Starward.Features.Screenshot;
 using Starward.Features.SelfQuery;
+using Starward.Features.TimeNode;
 using Starward.Features.Update;
 using Starward.Setup.Core;
 using System;
@@ -92,6 +96,14 @@ public static partial class AppConfig
             // 每日签到：服务本身无状态，自动签到由托盘窗口在常驻期间驱动。
             sc.AddSingleton<SignInService>();
             sc.AddSingleton<AutoSignInService>();
+
+            // 首页时间节点与前瞻兑换码：由启动器右侧工具栏的两个按钮各自取用。
+            sc.AddSingleton<MiyoLiveClient>();
+            sc.AddSingleton<TimeNodeService>();
+            sc.AddSingleton<RedeemCodeService>();
+
+            // 战绩自动更新：常驻循环由托盘窗口驱动，配置面板与错误弹窗直接取服务。
+            sc.AddSingleton<AutoRecordRefreshService>();
 
             sc.AddSingleton<SelfQueryClient>();
             sc.AddSingleton<SelfQueryService>();

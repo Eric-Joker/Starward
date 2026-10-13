@@ -9,9 +9,11 @@ using Starward.Core;
 using Starward.Core.GameRecord;
 using Starward.Features.Account;
 using Starward.Features.GameLauncher;
+using Starward.Features.GameRecord.AutoRefresh;
 using Starward.Features.GameRecord.Genshin;
 using Starward.Features.GameRecord.StarRail;
 using Starward.Features.GameRecord.ZZZ;
+using Starward.Features.MapTool;
 using Starward.Features.ViewHost;
 using Starward.Frameworks;
 using Starward.Helpers;
@@ -118,6 +120,7 @@ public sealed partial class GameRecordPage : PageBase
     {
         WeakReferenceMessenger.Default.UnregisterAll(this);
         NavigationViewItem_BattleChronicle.Tapped -= NavigationViewItem_BattleChronicle_Tapped;
+        NavigationViewItem_MapTool.Tapped -= NavigationViewItem_MapTool_Tapped;
         // 战绩窗口是工具箱页带出来的，页面上已经离开工具箱了，就别再留着它。
         try
         {
@@ -127,9 +130,19 @@ public sealed partial class GameRecordPage : PageBase
             }
         }
         catch { }
+        // 地图窗口同理，关掉它顺带释放内嵌的 WebView2。
+        try
+        {
+            if (_mapToolWindow?.AppWindow is not null)
+            {
+                _mapToolWindow.Close();
+            }
+        }
+        catch { }
         CurrentRole = null;
         GameRoleList = null!;
         _battleChronicleWindow = null;
+        _mapToolWindow = null;
     }
 
 
@@ -274,6 +287,15 @@ public sealed partial class GameRecordPage : PageBase
             // 绝区零战绩图片
             Image_BattleChronicle.Source = new BitmapImage(new("ms-appx:///Assets/Image/bc8f0b7384b306c80f2a1fcca9f3d14b_8590605504999484795.png"));
         }
+        // 地图工具：原神、星穹铁道有官方互动地图，其余游戏没有这份目录，直接不显示这一项。
+        if (MapToolCatalog.GetOptions(CurrentGameBiz).Count > 0)
+        {
+            NavigationViewItem_MapTool.Visibility = Visibility.Visible;
+            // 原神叫「大地图」，星铁叫「地图」，按游戏取名字。
+            TextBlock_MapTool.Text = MapToolCatalog.GetMapTitle(CurrentGameBiz);
+            // 图标同样按游戏取：原神一张、星穹铁道一张。
+            Image_MapTool.Source = new BitmapImage(new(MapToolCatalog.GetMapIconPath(CurrentGameBiz)));
+        }
     }
 
 
@@ -296,6 +318,11 @@ public sealed partial class GameRecordPage : PageBase
             if (SetProperty(ref field, value))
             {
                 OnPropertyChanged(nameof(AvatarUrl));
+                // 页脚的「自动更新」是按账号存配置的，换号后要跟着换
+                if (RecordRefreshConfigButton_Auto is not null)
+                {
+                    RecordRefreshConfigButton_Auto.GameRole = value;
+                }
             }
         }
     }
@@ -387,13 +414,18 @@ public sealed partial class GameRecordPage : PageBase
     {
         try
         {
-            if (CurrentRole is null)
+            // 用户自己点的「刷新信息」：这是主干里少数保留人机验证弹窗的路径，
+            // 其余后台 / 自动路径默认抑制（不加载极验的第三方脚本）。
+            using (GameRecordService.AllowInteractiveCaptcha())
             {
-                await _gameRecordService.RefreshAllGameRolesInfoAsync();
-            }
-            else
-            {
-                await _gameRecordService.RefreshGameRoleInfoAsync(CurrentRole);
+                if (CurrentRole is null)
+                {
+                    await _gameRecordService.RefreshAllGameRolesInfoAsync();
+                }
+                else
+                {
+                    await _gameRecordService.RefreshGameRoleInfoAsync(CurrentRole);
+                }
             }
             LoadGameRoles();
         }
@@ -633,7 +665,11 @@ public sealed partial class GameRecordPage : PageBase
         {
             if (CurrentRole is not null)
             {
-                await _gameRecordService.UpdateGameRoleHeadIconAsync(CurrentRole);
+                // 静默刷新（用户没点任何东西）：遇到风控直接放弃这次头像更新，不弹人机验证、不加载第三方脚本。
+                using (GameRecordService.SuppressInteractiveCaptcha())
+                {
+                    await _gameRecordService.UpdateGameRoleHeadIconAsync(CurrentRole);
+                }
             }
         }
         catch (Exception ex)
@@ -665,6 +701,105 @@ public sealed partial class GameRecordPage : PageBase
             return;
         }
         frame.Navigate(page, parameter ?? CurrentRole);
+    }
+
+
+
+    /// <summary>
+    /// 工具箱里的数据页换了：把页脚那个「自动更新」入口指向当前页面对应的数据板块。
+    /// <para>
+    /// 主干没有 TZ 那种「每个数据页工具栏最左边各放一个配置按钮」的接线（那些页面不归本次移植改），
+    /// 所以整个工具箱共用页脚上的一个入口，配置哪个板块由这里按当前 frame 的内容换算。
+    /// 没有对应板块的页面（空白页、登录页、地图工具）把入口收起来，免得用户以为配的是刚离开的那页。
+    /// </para>
+    /// </summary>
+    private void Frame_Navigated(object sender, NavigationEventArgs e)
+    {
+        try
+        {
+            if (RecordRefreshConfigButton_Auto is null)
+            {
+                return;
+            }
+            if (GetRefreshItem(e.SourcePageType) is RecordRefreshItem item)
+            {
+                RecordRefreshConfigButton_Auto.GameRole = CurrentRole;
+                RecordRefreshConfigButton_Auto.Item = item;
+                RecordRefreshConfigButton_Auto.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                RecordRefreshConfigButton_Auto.Visibility = Visibility.Collapsed;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Update the record refresh entry ({page}).", e.SourcePageType);
+        }
+    }
+
+
+
+    /// <summary>
+    /// 数据页类型到自动更新板块的换算。没有对应板块的页面返回 null。
+    /// </summary>
+    /// <param name="pageType">frame 当前页面的类型。</param>
+    /// <returns>对应的数据板块；不认识时返回 null。</returns>
+    private static RecordRefreshItem? GetRefreshItem(Type? pageType)
+    {
+        if (pageType == typeof(SpiralAbyssPage))
+        {
+            return RecordRefreshItem.SpiralAbyss;
+        }
+        if (pageType == typeof(ImaginariumTheaterPage))
+        {
+            return RecordRefreshItem.ImaginariumTheater;
+        }
+        if (pageType == typeof(StygianOnslaughtPage))
+        {
+            return RecordRefreshItem.StygianOnslaught;
+        }
+        if (pageType == typeof(TravelersDiaryPage))
+        {
+            return RecordRefreshItem.TravelersDiary;
+        }
+        if (pageType == typeof(ForgottenHallPage))
+        {
+            return RecordRefreshItem.ForgottenHall;
+        }
+        if (pageType == typeof(PureFictionPage))
+        {
+            return RecordRefreshItem.PureFiction;
+        }
+        if (pageType == typeof(ApocalypticShadowPage))
+        {
+            return RecordRefreshItem.ApocalypticShadow;
+        }
+        if (pageType == typeof(ChallengePeakPage))
+        {
+            return RecordRefreshItem.ChallengePeak;
+        }
+        if (pageType == typeof(SimulatedUniversePage))
+        {
+            return RecordRefreshItem.SimulatedUniverse;
+        }
+        if (pageType == typeof(TrailblazeCalendarPage))
+        {
+            return RecordRefreshItem.TrailblazeCalendar;
+        }
+        if (pageType == typeof(ShiyuDefensePage))
+        {
+            return RecordRefreshItem.ShiyuDefense;
+        }
+        if (pageType == typeof(DeadlyAssaultPage))
+        {
+            return RecordRefreshItem.DeadlyAssault;
+        }
+        if (pageType == typeof(InterKnotMonthlyReportPage))
+        {
+            return RecordRefreshItem.InterKnotReport;
+        }
+        return null;
     }
 
 
@@ -734,6 +869,37 @@ public sealed partial class GameRecordPage : PageBase
             _battleChronicleWindow.CurrentRole = CurrentRole;
         }
         _battleChronicleWindow.Activate();
+    }
+
+
+
+
+    private void NavigationViewItem_MapTool_Tapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
+    {
+        ShowMapToolWindow();
+    }
+
+
+
+    private MapToolWindow? _mapToolWindow;
+
+
+
+    private void ShowMapToolWindow()
+    {
+        // 窗口关闭后 AppWindow is null
+        if (_mapToolWindow?.AppWindow is null)
+        {
+            _mapToolWindow = new MapToolWindow
+            {
+                CurrentGameBiz = CurrentGameBiz,
+            };
+        }
+        else if (_mapToolWindow.CurrentGameBiz != CurrentGameBiz)
+        {
+            _mapToolWindow.CurrentGameBiz = CurrentGameBiz;
+        }
+        _mapToolWindow.Activate();
     }
 
 

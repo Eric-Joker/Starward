@@ -113,6 +113,8 @@ public sealed partial class StygianOnslaughtPage : PageBase
     [RelayCommand]
     private async Task RefreshDataAsync()
     {
+        // 用户点页面上的刷新按钮：这次算用户发起，允许弹人机验证（后台自动路径仍默认抑制）。
+        using IDisposable captchaScope = GameRecordService.AllowInteractiveCaptcha();
         try
         {
             if (gameRole is null)

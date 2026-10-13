@@ -1339,6 +1339,8 @@ public sealed partial class AccountCenterPanel : UserControl
         {
             return;
         }
+        // 用户点「刷新信息」：这次算用户发起，允许弹人机验证（后台自动路径仍默认抑制）。
+        using IDisposable captchaScope = GameRecordService.AllowInteractiveCaptcha();
         try
         {
             IsBusy = true;
