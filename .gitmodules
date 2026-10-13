@@ -1,0 +1,4 @@
+[submodule "large-resource"]
+	path = large-resource
+	url = https://github.com/Eric-Joker/Starward.git
+	branch = large-resource

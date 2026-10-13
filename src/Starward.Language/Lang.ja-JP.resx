@@ -1167,9 +1167,6 @@
   <data name="LauncherPage_PleaseCheckTheRelatedLogs" xml:space="preserve">
     <value>関連ログを確認してください。</value>
   </data>
-  <data name="SettingPage_Donate" xml:space="preserve">
-    <value>寄付</value>
-  </data>
   <data name="SettingPage_URLProtocolExperimental" xml:space="preserve">
     <value>URLプロトコル (試験的)</value>
   </data>

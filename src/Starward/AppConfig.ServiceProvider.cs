@@ -130,8 +130,6 @@ public static partial class AppConfig
             sc.AddSingleton<CloudGameWalletService>();
             sc.AddSingleton<AutoCloudGameFreeTimeService>();
 
-            sc.AddHttpClient<LogUploadClient>().ConfigStarwardHttpClient();
-
 
             _serviceProvider = sc.BuildServiceProvider();
         }
