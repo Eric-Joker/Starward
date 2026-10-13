@@ -60,6 +60,9 @@ namespace Starward.Core.GameRecord;
 [JsonSerializable(typeof(miHoYoApiWrapper<SignInResignInfo>))]
 [JsonSerializable(typeof(miHoYoApiWrapper<SignInResult>))]
 [JsonSerializable(typeof(SignInPostBody))]
+// stoken 换抽卡 authkey（binding/api/genAuthKey）
+[JsonSerializable(typeof(miHoYoApiWrapper<GameAuthKey>))]
+[JsonSerializable(typeof(GenAuthKeyPostBody))]
 [JsonSerializable(typeof(DateTimeObjectJsonConverter.DateTimeObject))]
 internal partial class GameRecordJsonContext : JsonSerializerContext
 {

@@ -1345,6 +1345,49 @@ internal class PassportAccountService
 
 
     /// <summary>
+    /// 取拥有某个游戏角色的通行证账号的 SToken 与 Mid，供需要 stoken 的接口使用
+    /// （例如用 stoken 换抽卡 authkey）。
+    /// <para>
+    /// 只读：不切换当前账号、不续期 LToken、不改工具箱 Cookie。工具箱 Cookie 里只有派生令牌
+    /// （ltoken / cookie_token），不含 stoken，所以这类接口必须从这里取。
+    /// </para>
+    /// </summary>
+    /// <param name="gameBiz">游戏区服。</param>
+    /// <param name="uid">游戏 UID。</param>
+    /// <returns>该角色所属账号的 SToken 与 Mid；找不到、或账号没有 SToken V2 时返回 null。</returns>
+    public (string Stoken, string Mid)? GetStokenForGameRole(GameBiz gameBiz, long uid)
+    {
+        try
+        {
+            if (uid <= 0 || string.IsNullOrWhiteSpace(gameBiz.Value))
+            {
+                return null;
+            }
+            foreach (var record in QueryAccountRecords())
+            {
+                var tokenSet = DecryptTokenSet(record);
+                if (tokenSet is null || !tokenSet.HasStoken || string.IsNullOrWhiteSpace(tokenSet.Mid))
+                {
+                    continue;
+                }
+                if (GetGameRoleOfAccount(tokenSet, gameBiz)?.Uid == uid)
+                {
+                    return (tokenSet.Stoken!, tokenSet.Mid);
+                }
+            }
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Get stoken for game role ({biz}, {uid})", gameBiz, uid);
+            return null;
+        }
+    }
+
+
+
+
+    /// <summary>
     /// 用户在游戏账号切换器里选了这个游戏里的某个游戏账号，让通行证会话跟着它走。
     /// 自动登录用的是通行证账号，不跟着走的话，界面上的选择和实际登录的账号会对不上。
     /// </summary>

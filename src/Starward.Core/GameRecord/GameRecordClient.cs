@@ -178,9 +178,23 @@ public abstract class GameRecordClient
 
     protected string CreateSecret()
     {
+        return CreateSecret(ApiSalt);
+    }
+
+
+    /// <summary>
+    /// 用指定盐值生成 Gen1 DS（<c>DS</c> 请求头）。
+    /// <para>
+    /// 个别接口的盐与战绩接口不同（如 <c>binding/api/genAuthKey</c>），需要按接口传入。
+    /// </para>
+    /// </summary>
+    /// <param name="salt">参与签名的盐值。</param>
+    /// <returns><c>t,r,check</c> 形式的 DS 值。</returns>
+    protected string CreateSecret(string salt)
+    {
         var t = (int)DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         string r = GetRandomString(t);
-        var bytes = MD5.HashData(Encoding.UTF8.GetBytes($"salt={ApiSalt}&t={t}&r={r}"));
+        var bytes = MD5.HashData(Encoding.UTF8.GetBytes($"salt={salt}&t={t}&r={r}"));
         var check = Convert.ToHexString(bytes).ToLower();
         return $"{t},{r},{check}";
     }
@@ -722,6 +736,27 @@ public abstract class GameRecordClient
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
     public abstract Task<string> GetDeviceFpAsync(CancellationToken cancellationToken = default);
+
+
+    /// <summary>
+    /// 用米游社 stoken 调用 <c>binding/api/genAuthKey</c> 换取抽卡 authkey（Auth Key B）。
+    /// <para>
+    /// stoken 与 mid 由调用方给出：工具箱 Cookie 只带派生令牌（ltoken / cookie_token），
+    /// 不含 stoken，凭据要从账号池或用户粘贴的完整 Cookie 里取。
+    /// </para>
+    /// <para>
+    /// 仅国服 Hyperion 实现；国际服 HoYoLAB 没有对应接口，一律抛
+    /// <see cref="NotSupportedException"/>。
+    /// </para>
+    /// </summary>
+    /// <param name="role">游戏角色，提供 game_biz / region / uid。</param>
+    /// <param name="stoken">米游社 SToken（V2）。</param>
+    /// <param name="mid">与 SToken V2 搭配的 mid。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>含 authkey / authkey_ver / sign_type 的结果。</returns>
+    /// <exception cref="ArgumentException">stoken / mid 为空，或角色缺少 GameBiz / Region。</exception>
+    /// <exception cref="NotSupportedException">当前平台不支持 stoken 换 authkey。</exception>
+    public abstract Task<GameAuthKey> GenAuthKeyAsync(GameRecordRole role, string stoken, string mid, CancellationToken cancellationToken = default);
 
 
 

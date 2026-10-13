@@ -230,6 +230,23 @@ public class HoyolabClient : GameRecordClient
 
 
 
+    /// <summary>
+    /// HoYoLAB 没有 stoken 换抽卡 authkey 的接口，国际服一律不支持。
+    /// </summary>
+    /// <param name="role">游戏角色。</param>
+    /// <param name="stoken">米游社 SToken（V2）。</param>
+    /// <param name="mid">与 SToken V2 搭配的 mid。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>永不返回。</returns>
+    /// <exception cref="NotSupportedException">始终抛出。</exception>
+    public override Task<GameAuthKey> GenAuthKeyAsync(GameRecordRole role, string stoken, string mid, CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException("Generating gacha authkey from HoYoLAB SToken is not supported.");
+    }
+
+
+
+
     #region BH3
 
 

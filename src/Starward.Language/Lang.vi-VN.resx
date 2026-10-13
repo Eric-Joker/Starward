@@ -374,9 +374,6 @@ việc đóng ứng dụng trong khi giải nén sẽ gây ra hư hỏng tập t
   <data name="GachaLogPage_OperationCanceled" xml:space="preserve">
     <value>Thao tác bị huỷ</value>
   </data>
-  <data name="GachaLogPage_OnlySupportZZZCNServer" xml:space="preserve">
-    <value>Tính năng này hiện chỉ hỗ trợ ZZZ.</value>
-  </data>
   <data name="GachaLogPage_PleaseLoginMiyousheAndAddZZZRole" xml:space="preserve">
     <value>Hãy đăng nhập qua hộp công cụ Miyoushe và thêm tài khoản Miyoushe trước.</value>
   </data>

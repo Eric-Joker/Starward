@@ -374,9 +374,6 @@ cerrar el programa durante la descompresión causará corrupciones en los archiv
   <data name="GachaLogPage_OperationCanceled" xml:space="preserve">
     <value>Operación cancelada</value>
   </data>
-  <data name="GachaLogPage_OnlySupportZZZCNServer" xml:space="preserve">
-    <value>Esta función actualmente solo es compatible con ZZZ.</value>
-  </data>
   <data name="GachaLogPage_PleaseLoginMiyousheAndAddZZZRole" xml:space="preserve">
     <value>Inicie sesión a través del cuadro de herramientas de Miyoushe y agregue su cuenta de Miyoushe primero.</value>
   </data>
