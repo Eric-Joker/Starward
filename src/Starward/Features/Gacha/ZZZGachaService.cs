@@ -3,8 +3,6 @@ using Microsoft.Extensions.Logging;
 using MiniExcelLibs;
 using Starward.Core;
 using Starward.Core.Gacha;
-using Starward.Core.Gacha.Genshin;
-using Starward.Core.Gacha.StarRail;
 using Starward.Core.Gacha.ZZZ;
 using Starward.Core.GameRecord;
 using Starward.Core.GameRecord.ZZZ.GachaRecord;
@@ -247,7 +245,9 @@ internal class ZZZGachaService : GachaLogService
                     Count_4 = list.Count(x => x.RankType == 3),
                     Count_3 = list.Count(x => x.RankType == 2),
                     StartTime = list.First().Time,
-                    EndTime = list.Last().Time
+                    EndTime = list.Last().Time,
+                    Pity_5_Max = GetPityLimit(type),
+                    ShowPityProgress = ShouldShowPityProgress(type, list.Count),
                 };
                 stats.Ratio_5 = (double)stats.Count_5 / stats.Count;
                 stats.Ratio_4 = (double)stats.Count_4 / stats.Count;
@@ -259,13 +259,24 @@ internal class ZZZGachaService : GachaLogService
                 {
                     stats.Pity_5 = 0;
                 }
-                stats.Average_5 = (double)(stats.Count - stats.Pity_5) / stats.Count_5;
+                // 无 S 级样本时不计算平均，避免 NaN；展示侧用 Average_5_Text 显示「—」
+                if (stats.Count_5 > 0)
+                {
+                    stats.Average_5 = (double)(stats.Count - stats.Pity_5) / stats.Count_5;
+                }
                 stats.Pity_4 = list.Count - 1 - list.FindLastIndex(x => x.RankType == 3);
 
                 if (stats.Count_5_Up > 0)
                 {
                     int c = stats.Count - stats.Pity_5;
                     stats.Average_5_Up = (double)c / stats.Count_5_Up;
+                }
+
+                // 「不歪概率」：仅 UP（限定）频段统计小保底 50/50 的不歪情况（ZZZ 中 S 级为 RankType==4）。
+                stats.HasUpItem = GachaNoUp.Dictionary.ContainsKey($"{CurrentGameBiz}{type.Value}");
+                if (stats.HasUpItem)
+                {
+                    (stats.FiftyFiftyCount, stats.FiftyFiftyNoUpCount, stats.MaxFiftyFiftyUpStreak, stats.MaxFiftyFiftyMissStreak, stats.IsNextPityGuaranteed) = CountFiftyFiftyNoUp(list, 4);
                 }
 
                 int pity_4 = 0;
@@ -280,31 +291,6 @@ internal class ZZZGachaService : GachaLogService
                 }
 
                 statsList.Add(stats);
-                if (CurrentGameBiz == GameBiz.hk4e && type.Value == GenshinGachaType.NoviceWish && stats.Count == 20)
-                {
-                    continue;
-                }
-                else if (CurrentGameBiz == GameBiz.hkrpg && type.Value == StarRailGachaType.DepartureWarp && stats.Count == 50)
-                {
-                    continue;
-                }
-                else
-                {
-                    stats.List_5.Insert(0, new GachaLogItemEx
-                    {
-                        Name = Lang.GachaStatsCard_Pity,
-                        Pity = stats.Pity_5,
-                        Time = list.Last().Time,
-                        HasUpItem = GachaNoUp.Dictionary.TryGetValue($"{CurrentGameBiz}{type.Value}", out _),
-                    });
-                    stats.List_4.Insert(0, new GachaLogItemEx
-                    {
-                        Name = Lang.GachaStatsCard_Pity,
-                        Pity = stats.Pity_4,
-                        Time = list.Last().Time,
-                        HasUpItem = GachaNoUp.Dictionary.TryGetValue($"{CurrentGameBiz}{type.Value}", out _),
-                    });
-                }
             }
             groupStats = allItems.GroupBy(x => x.ItemId)
                                  .Select(x => { var item = x.First(); item.ItemCount = x.Count(); return item; })

@@ -748,6 +748,13 @@ internal static class ShareImageCanvas
 
     internal static FontWeight Bold => BoldFontWeight;
 
+
+    /// <summary>
+    /// 供其他分享图渲染器（如抽卡分享图）复用的「只读缓存」图标解析：
+    /// 给出远端图标 URL 对应的本地缓存路径，找不到返回 null。绝不触发下载。
+    /// </summary>
+    internal static string? ResolveCachedIconPath(string url) => ShareImageIconCache.ResolveCachedIconPath(url);
+
 }
 
 
@@ -890,6 +897,15 @@ internal sealed class ShareImageIconCache : IDisposable
 
         return File.Exists(icon) ? icon : null;
     }
+
+
+    /// <summary>
+    /// 供其他分享图渲染器复用的「只读缓存」图标解析：给出远端图标 URL 对应的本地缓存路径，找不到返回 null。
+    /// <para>绝不触发下载——只查 <see cref="FileCache.CacheFolder"/> 里 <c>CachedImage</c> 已经下载好的文件（抽卡分享图使用）。</para>
+    /// </summary>
+    /// <param name="url">图标的 http(s) URL。</param>
+    /// <returns>已存在的非空缓存文件路径；未缓存时返回 null。</returns>
+    internal static string? ResolveCachedIconPath(string url) => ResolveCachedPath(url);
 
 
     /// <summary>
