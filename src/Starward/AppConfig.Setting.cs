@@ -32,6 +32,13 @@ public static partial class AppConfig
         set => SetValue(value);
     }
 
+    /// <summary>
+    /// 是否显示游戏公告。
+    /// <para>
+    /// 现在属于启动预设，见 <see cref="GetEnableBannerAndPost"/>；这个全局值只作为旧数据的回退，
+    /// 也是预设里还没记过这一项时的默认值（默认开启）。
+    /// </para>
+    /// </summary>
     public static bool EnableBannerAndPost
     {
         get => GetValue(true);
@@ -707,6 +714,24 @@ public static partial class AppConfig
 
 
     /// <summary>
+    /// 某个区服当前选中的启动预设是否显示游戏公告。
+    /// <para>
+    /// 显示游戏公告属于启动预设。预设里还没有这一项（旧数据、或新建后没改过）时回退到全局键
+    /// <see cref="EnableBannerAndPost"/>，默认开启，所以老用户升级后公告不会莫名消失。
+    /// 写入端是设置对话框，它直接改当前预设，见 <see cref="GameLaunchProfile.EnableBannerAndPost"/>。
+    /// </para>
+    /// </summary>
+    public static bool GetEnableBannerAndPost(GameBiz biz)
+    {
+        if (FindProfile(biz, current: true) is GameLaunchProfile profile && profile.EnableBannerAndPost is bool value)
+        {
+            return value;
+        }
+        return EnableBannerAndPost;
+    }
+
+
+    /// <summary>
     /// 在预设列表里取一个预设。<paramref name="current"/> 为 true 时取当前选中的那个，
     /// 否则取第一个（旧配置迁移过来的那个）。预设列表还是空的时候返回 null。
     /// </summary>
@@ -785,25 +810,62 @@ public static partial class AppConfig
     }
 
 
+    /// <summary>
+    /// 某个区服当前选中的启动预设是否启用自定义启动程序。
+    /// <para>
+    /// 自定义启动程序属于启动预设，这里读写的是该区服<b>当前选中</b>预设的值
+    /// （启动游戏时用的就是当前预设），供没有预设概念的调用方使用；
+    /// 旧数据没有这个字段时回退到旧键 <c>enable_third_party_tool_{biz}</c>。
+    /// </para>
+    /// </summary>
     public static bool GetEnableThirdPartyTool(GameBiz biz)
     {
-        return GetValue<bool>(default, $"enable_third_party_tool_{biz}");
+        bool legacy = GetValue<bool>(default, $"enable_third_party_tool_{biz}");
+        if (FindProfile(biz, current: true) is GameLaunchProfile profile)
+        {
+            return profile.EnableThirdPartyTool;
+        }
+        return legacy;
     }
 
     public static void SetEnableThirdPartyTool(GameBiz biz, bool value)
     {
-        SetValue(value, $"enable_third_party_tool_{biz}");
+        if (FindProfile(biz, current: true) is GameLaunchProfile profile)
+        {
+            profile.EnableThirdPartyTool = value;
+            GameLaunchProfileStore.Save(biz);
+        }
+        else
+        {
+            SetValue(value, $"enable_third_party_tool_{biz}");
+        }
     }
 
 
+    /// <summary>
+    /// 某个区服当前选中的启动预设里自定义启动程序的路径，见 <see cref="GetEnableThirdPartyTool"/>。
+    /// </summary>
     public static string? GetThirdPartyToolPath(GameBiz biz)
     {
-        return GetValue<string>(default, $"third_party_tool_path_{biz}");
+        string? legacy = GetValue<string>(default, $"third_party_tool_path_{biz}");
+        if (FindProfile(biz, current: true) is GameLaunchProfile profile)
+        {
+            return profile.ThirdPartyToolPath;
+        }
+        return legacy;
     }
 
     public static void SetThirdPartyToolPath(GameBiz biz, string? value)
     {
-        SetValue(value, $"third_party_tool_path_{biz}");
+        if (FindProfile(biz, current: true) is GameLaunchProfile profile)
+        {
+            profile.ThirdPartyToolPath = value;
+            GameLaunchProfileStore.Save(biz);
+        }
+        else
+        {
+            SetValue(value, $"third_party_tool_path_{biz}");
+        }
     }
 
 

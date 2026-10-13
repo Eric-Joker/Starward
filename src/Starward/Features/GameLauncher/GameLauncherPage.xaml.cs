@@ -73,8 +73,8 @@ public sealed partial class GameLauncherPage : PageBase
         WeakReferenceMessenger.Default.Register<RemovableStorageDeviceChangedMessage>(this, OnRemovableStorageDeviceChanged);
         WeakReferenceMessenger.Default.Register<GameInstallTaskStartedMessage>(this, OnGameInstallTaskStarted);
         WeakReferenceMessenger.Default.Register<BackgroundChangedMessage>(this, OnBackgroundChanged);
+        WeakReferenceMessenger.Default.Register<GameLaunchProfileChangedMessage>(this, OnGameLaunchProfileChanged);
     }
-
 
 
     protected override void OnUnloaded()
@@ -97,6 +97,8 @@ public sealed partial class GameLauncherPage : PageBase
         }
         // 账号中心只负责账号池，某个游戏用哪个账号在这里切换，显隐见 UpdateGameAccountSwitcherVisibility。
         UpdateGameAccountSwitcherVisibility();
+        ShowFavorWallpaper = feature.SupportFavorWallpaper;
+        InitializeLaunchProfile();
     }
 
 
@@ -116,8 +118,30 @@ public sealed partial class GameLauncherPage : PageBase
     {
         GameFeatureConfig feature = GameFeatureConfig.FromGameId(CurrentGameId);
         bool registrySwitcher = AppConfig.EnableRegistryGameAccountSwitcher;
-        bool passportSwitcher = CurrentGameBiz.IsChinaServer() && AppConfig.GetEnableAuthTicketLogin(CurrentGameBiz);
+        bool passportSwitcher = CurrentGameBiz.IsChinaServer() && CurrentLaunchProfile.EnableAuthTicketLogin;
         ShowGameAccountSwitcher = feature.SupportGameAccountSwitcher && (registrySwitcher || passportSwitcher);
+    }
+
+
+    /// <summary>当前游戏是否支持好感壁纸（只有绝区零有）。</summary>
+    public bool ShowFavorWallpaper { get; set => SetProperty(ref field, value); }
+
+
+    /// <summary>
+    /// 打开好感壁纸对话框：从米游社百科取绝区零的好感/满影画壁纸，可预览、下载、设为自定义背景。
+    /// </summary>
+    [RelayCommand]
+    private async Task OpenFavorWallpaperDialogAsync()
+    {
+        if (CurrentGameId is null)
+        {
+            return;
+        }
+        await new FavorWallpaperDialog
+        {
+            CurrentGameId = CurrentGameId,
+            XamlRoot = this.XamlRoot,
+        }.ShowAsync();
     }
 
 
@@ -160,6 +184,99 @@ public sealed partial class GameLauncherPage : PageBase
                 break;
         }
     }
+
+
+
+
+    #region 启动预设
+
+
+    /// <summary>
+    /// 当前区服选中的启动预设。启动参数、DX12、自动登录、自定义背景都跟着它走。
+    /// </summary>
+    private GameLaunchProfile CurrentLaunchProfile => GameLaunchProfileStore.GetCurrentProfile(CurrentGameBiz);
+
+
+    /// <summary>
+    /// 当前预设的显示名称。显示为「开始游戏」主文案右下角的那行灰色小字，区服只有一个预设时为 null。
+    /// </summary>
+    public string CurrentLaunchProfileName { get; set => SetProperty(ref field, value); }
+
+
+    /// <summary>
+    /// 只有该区服不止一个预设时才显示当前预设名。
+    /// </summary>
+    public bool IsLaunchProfileNameVisible { get; set => SetProperty(ref field, value); }
+
+
+    private void InitializeLaunchProfile()
+    {
+        var profiles = GameLaunchProfileStore.GetProfiles(CurrentGameBiz);
+        IsLaunchProfileNameVisible = profiles.Count > 1;
+        CurrentLaunchProfileName = profiles.Count > 1 ? GetCurrentProfileName() : null;
+        // 当前预设名是「开始游戏」主文案右下角那行小字的数据源，换预设 / 改名之后
+        // 即使新旧值算出一样（同名或同一个预设）也要通知一次，保证换预设必定重新取一遍。
+        if (IsLaunchProfileNameVisible)
+        {
+            OnPropertyChanged(nameof(CurrentLaunchProfileName));
+        }
+    }
+
+
+    private string GetCurrentProfileName()
+    {
+        return CurrentLaunchProfile.DisplayName;
+    }
+
+
+
+    /// <summary>
+    /// 预设编辑窗口关掉之后刷新：预设数量可能变了（右下角预设名的显隐）、当前预设可能换人了
+    /// （名字要跟着换）、DX12 这类跟着预设走的开关也要重新读一遍，
+    /// 账号切换器的显隐也跟着当前预设的「启动时自动登录」走。
+    /// </summary>
+    private void OnGameLaunchProfileChanged(object _, GameLaunchProfileChangedMessage message)
+    {
+        // 换预设要立刻换账号，所以这件事放在最前面：放后面的话，上面任何一个调用抛异常（外面有 catch）
+        // 都会把换号整个跳过去。
+        ApplyCurrentProfileAccount();
+        try
+        {
+            InitializeLaunchProfile();
+            UpdateGameAccountSwitcherVisibility();
+            _ = CheckDX12ConfigAsync();
+        }
+        catch { }
+    }
+
+
+
+    /// <summary>
+    /// 把当前预设指定的账号应用到这个区服：账号还在就切过去；已经不存在就**自动回退**
+    /// （保持账号选择器里当前选中的账号），并把预设里那条失效记录清掉。
+    /// 启用「基于注册表的游戏账号切换」时整项不生效（见
+    /// <see cref="Account.PassportAccountService.TryApplyProfileAccountAsync"/>）。
+    /// </summary>
+    private async void ApplyCurrentProfileAccount()
+    {
+        try
+        {
+            // 必须用 AppConfig.CurrentGameBiz，不能用页面自己那份 CurrentGameBiz：
+            // 「切区服 + 换预设」时这条消息是在 CurrentGameChanged 之前广播的，页面还没重新读，
+            // 用旧值就会把账号换到上一个区服上（消息顺序见 GameSelector.SelectGameBizAndLaunchProfile）。
+            GameBiz gameBiz = AppConfig.CurrentGameBiz;
+            GameLaunchProfile profile = GameLaunchProfileStore.GetCurrentProfile(gameBiz);
+            if (!await AppConfig.GetService<Account.PassportAccountService>().TryApplyProfileAccountAsync(gameBiz, profile.AccountKey))
+            {
+                profile.AccountKey = null;
+                GameLaunchProfileStore.Save(gameBiz);
+            }
+        }
+        catch { }
+    }
+
+
+    #endregion
 
 
 
@@ -279,7 +396,7 @@ public sealed partial class GameLauncherPage : PageBase
 
 
     /// <summary>
-    /// 启用 DX12
+    /// 启用 DX12。属于启动预设，改动写入当前预设。
     /// </summary>
     public bool EnableDX12
     {
@@ -288,7 +405,8 @@ public sealed partial class GameLauncherPage : PageBase
         {
             if (SetProperty(ref field, value))
             {
-                AppConfig.SetEnableDX12(CurrentGameBiz, value);
+                CurrentLaunchProfile.EnableDX12 = value;
+                GameLaunchProfileStore.Save(CurrentGameBiz);
             }
         }
     }
@@ -346,7 +464,7 @@ public sealed partial class GameLauncherPage : PageBase
     {
         try
         {
-            EnableDX12 = AppConfig.GetEnableDX12(CurrentGameBiz);
+            EnableDX12 = CurrentLaunchProfile.EnableDX12;
             if (EnableDX12)
             {
                 IsDX12OptionVisible = true;
@@ -987,16 +1105,29 @@ public sealed partial class GameLauncherPage : PageBase
             {
                 Border_SwitchBackgroundImage.Visibility = Visibility.Visible;
                 GameBackground? currentBackground = await _backgroundService.GetSuggestedGameBackgroundAsync(CurrentGameId);
-                if (currentBackground != null && BackgroundImages.FirstOrDefault(x => x.Id == currentBackground.Id) is GameBackground current)
+                GameBackground? current = currentBackground is null
+                    ? null
+                    : BackgroundImages.FirstOrDefault(x => x.Id == currentBackground.Id);
+                if (current is not null)
                 {
                     currentBackgroundImageIndex = Math.Clamp(BackgroundImages.IndexOf(current), 0, BackgroundImages.Count - 1);
                     OnPropertyChanged(nameof(CurrentBackgroundImageIndex));
                     CanStopVideo = current.Type is GameBackground.BACKGROUND_TYPE_VIDEO;
                     if (CanStopVideo)
                     {
-                        current.StopVideo = currentBackground.StopVideo;
+                        current.StopVideo = currentBackground!.StopVideo;
                         StartStopButtonIcon = current.StopVideo ? PlayIcon : PauseIcon;
                     }
+                }
+                else
+                {
+                    // 当前背景是自定义背景（例如好感壁纸）时它不在 BackgroundImages 里，
+                    // 这时指示器不能保留上一次的选中项，否则那个"正在应用"的点一直亮着不还原。
+                    // -1 表示没有选中项；用户点圆点时会回到 ChangeBackgroundImageIndex，
+                    // 那里对负数直接 return，不会误改背景。
+                    currentBackgroundImageIndex = -1;
+                    OnPropertyChanged(nameof(CurrentBackgroundImageIndex));
+                    CanStopVideo = false;
                 }
             }
             else

@@ -44,6 +44,11 @@ public partial class GameBizIcon : ObservableObject, IEquatable<GameBizIcon>
 
     public bool IsPinned { get; set => SetProperty(ref field, value); }
 
+    /// <summary>
+    /// 该区服的启动预设浮窗正显示着，给图标加一圈高亮。
+    /// </summary>
+    public bool IsLaunchProfileActive { get; set => SetProperty(ref field, value); }
+
     public string? InstallPath { get; set => SetProperty(ref field, value); }
 
     public long TotalSize { get; set { field = value; OnPropertyChanged(nameof(TotalSizeText)); } }

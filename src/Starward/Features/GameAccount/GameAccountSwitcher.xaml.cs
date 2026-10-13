@@ -207,6 +207,10 @@ public sealed partial class GameAccountSwitcher : UserControl
             {
                 // 只切米游社账号：登录数据走启动参数，注册表一个字节都不动。
                 await _passportAccountService.UsePassportAccountAsync(CurrentGameBiz, account.PassportAccountKey);
+                // 账号选择器里选的账号要写进**当前预设**：预设记住它，之后切回这个预设时会自动切回来。
+                // 这是"账号属于预设"的写入端，注册表那套走下面分支，不写预设（与之互斥）。
+                Starward.Features.GameLauncher.GameLaunchProfileStore.GetCurrentProfile(CurrentGameBiz).AccountKey = account.PassportAccountKey;
+                Starward.Features.GameLauncher.GameLaunchProfileStore.Save(CurrentGameBiz);
                 UpdateGameAccount();
                 return;
             }

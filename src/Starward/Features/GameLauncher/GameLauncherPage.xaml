@@ -14,6 +14,7 @@
              xmlns:sfg="using:Starward.Features.GameInstall"
              xmlns:sfga="using:Starward.Features.GameAccount"
              xmlns:sfgd="using:Starward.Features.GameRecord.DailyNote"
+             xmlns:sfgs="using:Starward.Features.GameRecord.SignIn"
              xmlns:sfp="using:Starward.Features.PlayTime"
              x:DefaultBindMode="OneWay"
              mc:Ignorable="d">
@@ -437,6 +438,18 @@
                            PreviousButtonVisibility="VisibleOnPointerOver"
                            SelectedPageIndex="{x:Bind CurrentBackgroundImageIndex, Mode=TwoWay}"
                            Style="{ThemeResource CustomPipsPagerStyle}" />
+                <!--  好感壁纸（仅绝区零）：只把入口挪到分割线**紧左边**（指示器与分割线之间），
+                      分割线本身和它之后的每一项都保持上游原样；命令/可见性/点击行为不变。  -->
+                <Button Padding="4"
+                        Command="{x:Bind OpenFavorWallpaperDialogCommand}"
+                        Style="{ThemeResource DateTimePickerFlyoutButtonStyle}"
+                        ToolTipService.ToolTip="{x:Bind lang:Lang.FavorWallpaper_Title}"
+                        Visibility="{x:Bind ShowFavorWallpaper}">
+                    <FontIcon FontSize="16"
+                              Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                              Glyph="&#xE125;"
+                              IsTextScaleFactorEnabled="False" />
+                </Button>
                 <AppBarSeparator Padding="0,4,0,4" />
                 <!--  图库  -->
                 <Button Padding="4"
@@ -511,7 +524,8 @@
                                  VerticalAlignment="Bottom"
                                  CurrentGameId="{x:Bind CurrentGameId}" />
 
-        <!--  右下角按键  -->
+        <!--  右下角按键。行结构、行高、对齐方式与上游（scighost/main）逐值一致：
+              两行 = 按钮行 + 40 高的「阴影 / 提示 / DX12」行，组底边距 0，底边钉在页面底边。  -->
         <Grid Margin="0,0,40,0"
               HorizontalAlignment="Right"
               VerticalAlignment="Bottom"
@@ -524,7 +538,10 @@
             </Grid.Resources>
 
             <Grid.RowDefinitions>
+                <!--  第 0 行：三颗按钮（预下载 / 游戏时间 / 起始按钮），和上游一样没有显式行高。  -->
                 <RowDefinition />
+                <!--  第 1 行：固定 40（上游同值）。文字阴影、两句提示、DX12 都在这一行；
+                      行高不给 DX12 做大，所以组总高仍是 44 + 40，按钮位置一个像素都不动。  -->
                 <RowDefinition Height="40" />
             </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
@@ -535,75 +552,23 @@
 
 
 
-            <!--  预下载  -->
-            <sfg:PreDownloadButton x:Name="Button_Predownload"
-                                   Grid.Column="0"
-                                   IsPredownloadFinished="{x:Bind IsPredownloadFinished}"
-                                   PredownloadCommand="{x:Bind PredownloadCommand}"
-                                   Visibility="{x:Bind IsPredownloadButtonEnabled}" />
-
-            <!--  游戏时间  -->
-            <sfp:PlayTimeButton x:Name="Button_PlayTime"
-                                Grid.Column="1"
-                                CurrentGameBiz="{x:Bind CurrentGameBiz}" />
-
-            <!--  启动游戏  -->
-            <local:StartGameButton x:Name="Button_StartGame"
-                                   Grid.Column="2"
-                                   HorizontalAlignment="Right"
-                                   GameCommand="{x:Bind ClickStartGameButtonCommand}"
-                                   GameState="{x:Bind GameState}"
-                                   RunningGameInfo="{x:Bind RunningGameInfo}"
-                                   RunningGameTime="{x:Bind RunningGameTime}"
-                                   SettingCommand="{x:Bind OpenGameLauncherSettingDialogCommand}" />
-
-
-            <!--  文字阴影  -->
-            <Border x:Name="Border_TextShadowTarget"
-                    Grid.Row="1"
-                    Grid.Column="2" />
-
-
-            <!--  定位游戏  -->
-            <TextBlock Grid.Row="1"
-                       Grid.Column="2"
-                       HorizontalAlignment="Center"
-                       VerticalAlignment="Center"
-                       cu:Effects.Shadow="{StaticResource TextShadow}"
-                       FontSize="12"
-                       Visibility="{x:Bind InstalledLocateGameEnabled}">
-                <Run Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{x:Bind lang:Lang.InstallGameDialog_Installed}" />
-                <Hyperlink Click="Hyperlink_LocateGame_Click" UnderlineStyle="None">
-                    <Run Foreground="{ThemeResource SystemFillColorCautionBrush}" Text="{x:Bind lang:Lang.InstallGameDialog_LocateGame}" />
-                </Hyperlink>
-            </TextBlock>
-
-            <!--  可移动存储设备未连接  -->
-            <TextBlock Grid.Row="1"
-                       Grid.Column="2"
-                       HorizontalAlignment="Center"
-                       VerticalAlignment="Center"
-                       cu:Effects.Shadow="{StaticResource TextShadow}"
-                       FontSize="12"
-                       Visibility="{x:Bind IsInstallPathRemovableTipEnabled}">
-                <Run Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{x:Bind lang:Lang.GameLauncherPage_RemovableStorageDeviceNotConnected}" />
-                <Hyperlink Click="Hyperlink_LocateGame_Click" UnderlineStyle="None">
-                    <Run Foreground="{ThemeResource SystemFillColorCautionBrush}" Text="{x:Bind lang:Lang.GameLauncherPage_Relocate}" />
-                </Hyperlink>
-            </TextBlock>
-
-            <!--  DX12 选项  -->
+            <!--  DX12 选项：整个 Border（含背景）相对起始按钮居中——
+                  Grid.Row="1"（按钮下方那 40 高的一行，行高不变）、Grid.Column="2"（起始按钮那一列）、
+                  HorizontalAlignment="Center"。相对上游只有这一处由 Right 改成 Center；
+                  内部 StackPanel 保持 +2px 左偏移（见下面的注释），所以是"背景居中、内容再比上游右移 2px"。
+                  行高仍是上游的 40、组总高仍是 44 + 40，按钮/计时器位置不变。  -->
             <Border Grid.Row="1"
-                    Grid.Column="0"
-                    Grid.ColumnSpan="3"
+                    Grid.Column="2"
                     Padding="10,0,10,0"
-                    HorizontalAlignment="Right"
+                    HorizontalAlignment="Center"
                     VerticalAlignment="Center"
                     Background="{ThemeResource ControlOnImageFillColorDefaultBrush}"
                     CornerRadius="12"
                     Visibility="{x:Bind IsDX12OptionVisible}">
 
-                <StackPanel Margin="0,-2,0,-2"
+                <!--  StackPanel 左边距 2：产品方要求内容整体右移 2px。
+                      2 只加在内容上（StackPanel），Border 的背景/圆角/尺寸和它的居中都不受影响。  -->
+                <StackPanel Margin="2,-2,0,-2"
                             Orientation="Horizontal"
                             Spacing="8">
                     <CheckBox MinWidth="0"
@@ -630,6 +595,68 @@
                     </TextBlock>
                 </StackPanel>
             </Border>
+
+
+            <!--  预下载  -->
+            <sfg:PreDownloadButton x:Name="Button_Predownload"
+                                   Grid.Column="0"
+                                   IsPredownloadFinished="{x:Bind IsPredownloadFinished}"
+                                   PredownloadCommand="{x:Bind PredownloadCommand}"
+                                   Visibility="{x:Bind IsPredownloadButtonEnabled}" />
+
+            <!--  游戏时间  -->
+            <sfp:PlayTimeButton x:Name="Button_PlayTime"
+                                Grid.Column="1"
+                                CurrentGameBiz="{x:Bind CurrentGameBiz}" />
+
+            <!--  启动游戏：当前预设名摆在「开始游戏」主文案的右下角，作为一行灰色小字，不再单独占一列。
+                  名字和「开始游戏」在同一颗按钮上，换预设时视线不用在按钮和它左边来回跑；
+                  预设只有一个时名字整块隐藏。  -->
+            <local:StartGameButton x:Name="Button_StartGame"
+                                   Grid.Column="2"
+                                   HorizontalAlignment="Right"
+                                   GameCommand="{x:Bind ClickStartGameButtonCommand}"
+                                   GameState="{x:Bind GameState}"
+                                   ProfileName="{x:Bind CurrentLaunchProfileName}"
+                                   ProfileNameVisible="{x:Bind IsLaunchProfileNameVisible}"
+                                   RunningGameInfo="{x:Bind RunningGameInfo}"
+                                   RunningGameTime="{x:Bind RunningGameTime}"
+                                   SettingCommand="{x:Bind OpenGameLauncherSettingDialogCommand}" />
+
+
+            <!--  文字阴影  -->
+            <Border x:Name="Border_TextShadowTarget"
+                    Grid.Row="1"
+                    Grid.Column="2" />
+
+
+            <!--  定位游戏：与上游一致——第 1 行（按钮下方那 40 高的一行）、起始按钮那一列、居中。  -->
+            <TextBlock Grid.Row="1"
+                       Grid.Column="2"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       cu:Effects.Shadow="{StaticResource TextShadow}"
+                       FontSize="12"
+                       Visibility="{x:Bind InstalledLocateGameEnabled}">
+                <Run Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{x:Bind lang:Lang.InstallGameDialog_Installed}" />
+                <Hyperlink Click="Hyperlink_LocateGame_Click" UnderlineStyle="None">
+                    <Run Foreground="{ThemeResource SystemFillColorCautionBrush}" Text="{x:Bind lang:Lang.InstallGameDialog_LocateGame}" />
+                </Hyperlink>
+            </TextBlock>
+
+            <!--  可移动存储设备未连接：与上游一致——第 1 行、起始按钮那一列、居中。  -->
+            <TextBlock Grid.Row="1"
+                       Grid.Column="2"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       cu:Effects.Shadow="{StaticResource TextShadow}"
+                       FontSize="12"
+                       Visibility="{x:Bind IsInstallPathRemovableTipEnabled}">
+                <Run Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{x:Bind lang:Lang.GameLauncherPage_RemovableStorageDeviceNotConnected}" />
+                <Hyperlink Click="Hyperlink_LocateGame_Click" UnderlineStyle="None">
+                    <Run Foreground="{ThemeResource SystemFillColorCautionBrush}" Text="{x:Bind lang:Lang.GameLauncherPage_Relocate}" />
+                </Hyperlink>
+            </TextBlock>
 
 
         </Grid>
@@ -674,6 +701,10 @@
             <sfgd:DailyNoteButton Width="40"
                                   Height="40"
                                   CurrentGameId="{x:Bind CurrentGameId}" />
+            <!--  每日签到  -->
+            <sfgs:SignInButton Width="40"
+                               Height="40"
+                               CurrentGameId="{x:Bind CurrentGameId}" />
         </StackPanel>
 
     </Grid>

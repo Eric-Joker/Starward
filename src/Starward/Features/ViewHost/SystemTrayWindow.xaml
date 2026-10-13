@@ -15,6 +15,8 @@
              Closed="WindowEx_Closed"
              mc:Ignorable="d">
 
+    <!--  菜单只有这一列：启动预设列表是**独立窗口**（GameLaunchProfilePopupWindow），
+          悬停区服行时才弹在菜单旁边，菜单自己不会被撑大。  -->
     <Grid Name="RootGrid">
         <hn:TaskbarIcon x:Name="trayIcon"
                         LeftClickCommand="{x:Bind ShowMainWindowCommand}"
@@ -22,9 +24,13 @@
                         RightClickCommand="{x:Bind ShowCommand}"
                         ToolTipText="Starward" />
 
-        <StackPanel Padding="8">
+        <StackPanel x:Name="StackPanel_Menu"
+                    Padding="8"
+                    PointerEntered="StackPanel_Menu_PointerEntered"
+                    PointerExited="StackPanel_Menu_PointerExited">
 
-            <!--  已安装的游戏，点一下直接启动  -->
+            <!--  已安装的游戏，点一下用该区服的第一个预设直接启动；
+                  悬停时如果该区服有多个预设，会在菜单左边弹出预设列表，见 SystemTrayWindow.xaml.cs  -->
             <ItemsControl ItemsSource="{x:Bind InstalledGames}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="sfgg:GameBizIcon">
@@ -33,6 +39,8 @@
                                 HorizontalContentAlignment="Left"
                                 Click="Button_StartGame_Click"
                                 Opacity="{x:Bind TextOpacity}"
+                                PointerEntered="Button_StartGame_PointerEntered"
+                                PointerExited="Button_StartGame_PointerExited"
                                 Style="{ThemeResource DateTimePickerFlyoutButtonStyle}"
                                 Tag="{Binding}">
                             <Grid ColumnSpacing="10">
