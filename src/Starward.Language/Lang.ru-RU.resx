@@ -374,9 +374,6 @@
   <data name="GachaLogPage_OperationCanceled" xml:space="preserve">
     <value>Операция отменена</value>
   </data>
-  <data name="GachaLogPage_OnlySupportZZZCNServer" xml:space="preserve">
-    <value>Эта функция в настоящее время поддерживает только ZZZ.</value>
-  </data>
   <data name="GachaLogPage_PleaseLoginMiyousheAndAddZZZRole" xml:space="preserve">
     <value>Пожалуйста, войдите в систему с помощью Miyoushe toolbox и сначала добавьте ваш аккаунт в Miyoushe</value>
   </data>

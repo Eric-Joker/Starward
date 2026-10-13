@@ -373,9 +373,6 @@
   <data name="GachaLogPage_OperationCanceled" xml:space="preserve">
     <value>操作已取消</value>
   </data>
-  <data name="GachaLogPage_OnlySupportZZZCNServer" xml:space="preserve">
-    <value>該功能僅支援絕區零。</value>
-  </data>
   <data name="GachaLogPage_PleaseLoginMiyousheAndAddZZZRole" xml:space="preserve">
     <value>請先在米遊社工具箱中添加米遊社賬號。</value>
   </data>

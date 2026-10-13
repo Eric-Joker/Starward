@@ -2754,15 +2754,6 @@ namespace Starward.Language {
         }
         
         /// <summary>
-        ///   查找类似 This feature currently supports ZZZ only. 的本地化字符串。
-        /// </summary>
-        public static string GachaLogPage_OnlySupportZZZCNServer {
-            get {
-                return ResourceManager.GetString("GachaLogPage_OnlySupportZZZCNServer", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   查找类似 Open Folder 的本地化字符串。
         /// </summary>
         public static string GachaLogPage_OpenCacheFolder {
