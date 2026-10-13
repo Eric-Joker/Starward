@@ -134,10 +134,10 @@ public static class PassportCookieParser
     private static readonly string[] UserAgentKeys = ["user-agent", "useragent"];
 
 
-    /// <summary>从 UA 里取 Android 版本：<c>Android 16; 23117RK66C Build/...</c>。</summary>
+    /// <summary>从 UA 里取 Android 版本：<c>Android 13; Pixel 5 Build/...</c>。</summary>
     private static readonly Regex UASystemVersionRegex = new(@"Android\s+([\d.]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-    /// <summary>从 UA 里取机型：<c>Android 16; 23117RK66C Build/...</c>。</summary>
+    /// <summary>从 UA 里取机型：<c>Android 13; Pixel 5 Build/...</c>。</summary>
     private static readonly Regex UADeviceNameRegex = new(@"Android\s+[\d.]+\s*;\s*([^;)]+?)\s+Build", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
 

@@ -530,6 +530,12 @@ public sealed partial class GameRecordPage : PageBase
             panel.Children.Add(systemVersionBox);
             panel.Children.Add(appVersionBox);
             panel.Children.Add(CreateTipText(Lang.PassportLogin_DeviceInfoTip));
+            // 本程序还在用自己申请的指纹时多说一句：这一栏正是粘一次浏览器 Cookie / 抓包、
+            // 让服务端把这枚指纹登记到账号上的地方。
+            if (GameRecordService.CanPromptAccountDeviceFp() && GameRecordService.IsDeviceProfileNeutral())
+            {
+                panel.Children.Add(CreateTipText(Lang.HoyolabToolboxPage_DeviceIdentityHint));
+            }
             var dialog = new ContentDialog
             {
                 Title = Lang.HoyolabToolboxPage_InputCookie,
@@ -551,6 +557,7 @@ public sealed partial class GameRecordPage : PageBase
                 deviceNameBox.Text = info.DeviceName ?? "";
                 systemVersionBox.Text = info.SystemVersion ?? "";
                 appVersionBox.Text = info.AppVersion ?? "";
+                // 指纹要单独存：它决定请求里 x-rpc-device_fp 与 Cookie DEVICEFP 的值。
                 bool fpSaved = _gameRecordService.SaveDeviceFp(info.DeviceFp);
                 bool infoSaved = _gameRecordService.SaveDeviceInfo(info.DeviceName, info.SystemVersion, info.AppVersion);
                 if (string.IsNullOrWhiteSpace(cookie))
@@ -572,6 +579,17 @@ public sealed partial class GameRecordPage : PageBase
                 }
                 var user = await _gameRecordService.AddRecordUserAsync(cookie);
                 var roles = await _gameRecordService.AddGameRolesAsync(cookie);
+                // 手工粘贴和通行证登录写的是同一批位置：粘贴之后，通行证在登录、换票、切换账号时
+                // 会用自己换到的令牌重写工具箱 Cookie，把这次粘贴的键冲掉。这里把粘贴的键合并进
+                // 该账号的工具箱 Cookie 并写回账号行与角色行（同名键以粘贴为准），
+                // 之后 CreateToolboxCookie 的合并会保留它，粘贴才对战绩请求确定生效。
+                // 账号 ID 用粘贴的 Cookie 里的 account_id，而不是接口报回来的 UID：
+                // 粘贴写下的那一行是接口按它自己报的 UID 建的，通行证索引的是 account_id，两边都要更新。
+                long accountId = GameRecordService.GetCookieAccountId(cookie);
+                var (accountRows, roleRows) = _gameRecordService.UpdateToolboxCookieFromPaste(accountId, cookie, user.Uid);
+                _logger.LogInformation(
+                    "Pasted cookie applied to the toolbox account rows and roles ({accountRows} account row(s), {roleRows} role row(s); account id from paste: {hasAccountId}, response uid differs: {uidDiffers}).",
+                    accountRows, roleRows, accountId > 0, user.Uid != accountId);
                 // 同时填了指纹的话，两个提示合并成一条：登录成功，且设备指纹已保存。
                 if (fpSaved)
                 {
@@ -582,7 +600,7 @@ public sealed partial class GameRecordPage : PageBase
                     string message = string.Format(Lang.LoginPage_AlreadyAddedGameRoles, roles.Count, string.Join("\r\n", roles.Select(x => $"{x.Nickname}  {x.Uid}")));
                     if (infoSaved)
                     {
-                        // 两条提示会互相顶掉，拼进同一条。
+                        // 设备信息与上面的提示会互相顶掉，所以拼进同一条。
                         message = $"{message}\r\n{Lang.PassportLogin_DeviceInfoSaved}";
                     }
                     InAppToast.MainWindow?.Success(null, message, 5000);
@@ -788,23 +806,20 @@ public sealed partial class GameRecordPage : PageBase
 
 
 
-    private async Task UpdateDeviceInfoAsync(bool forceUpdate = false)
+    /// <summary>
+    /// 进入工具箱页时确保设备指纹可用：只在完全没有指纹时申请一枚，已有指纹就原样使用。
+    /// 这里不提供强制重申请（用户可见的「更新指纹」入口已从界面移除）：
+    /// 换掉账号登记过的指纹只会把可用状态换成 10041。
+    /// </summary>
+    private async Task UpdateDeviceInfoAsync()
     {
         try
         {
-            await _gameRecordService.UpdateDeviceFpAsync(forceUpdate);
-            if (forceUpdate)
-            {
-                InAppToast.MainWindow?.Success(Lang.HoyolabToolboxPage_TheDeviceFingerprintIsAlreadyUpdated);
-            }
+            await _gameRecordService.UpdateDeviceFpAsync();
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Update device info");
-            if (forceUpdate)
-            {
-                InAppToast.MainWindow?.Error(ex);
-            }
         }
     }
 
@@ -818,11 +833,30 @@ public sealed partial class GameRecordPage : PageBase
 
 
 
-    public static void HandleMiHoYoApiException(miHoYoApiException ex)
+    /// <summary>
+    /// 战绩接口的业务错误统一处理。
+    /// <para>
+    /// 10041（账号存在风险）在绝区零/崩坏3 这类接口上是「这枚设备指纹没有被该账号登记过」：
+    /// 服务端校验的是指纹本身，与机型描述无关（实测把旧指纹写回、身份保持中性默认也能恢复正常）。
+    /// 因此带上 <paramref name="gameBiz"/> 的调用方在指纹是「本程序自己申请的」时候，
+    /// 会额外补一句可操作的提示——去米游社网页/App 登录一次，或在工具箱里粘贴一次抓包/Cookie。
+    /// 用户自己粘贴进来的指纹不会再提示，避免让他重复做同一件事。
+    /// </para>
+    /// </summary>
+    /// <param name="ex">战绩接口抛出的业务异常。</param>
+    /// <param name="gameBiz">发起请求的游戏；未知或不传时不补设备指纹提示。</param>
+    public static void HandleMiHoYoApiException(miHoYoApiException ex, GameBiz? gameBiz = null)
     {
         if (ex.ReturnCode is 1034 or 5003 or 10035 or 10041 or 10053)
         {
-            InAppToast.MainWindow?.ShowWithButton(InfoBarSeverity.Warning, Lang.Common_AccountError, ex.Message, Lang.HoyolabToolboxPage_VerifyAccount, () =>
+            string? message = ex.Message;
+            if (ex.ReturnCode is 10041 && gameBiz?.Game is GameBiz.nap && GameRecordService.CanPromptAccountDeviceFp())
+            {
+                message = string.IsNullOrWhiteSpace(message)
+                    ? Lang.HoyolabToolboxPage_DeviceIdentityErrorHint
+                    : $"{message}\r\n{Lang.HoyolabToolboxPage_DeviceIdentityErrorHint}";
+            }
+            InAppToast.MainWindow?.ShowWithButton(InfoBarSeverity.Warning, Lang.Common_AccountError, message, Lang.HoyolabToolboxPage_VerifyAccount, () =>
             {
                 WeakReferenceMessenger.Default.Send(new GameRecordVerifyAccountMessage());
             });

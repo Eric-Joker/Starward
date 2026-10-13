@@ -22,10 +22,16 @@ using Starward.Core.GameRecord.ZZZ.GachaRecord;
 using Starward.Core.GameRecord.ZZZ.InterKnotReport;
 using Starward.Core.GameRecord.ZZZ.ShiyuDefense;
 using Starward.Core.Passport;
+using Starward.Features.Account;
 using Starward.Features.Database;
+using Starward.Features.ViewHost;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -45,6 +51,28 @@ internal class GameRecordService
     private GameRecordClient _gameRecordClient;
 
     private readonly IMemoryCache _memoryCache;
+
+
+    /// <summary>
+    /// 国服接口失败后重刷设备指纹的最小间隔。避免一次风控失败就让每个请求都去申请新指纹、反而更容易被拦。
+    /// <para>
+    /// 时间戳只存在进程里，重启后会重新计时，也就是说重启后可能比这里写的间隔更早刷新一次。
+    /// 持久化需要给 AppConfig 加字段，超出了本次改动的范围。
+    /// </para>
+    /// </summary>
+    private static readonly TimeSpan DeviceFpFailureUpdateCooldown = TimeSpan.FromHours(6);
+
+
+    /// <summary>上次因请求失败而尝试刷新设备指纹的时间（进程内，见 <see cref="DeviceFpFailureUpdateCooldown"/>）。</summary>
+    private static DateTimeOffset _lastDeviceFpFailureAttempt;
+
+
+    /// <summary>串行化因请求失败触发的指纹刷新，避免并发请求同时向 public-data-api 申请指纹。</summary>
+    private static readonly SemaphoreSlim _deviceFpFailureUpdateLock = new(1, 1);
+
+
+    /// <summary>人机验证面板同一时刻只允许一个，验证期间请求可能来自任意后台线程。</summary>
+    private static readonly SemaphoreSlim _captchaPanelLock = new(1, 1);
 
 
     public string Language { get => _hoyolabClient.Language; set => _hoyolabClient.Language = value; }
@@ -83,31 +111,528 @@ internal class GameRecordService
 
 
     /// <summary>
-    /// 更新设备指纹信息。
+    /// 业务错误是否带了需要用户交互才能完成的 aigis 人机验证任务。
+    /// </summary>
+    private static bool HasAigisChallenge(miHoYoApiException ex)
+    {
+        return ex.Aigis?.Data.ValueKind is JsonValueKind.Object or JsonValueKind.String;
+    }
+
+
+
+
+    /// <summary>
+    /// 执行一次游戏战绩请求；遇到米哈游业务错误时按 TZ 的策略恢复一次。
     /// <para>
-    /// 已经有指纹时直接用存下来的；首次运行和超过 3 天时向服务端重新申请一个。
-    /// 便笺、绳网月报只认 <c>x-rpc-device_fp</c>，而服务端签发的指纹不一定被这些接口接受，
-    /// 所以工具箱里还留了手动填入的入口 <see cref="SaveDeviceFp"/>。
+    /// 国服（<c>IsHoyolab</c> 为 false）遇到带 <c>x-rpc-aigis</c> 的风控错误时弹人机验证，带验证结果重试一次；
+    /// 国际服（HoYoLAB）不走这条路径，直接抛出原始异常。
+    /// 国服其余业务错误（登录态失效除外）先尝试刷新设备指纹，指纹确实换了才重试一次。
+    /// 每次请求最多重试一次，恢复动作自身失败不会覆盖用户真正遇到的业务错误。
     /// </para>
     /// </summary>
-    /// <param name="forceUpdate">为 true 时无论是否过期都重新申请一个。</param>
-    public async Task UpdateDeviceFpAsync(bool forceUpdate = false, CancellationToken cancellationToken = default)
+    /// <typeparam name="T">请求返回类型。</typeparam>
+    /// <param name="action">使用当前平台 Client 发起请求的委托。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>首次请求或一次恢复重试后的结果。</returns>
+    private async Task<T> ExecuteWithGameRecordRecoveryAsync<T>(Func<GameRecordClient, Task<T>> action, CancellationToken cancellationToken = default)
     {
-        // 设备信息先写进去：国际服虽然不申请指纹，但鉴权信息在两边是共用的。
-        LoadDeviceInfo();
+        GameRecordClient client = _gameRecordClient;
+        // 用真正要发请求的那个 Client 判断平台，不依赖可能被并发请求改写的 IsHoyolab。
+        bool isHoyolab = client is not HyperionClient;
+        try
+        {
+            return await action(client);
+        }
+        catch (miHoYoApiException ex)
+        {
+            if (!isHoyolab && HasAigisChallenge(ex))
+            {
+                var (handled, result) = await TryRetryAfterAigisAsync(client, ex, action, cancellationToken);
+                if (handled)
+                {
+                    return result;
+                }
+            }
+            if (isHoyolab)
+            {
+                // 国际服不申请设备指纹，没有人机验证以外的恢复手段。
+                throw;
+            }
+            if (ex.IsLoginExpired)
+            {
+                // 登录态失效要换 Cookie 才有用，这里只保留原有的失败行为，不做无效重试。
+                throw;
+            }
+            // 【加固，勿改】请求失败**绝不**清指纹、不重申请、不换身份：实测服务端只认请求头
+            // x-rpc-device_id，重申请只会产出一个陌生身份，把可用状态永久换成 10041。
+            _logger.LogWarning(
+                "Game record request failed with retcode {retcode}; the device identity is left untouched.",
+                ex.ReturnCode);
+            throw;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // 用户主动取消（例如取消人机验证）时保持取消语义，不要当成接口失败。
+            throw;
+        }
+    }
+
+
+
+
+    /// <summary>
+    /// 若业务错误带有 <c>x-rpc-aigis</c>，弹出人机验证并带挑战头重试一次。
+    /// </summary>
+    /// <param name="client">发起该请求的 Client，验证结果会临时写进去。</param>
+    /// <param name="exception">带 aigis 载荷的原始业务错误。</param>
+    /// <param name="action">重试时使用的请求委托。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>已完成重试时为 (true, 结果)，否则为 (false, default)。</returns>
+    private async Task<(bool Handled, T Result)> TryRetryAfterAigisAsync<T>(GameRecordClient client, miHoYoApiException exception, Func<GameRecordClient, Task<T>> action, CancellationToken cancellationToken)
+    {
+        string? aigisHeader = await ResolveGameRecordAigisAsync(exception.Aigis!, cancellationToken);
+        if (string.IsNullOrWhiteSpace(aigisHeader))
+        {
+            return (false, default!);
+        }
+        ApplyGameRecordRiskHeaders(client, aigisHeader);
+        try
+        {
+            var result = await action(client);
+            return (true, result);
+        }
+        catch (Exception retryException)
+        {
+            throw;
+        }
+        finally
+        {
+            // 只在这一次重试期间生效：验证结果不能泄漏到后续请求上。
+            client.RiskAigisHeader = null;
+            client.RiskChallenge = null;
+        }
+    }
+
+
+
+
+    /// <summary>
+    /// 把极验结果写到 Client，供下一次请求带上 <c>x-rpc-aigis</c> / <c>x-rpc-challenge</c>。
+    /// </summary>
+    private static void ApplyGameRecordRiskHeaders(GameRecordClient client, string aigisHeader)
+    {
+        client.RiskAigisHeader = aigisHeader;
+        client.RiskChallenge = TryReadGeetestChallenge(aigisHeader);
+    }
+
+
+
+
+    /// <summary>
+    /// 从 <c>session_id;base64(验证结果)</c> 里取出 <c>geetest_challenge</c>，供 <c>x-rpc-challenge</c> 使用。
+    /// 解析不出来时只带 aigis 头重试。
+    /// </summary>
+    private static string? TryReadGeetestChallenge(string aigisHeader)
+    {
+        try
+        {
+            int separator = aigisHeader.IndexOf(';');
+            if (separator < 0 || separator >= aigisHeader.Length - 1)
+            {
+                return null;
+            }
+            string json = Encoding.UTF8.GetString(Convert.FromBase64String(aigisHeader[(separator + 1)..]));
+            using JsonDocument document = JsonDocument.Parse(json);
+            if (document.RootElement.TryGetProperty("geetest_challenge", out JsonElement challenge) && challenge.ValueKind is JsonValueKind.String)
+            {
+                return challenge.GetString();
+            }
+            if (document.RootElement.TryGetProperty("challenge", out JsonElement challengeAlt) && challengeAlt.ValueKind is JsonValueKind.String)
+            {
+                return challengeAlt.GetString();
+            }
+        }
+        catch
+        {
+            // 验证结果的 JSON 结构和预期不一致，交给接口判断。
+        }
+        return null;
+    }
+
+
+
+
+    /// <summary>
+    /// 在主窗口上弹出人机验证面板，返回验证结果；无法显示时返回 null。
+    /// <para>
+    /// 面板（<see cref="PassportCaptchaPanel"/>）是普通控件，必须在 UI 线程上创建并挂到一个有 XamlRoot 的
+    /// 弹层里，WebView2 才能初始化，所以这里显式 <see cref="Microsoft.UI.Dispatching.DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueueHandler)"/>
+    /// 过去，后台线程只异步等待结果，不阻塞 UI 线程。
+    /// </para>
+    /// </summary>
+    /// <param name="aigis">接口返回的 aigis 载荷。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>aigis 请求头的值；用户取消或面板不可用时为 null。</returns>
+    private async Task<string?> ResolveGameRecordAigisAsync(PassportAigisHeader aigis, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var challenge = aigis.GetChallenge();
+        string sessionId = aigis.SessionId ?? "";
+        if (challenge is null || string.IsNullOrWhiteSpace(sessionId))
+        {
+            _logger.LogWarning("Cannot show game-record captcha: the aigis payload has no session id or geetest challenge.");
+            return null;
+        }
+        MainWindow? window = MainWindow.Current;
+        if (window?.Content?.XamlRoot is not { } xamlRoot)
+        {
+            _logger.LogWarning("Cannot show game-record captcha: MainWindow XamlRoot is unavailable.");
+            return null;
+        }
+        await _captchaPanelLock.WaitAsync(cancellationToken);
+        try
+        {
+            var tcs = new TaskCompletionSource<PassportCaptcha?>(TaskCreationOptions.RunContinuationsAsynchronously);
+            // 用 async void 的本地函数交给 DispatcherQueue：它在 UI 线程上跑，异常只回填 tcs，不会变成未观察的异常。
+            async void ShowCaptchaOnUIThread()
+            {
+                try
+                {
+                    // 面板和承载它的弹层都必须由 UI 线程创建，DispatcherQueue 的队列本身就是 XamlRoot 所在的那棵树。
+                    var panel = new PassportCaptchaPanel();
+                    Popup popup = CreateCaptchaPopup(window, xamlRoot, panel);
+                    try
+                    {
+                        popup.IsOpen = true;
+                        tcs.TrySetResult(await panel.RunAsync(aigis, challenge));
+                    }
+                    finally
+                    {
+                        popup.IsOpen = false;
+                    }
+                }
+                catch (OperationCanceledException oce) when (cancellationToken.IsCancellationRequested)
+                {
+                    tcs.TrySetCanceled(oce.CancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    tcs.TrySetException(ex);
+                }
+            }
+            if (!window.DispatcherQueue.TryEnqueue(ShowCaptchaOnUIThread))
+            {
+                _logger.LogWarning("Cannot show game-record captcha: the main window dispatcher rejected the work item.");
+                return null;
+            }
+            using var registration = cancellationToken.Register(() => tcs.TrySetCanceled(cancellationToken));
+            if (await tcs.Task is not { IsEmpty: false } captcha)
+            {
+                _logger.LogWarning("Game-record captcha was cancelled or did not return a result.");
+                return null;
+            }
+            return captcha.ToAigisHeaderValue();
+        }
+        finally
+        {
+            _captchaPanelLock.Release();
+        }
+    }
+
+
+
+
+    /// <summary>
+    /// 创建一个承载人机验证面板的弹层，并把它放在主窗口中间。
+    /// 只设置 <see cref="Popup.XamlRoot"/> 而不挂进主窗口的可视化树，避免把工具箱窗口和账号中心的布局搅在一起。
+    /// </summary>
+    private static Popup CreateCaptchaPopup(MainWindow window, XamlRoot xamlRoot, PassportCaptchaPanel panel)
+    {
+        var popup = new Popup
+        {
+            XamlRoot = xamlRoot,
+            Child = panel,
+            IsLightDismissEnabled = false,
+        };
+        try
+        {
+            double width = (window.Content as FrameworkElement)?.ActualWidth ?? 0;
+            double height = (window.Content as FrameworkElement)?.ActualHeight ?? 0;
+            if (width > 0 && height > 0)
+            {
+                popup.HorizontalOffset = Math.Max(0, (width - panel.WidgetWidth) / 2);
+                popup.VerticalOffset = Math.Max(0, (height - panel.WidgetHeight) / 2);
+            }
+        }
+        catch
+        {
+            // 取不到窗口尺寸就让弹层留在左上角，不影响验证本身。
+        }
+        return popup;
+    }
+
+
+
+
+    /// <summary>
+    /// 国服接口返回业务错误后按冷却策略刷新一次设备指纹，供调用方决定是否值得重试。
+    /// </summary>
+    /// <param name="failedDeviceFp">触发失败请求所用的设备指纹，用于并发去重。</param>
+    /// <param name="originalException">触发恢复流程的原始业务错误。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>指纹已刷新、或已被并发请求刷新时为 true；处于冷却期而跳过、或刷新失败时为 false。</returns>
+    private async Task<bool> TryUpdateDeviceFpAfterRequestFailureAsync(string failedDeviceFp, miHoYoApiException originalException, CancellationToken cancellationToken)
+    {
+        // 【已停用，勿恢复】本方法原实现是"冷却期后清指纹并重新申请一枚"。
+        // 实测服务端只认请求头 x-rpc-device_id，重申请得到的必然是一枚属于陌生身份的指纹，
+        // 只会把可用状态换成永久 10041（曾把可用的 d5c54418-… 换掉，只能手工改库恢复）。
+        // 调用点已从 ExecuteWithGameRecordRecoveryAsync 移除；这里再短路一次，保证即使有人重新接线
+        // 也不可能触发清指纹 / 重申请 / 换身份。
+        await Task.CompletedTask;
+        _ = failedDeviceFp;
+        _ = originalException;
+        _ = cancellationToken;
+        return false;
+        /* 以下为停用前的原实现，保留仅作说明：
+        try
+        {
+            await _deviceFpFailureUpdateLock.WaitAsync(cancellationToken);
+            try
+            {
+                // 指纹已经被另一个并发失败请求换掉了，直接用新的重试即可。
+                if (!string.Equals(_hyperionClient.DeviceFp, failedDeviceFp, StringComparison.Ordinal))
+                {
+                    return true;
+                }
+                DateTimeOffset now = DateTimeOffset.UtcNow;
+                DateTimeOffset lastAttempt = _lastDeviceFpFailureAttempt;
+                // 一般要等 6 小时冷却；但"带账号 Cookie 登记指纹"这条新路径（B 组）允许在冷却期内多试一次，
+                // 判据见 CanReregisterDeviceFpWithAccountCookie（带 Cookie 登记过仍失败就不再放行）。
+                if (now - lastAttempt < DeviceFpFailureUpdateCooldown && !CanReregisterDeviceFpWithAccountCookie())
+                {
+                    return false;
+                }
+                // 先记时间再发请求：即使申请失败也不会在冷却期内反复重试。
+                _lastDeviceFpFailureAttempt = now;
+                // 这一条恢复路径是换指纹的第二个（也是最后一个）入口，同样受冷却期约束：
+                // 先把旧指纹挪到一边，再让 UpdateHyperionDeviceFpAsync 因为「没有指纹」而申请新的。
+                // 申请失败就把旧指纹放回去——它只是被这个接口拒了，没有理由丢掉。
+                string? previousFp = AppConfig.HyperionDeviceFp;
+                DateTimeOffset previousUpdateTime = AppConfig.HyperionDeviceFpLastUpdateTime;
+                ClearDeviceFp();
+                try
+                {
+                    await UpdateHyperionDeviceFpAsync(false, cancellationToken);
+                }
+                catch
+                {
+                    RestoreDeviceFp(previousFp, previousUpdateTime);
+                    throw;
+                }
+                return true;
+            }
+            finally
+            {
+                _deviceFpFailureUpdateLock.Release();
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // 恢复动作失败不能覆盖用户真正遇到的业务错误，交给调用方继续抛原来的异常。
+            return false;
+        }
+        */
+    }
+
+
+
+
+    /// <summary>
+    /// 准备设备指纹。指纹是「设备身份令牌」，必须长期稳定：
+    /// 只有完全没有指纹时才申请一枚；已经有指纹就原样使用，不按时间轮换、也不因为载荷版本变化而重申请。
+    /// <para>
+    /// 原因：服务端校验的是这枚指纹有没有被该账号登记过。实测把旧指纹写回、机型身份保持中性默认，
+    /// 绝区零战绩立刻恢复正常；也就是说换指纹会直接破坏账号与设备的绑定关系，代价远大于刷新的收益。
+    /// 便笺、绳网月报这些接口要的正是账号登记过的那一枚，用户粘贴进来的浏览器指纹见 <see cref="SaveDeviceFp"/>。
+    /// </para>
+    /// </summary>
+    /// <param name="forceMint">
+    /// 为 true 时即使已有指纹也重新申请一枚。**只给用户主动发起的入口用**（账号中心的「更新设备指纹」按钮），
+    /// 自动流程一律传 false，否则会在用户不知情时换掉已登记的指纹。
+    /// </param>
+    public async Task UpdateDeviceFpAsync(bool forceMint = false, CancellationToken cancellationToken = default)
+    {
         if (IsHoyolab)
         {
             return;
         }
+        await UpdateHyperionDeviceFpAsync(forceMint, cancellationToken);
+    }
+
+
+
+
+    /// <summary>
+    /// 用国服 Hyperion Client 载入设备指纹，只在「一枚都没有」时申请新的，并把最新值写回配置。
+    /// 调用方已经确认这是国服场景时用它，不看共享的 <see cref="IsHoyolab"/>。
+    /// <para>
+    /// 重申请一律走「先清空再申请」：<see cref="ClearDeviceFp"/> 之后这里会因为「没有指纹」而申请一枚，
+    /// 这样请求失败后的恢复路径与 <paramref name="forceMint"/> 共用同一条判据，不会有两套换指纹的条件。
+    /// </para>
+    /// </summary>
+    /// <param name="forceMint">为 true 时即使已有指纹也重新申请一枚；只给用户主动发起的入口用。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    private async Task UpdateHyperionDeviceFpAsync(bool forceMint, CancellationToken cancellationToken)
+    {
+        // 设备信息先写进去：国际服虽然不申请指纹，但鉴权信息在两边是共用的。
+        LoadDeviceInfo();
         string? fp = AppConfig.HyperionDeviceFp;
-        DateTimeOffset lastUpdateTime = AppConfig.HyperionDeviceFpLastUpdateTime;
-        if (forceUpdate || string.IsNullOrWhiteSpace(fp) || DateTimeOffset.Now - lastUpdateTime > TimeSpan.FromDays(3))
+        if (!string.IsNullOrWhiteSpace(fp) && !forceMint)
         {
-            await _gameRecordClient.GetDeviceFpAsync(cancellationToken);
-            AppConfig.HyperionDeviceId = _gameRecordClient.DeviceId;
-            AppConfig.HyperionDeviceFp = _gameRecordClient.DeviceFp;
-            AppConfig.HyperionDeviceFpLastUpdateTime = DateTimeOffset.Now;
+            // 已经有指纹：直接用，不轮换。载荷版本变化只提示，绝不因此换掉账号登记过的这一枚。
+            if (AppConfig.HyperionDeviceFpPayloadVersion < HyperionClient.DeviceFpPayloadVersion)
+            {
+                _logger.LogWarning(
+                    "Stored device fingerprint was minted with ext_fields payload version {stored} (current {current}); keeping it because the server binds fingerprints to the account.",
+                    AppConfig.HyperionDeviceFpPayloadVersion, HyperionClient.DeviceFpPayloadVersion);
+            }
+            return;
         }
+        // 匿名申请。撤掉了"带账号 Cookie 申请"这条实验路径：实测米哈游的登录态接口、getFp、bbs、H5 页面
+        // 都不下发 DEVICEFP 系列 Cookie，拿新 device_id 去调这些接口也登记不上（之后仍 10041）。
+        await _hyperionClient.GetDeviceFpAsync(cancellationToken);
+        // 【加固，勿改】这里**绝对不写** HyperionDeviceId / HyperionDeviceAndroidId。
+        // 实测（9 组单变量）：服务端只认请求头 x-rpc-device_id —— 等于本机已登记的那个值就 retcode 0，
+        // 换成任何陌生值就 10041（指纹用老的/浏览器的/新的、甚至完全不发 x-rpc-device_fp 都随它）。
+        // 曾经因为在申请指纹成功后把这两个键连同指纹一起写回，把用户已登记的设备标识换成了全新值，
+        // 导致绝区零战绩**永久** 10041，只能手工改库恢复。
+        // 这两个键的唯一所有者是 LoadDeviceInfo()：只在为空时生成一次，之后终身不变。
+        AppConfig.HyperionDeviceFp = _hyperionClient.DeviceFp;
+        AppConfig.HyperionDeviceFpSeedId = _hyperionClient.DeviceFpSeedId;
+        AppConfig.HyperionDeviceFpSeedTime = _hyperionClient.DeviceFpSeedTime;
+        AppConfig.HyperionDeviceFpLastUpdateTime = DateTimeOffset.Now;
+        AppConfig.HyperionDeviceFpPayloadVersion = HyperionClient.DeviceFpPayloadVersion;
+    }
+
+
+
+
+    /// <summary>
+    /// 【B 组】取一条当前工具箱账号的 Cookie，供 getFp 请求带上。
+    /// <para>
+    /// 优先用**已经带着设备指纹的**角色行（如果有）：那条 Cookie 属于真正登记过设备的账号，
+    /// 用它申请出来的指纹才有的可绑；没有这样的行时退回任意一条有内容、且带账号 ID 的角色行 Cookie
+    /// （登录后角色行一定存在）。角色行都没有时再看 <c>GameRecordUser</c> 行；都拿不到就返回 null。
+    /// </para>
+    /// <para>
+    /// 只用现有 Dapper 查询与 <see cref="GetCookieAccountId"/> 读库，不新增设置项，也不写任何数据。
+    /// </para>
+    /// </summary>
+    /// <returns>账号 Cookie；拿不到时返回 null（此时照旧匿名申请）。</returns>
+    private string? GetAccountCookieForDeviceFp()
+    {
+        try
+        {
+            using var dapper = DatabaseService.CreateConnection();
+            var roles = dapper.Query<GameRecordRole>(
+                "SELECT * FROM GameRecordRole WHERE Cookie IS NOT NULL AND Cookie <> '';").ToList();
+            GameRecordRole? withDeviceFp = roles.FirstOrDefault(static x => x.Cookie.Contains("DEVICEFP=", StringComparison.OrdinalIgnoreCase));
+            if (withDeviceFp is not null)
+            {
+                return withDeviceFp.Cookie;
+            }
+            GameRecordRole? accountRole = roles.FirstOrDefault(static x => GetCookieAccountId(x.Cookie) > 0);
+            if (accountRole is not null)
+            {
+                return accountRole.Cookie;
+            }
+            if (roles.Count > 0)
+            {
+                return roles[0].Cookie;
+            }
+            return dapper.QueryFirstOrDefault<string>("SELECT Cookie FROM GameRecordUser WHERE Cookie IS NOT NULL AND Cookie <> '' LIMIT 1;");
+        }
+        catch (Exception ex)
+        {
+            // 读不到账号 Cookie 只能退化成匿名申请，不能因此让指纹申请失败。
+            _logger.LogWarning(ex, "Cannot read a toolbox account cookie for the getFp request; requesting anonymously.");
+            return null;
+        }
+    }
+
+
+
+
+    /// <summary>
+    /// 【B 组】当前这枚指纹是否就是"带着账号 Cookie 申请出来的"那一枚。
+    /// 只在本次进程内有效（<see cref="ClearDeviceFp"/> 会一并清零），因此最多多试一次，不会形成循环。
+    /// </summary>
+    private bool _deviceFpRegisteredWithAccountCookie;
+
+
+
+
+    /// <summary>
+    /// 【B 组】是否允许在 6 小时冷却期内为"带账号 Cookie 的申请"再多开一次机会。
+    /// <para>
+    /// 三条同时成立才放行（避免死循环）：
+    /// 1. 当前指纹是"我们自申请的"（<see cref="CanPromptAccountDeviceFp"/>），不是用户粘贴的；
+    /// 2. 当前这枚**不是**带账号 Cookie 申请出来的（<see cref="_deviceFpRegisteredWithAccountCookie"/> 为 false）
+    ///    —— 也就是说还没试过新路径；一旦带 Cookie 登记过仍然 10041，这里就再也不放行；
+    /// 3. 现在确实能拿到一条账号 Cookie（否则带 Cookie 申请无从谈起，直接走原来的 6 小时冷却）。
+    /// </para>
+    /// </summary>
+    /// <returns>允许立即再登记一次时返回 true。</returns>
+    private bool CanReregisterDeviceFpWithAccountCookie()
+    {
+        if (!CanPromptAccountDeviceFp() || _deviceFpRegisteredWithAccountCookie)
+        {
+            return false;
+        }
+        return !string.IsNullOrWhiteSpace(GetAccountCookieForDeviceFp());
+    }
+
+
+
+
+    /// <summary>
+    /// 清掉已存的设备指纹，让下一次 <see cref="UpdateDeviceFpAsync"/> 因为「没有指纹」而申请新的。
+    /// <para>
+    /// 只有「请求被服务端以风控拒绝、且冷却期已过」这一条恢复路径会用它（见
+    /// <see cref="TryUpdateDeviceFpAfterRequestFailureAsync"/>）。用户自己贴进来的指纹由
+    /// <see cref="SaveDeviceFp"/> 写入，不受影响。
+    /// </para>
+    /// <para>
+    /// 同时把"这枚指纹是带账号 Cookie 登记出来的"标记清掉：指纹已经不存在了，下一次申请会重新判定，
+    /// 这样"旧指纹是匿名申请的、新一次可以带 Cookie 登记"这条 B 组路径不会被旧标记挡住。
+    /// </para>
+    /// </summary>
+    private void ClearDeviceFp()
+    {
+        AppConfig.HyperionDeviceFp = "";
+        AppConfig.HyperionDeviceFpLastUpdateTime = default;
+        _deviceFpRegisteredWithAccountCookie = false;
+    }
+
+
+
+    /// <summary>
+    /// 把 <see cref="ClearDeviceFp"/> 清掉的指纹放回去（申请新指纹失败时用）。
+    /// </summary>
+    /// <param name="deviceFp">原来的指纹；空白时不写。</param>
+    /// <param name="lastUpdateTime">原来的申请时间。</param>
+    private static void RestoreDeviceFp(string? deviceFp, DateTimeOffset lastUpdateTime)
+    {
+        if (string.IsNullOrWhiteSpace(deviceFp))
+        {
+            return;
+        }
+        AppConfig.HyperionDeviceFp = deviceFp;
+        AppConfig.HyperionDeviceFpLastUpdateTime = lastUpdateTime;
     }
 
 
@@ -138,6 +663,38 @@ internal class GameRecordService
         // 设备信息也一并从配置刷一遍，保证发出去的东西是同一套。
         LoadDeviceInfo();
         _logger.LogInformation("Device fingerprint set to {DeviceFp}.", deviceFp);
+        return true;
+    }
+
+
+
+
+    /// <summary>
+    /// 保存用户手动填写的设备标识（<c>x-rpc-device_id</c>），并立即对后续请求生效。
+    /// <para>
+    /// 实测服务端只认这个请求头：它等于本机**已登记**的那个值就正常，换成任何陌生值都会被判成
+    /// 10041（账号存在风险）。所以这里只接受用户从自己浏览器请求头里抄来的那一枚，
+    /// <b>不做任何自动获取/登记/轮换</b>；留空时调用方不应调用本方法（保持原值不动）。
+    /// </para>
+    /// <para>
+    /// 这里**只改设备标识本身**，不触碰 <c>HyperionDeviceAndroidId</c> / 指纹 / seed。
+    /// </para>
+    /// </summary>
+    /// <param name="deviceId">形如 <c>d5c54418-09ce-3b92-bd97-47729d496077</c> 的 GUID；空白或格式不合法时返回 false。</param>
+    /// <returns>是否写入了一个格式合法的设备标识。</returns>
+    public bool SaveDeviceId(string? deviceId)
+    {
+        deviceId = deviceId?.Trim();
+        if (string.IsNullOrWhiteSpace(deviceId) || !Guid.TryParse(deviceId, out Guid parsed))
+        {
+            return false;
+        }
+        deviceId = parsed.ToString("D");
+        AppConfig.HyperionDeviceId = deviceId;
+        // 立即生效：两个客户端的 DeviceId 都写上（国服走 hyperion、国际服走 hoyolab）。
+        _hyperionClient.DeviceId = deviceId;
+        _hoyolabClient.DeviceId = deviceId;
+        _logger.LogInformation("Device id (x-rpc-device_id) set to {DeviceId}.", deviceId);
         return true;
     }
 
@@ -202,7 +759,14 @@ internal class GameRecordService
             SystemVersion = NullIfWhiteSpace(systemVersion),
             AppVersion = NullIfWhiteSpace(appVersion),
         };
-        return current.Merge(cookie, deviceFp, deviceName, systemVersion, appVersion);
+        var info = current.Merge(cookie, deviceFp, deviceName, systemVersion, appVersion);
+        // 抓包里的 x-rpc-device_name 是百分号转义过的（例如 Pixel%205），
+        // 解析出来先归一成人读的形式再回填输入框，免得它被当成机型存下来、之后每次请求再被转义一次。
+        if (!string.IsNullOrWhiteSpace(info.DeviceName))
+        {
+            info.DeviceName = HyperionClient.NormalizeDeviceName(info.DeviceName);
+        }
+        return info;
     }
 
 
@@ -215,6 +779,11 @@ internal class GameRecordService
 
     /// <summary>
     /// 把设备信息从配置写到客户端，并立即生效。
+    /// <para>
+    /// 只有设备名、Android 版本、米游社 App 版本可覆盖；机型档案固定用仓库自带的中性档案
+    /// （见 <see cref="HyperionClient.HyperionDeviceProfile.Default"/>）。实机验证过"机型身份与账号是否匹配"
+    /// 不影响接口结果，所以不再把品牌/build 串等做成配置项。
+    /// </para>
     /// <para>
     /// 这几项要参与请求头和 getFp 的 body，所以每次请求前都重新写一遍，改了以后不用重启。
     /// </para>
@@ -232,6 +801,16 @@ internal class GameRecordService
             AppConfig.HyperionDeviceId = id;
         }
         _hyperionClient.DeviceId = id;
+        // getFp 的 device_id 是 ANDROID_ID，也要在首次运行时落一个并一直沿用。
+        string? androidId = AppConfig.HyperionDeviceAndroidId;
+        if (string.IsNullOrWhiteSpace(androidId))
+        {
+            androidId = HyperionClient.GenerateAndroidId();
+            AppConfig.HyperionDeviceAndroidId = androidId;
+        }
+        _hyperionClient.AndroidId = androidId;
+        _hyperionClient.DeviceFpSeedId = AppConfig.HyperionDeviceFpSeedId ?? "";
+        _hyperionClient.DeviceFpSeedTime = AppConfig.HyperionDeviceFpSeedTime ?? "";
         string? fp = AppConfig.HyperionDeviceFp;
         if (!string.IsNullOrWhiteSpace(fp))
         {
@@ -242,14 +821,96 @@ internal class GameRecordService
 
 
 
+    /// <summary>
+    /// 请求报 10041 时是否值得提示用户「这枚指纹没被账号登记过」。
+    /// <para>
+    /// 判据是这枚指纹为「本程序自己申请的」：只有从没申请过（首次运行还没落指纹）或申请过它
+    /// （<see cref="AppConfig.HyperionDeviceFpLastUpdateTime"/> 有值）才算。用户自己粘贴进来的浏览器指纹
+    /// 是会话自带的那一枚，不该再提示他去粘贴。
+    /// </para>
+    /// </summary>
+    public static bool CanPromptAccountDeviceFp()
+    {
+        return string.IsNullOrWhiteSpace(AppConfig.HyperionDeviceFp)
+            || AppConfig.HyperionDeviceFpLastUpdateTime != default;
+    }
+
+
+
+
+    /// <summary>
+    /// 当前设备信息是否还是仓库自带的默认值（用户没有覆盖过设备名 / Android 版本）。
+    /// <para>
+    /// 只用于在最贴切的入口（工具箱的「输入 Cookie」弹窗）说明可以粘一次抓包/UA；
+    /// 与 10041 没有因果关系——实测服务端校验的是指纹有没有被账号登记过，与机型描述无关。
+    /// </para>
+    /// </summary>
+    /// <param name="pending">即将写入的解析结果；它带了某一项时该项就不算默认，用于判断这次粘贴能否补齐。</param>
+    public static bool IsDeviceProfileNeutral(PassportDeviceInfo? pending = null)
+    {
+        static bool Same(string? current, string expected, string? pendingValue)
+        {
+            // 粘贴内容里带了这一项时按它算：用户这一笔补上之后就不再是默认档案。
+            if (!string.IsNullOrWhiteSpace(pendingValue))
+            {
+                return false;
+            }
+            return string.IsNullOrWhiteSpace(current) || string.Equals(current.Trim(), expected, StringComparison.OrdinalIgnoreCase);
+        }
+        return Same(AppConfig.HyperionDeviceName, HyperionClient.DefaultDeviceName, pending?.DeviceName)
+            && Same(AppConfig.HyperionSystemVersion, HyperionClient.DefaultSystemVersion, pending?.SystemVersion);
+    }
+
+
+
+
+    /// <summary>
+    /// 只在解析结果与当前配置不同时写入，返回是否真的改了。空白值不写。
+    /// </summary>
+    /// <param name="setter">写入配置的动作。</param>
+    /// <param name="current">当前配置值。</param>
+    /// <param name="value">解析出来的候选值；空白表示不写。</param>
+    private static bool SetIfChanged(Action<string> setter, string? current, string? value)
+    {
+        value = value?.Trim();
+        if (string.IsNullOrWhiteSpace(value) || string.Equals(current?.Trim(), value, StringComparison.Ordinal))
+        {
+            return false;
+        }
+        setter(value);
+        return true;
+    }
+
+
+
+
+
+
+
 
     #region Game Role
 
 
 
-    public async Task<GameRecordUser> AddRecordUserAsync(string cookie, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// 写入工具箱账号行（行不存在时创建，存在时整行替换）。
+    /// <para>
+    /// 账号行是按 UID 索引的（<see cref="GetRecordUser"/> / <see cref="UpdateRecordUserCookie"/> 都按它查），
+    /// 通行证侧认的是 <c>account_id</c>。这两个值在服务端返回异常时可能不一致，因此导入路径会传
+    /// <paramref name="accountId"/> 强制对齐，避免同一个账号出现两行、之后又被通行证刷新当成"新账号"。
+    /// </para>
+    /// </summary>
+    /// <param name="cookie">工具箱 Cookie。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <param name="accountId">已知的米游社账号 ID；&gt; 0 时用它作为这一行的 UID，不用接口报回来的值。</param>
+    /// <returns>写入的账号信息。</returns>
+    public async Task<GameRecordUser> AddRecordUserAsync(string cookie, CancellationToken cancellationToken = default, long accountId = 0)
     {
-        var user = await _gameRecordClient.GetGameRecordUserAsync(cookie, cancellationToken);
+        var user = await ExecuteWithGameRecordRecoveryAsync(client => client.GetGameRecordUserAsync(cookie, cancellationToken), cancellationToken);
+        if (accountId > 0 && user.Uid != accountId)
+        {
+            user.Uid = accountId;
+        }
         using var dapper = DatabaseService.CreateConnection();
         dapper.Execute("""
             INSERT OR REPLACE INTO GameRecordUser (Uid, IsHoyolab, Nickname, Avatar, Introduce, Gender, AvatarUrl, Pendant, Cookie)
@@ -271,7 +932,7 @@ internal class GameRecordService
 
     public async Task<List<GameRecordRole>> AddGameRolesAsync(string cookie, CancellationToken cancellationToken = default)
     {
-        var list = await _gameRecordClient.GetAllGameRolesAsync(cookie, cancellationToken);
+        var list = await ExecuteWithGameRecordRecoveryAsync(client => client.GetAllGameRolesAsync(cookie, cancellationToken), cancellationToken);
         using var dapper = DatabaseService.CreateConnection();
         using var t = dapper.BeginTransaction();
         dapper.Execute("""
@@ -398,6 +1059,126 @@ internal class GameRecordService
 
 
 
+    /// <summary>
+    /// 手工粘贴 Cookie 后把这一份凭据落到该账号的工具箱账号行上，而不是只留在粘贴时新建的那一行。
+    /// <para>
+    /// 手工粘贴与通行证登录写的是同一批位置（<c>GameRecordUser</c> / <c>GameRecordRole</c>），
+    /// 通行证在登录、换票、切换账号时都会用自己换到的令牌重写工具箱 Cookie，只留下索引到的账号行里的键。
+    /// 因此这里把粘贴的键合并进该账号已有的工具箱 Cookie 并写回账号行与角色行：
+    /// 与粘贴同名的键以粘贴为准（服务端签发的 <c>*_v2</c> 凭据优先于换票得到的 v1 值），
+    /// 粘贴里没有的键（如通行证的 <c>stoken</c> / <c>mid</c> / 设备指纹）原样保留。
+    /// 合并后的账号行 Cookie 仍然是通行证 Cookie 的超集，之后 <see cref="PassportTokenSet.CreateToolboxCookie"/>
+    /// 再合并也不会丢掉粘贴的键。
+    /// </para>
+    /// </summary>
+    /// <param name="accountId">粘贴的 Cookie 里的米游社账号 ID；&lt;= 0 时退回到 <paramref name="recordUserUid"/>。</param>
+    /// <param name="pastedCookie">用户粘贴的整条 Cookie；空白时不做任何事。</param>
+    /// <param name="recordUserUid">粘贴时接口报回来的工具箱账号 UID；与 <paramref name="accountId"/> 不同时两行都更新。</param>
+    /// <returns>
+    /// 实际写入的行数：<c>AccountRows</c> 是 <c>GameRecordUser</c> 行数、<c>RoleRows</c> 是 <c>GameRecordRole</c> 行数。
+    /// 本方法**只做 UPDATE，不创建任何行**（"行不存在"时两个计数都是 0，调用方据此判断要不要改用
+    /// <see cref="AddRecordUserAsync"/> / <see cref="AddGameRolesAsync"/> 去建行）。
+    /// </returns>
+    public (int AccountRows, int RoleRows) UpdateToolboxCookieFromPaste(long accountId, string? pastedCookie, long recordUserUid = 0)
+    {
+        if (string.IsNullOrWhiteSpace(pastedCookie) || (accountId <= 0 && recordUserUid <= 0))
+        {
+            return (0, 0);
+        }
+        using var dapper = DatabaseService.CreateConnection();
+        bool isHoyolab = IsHoyolab;
+        // 粘贴的账号行可能与通行证索引的是同一行，也可能不是；两个位置都更新，避免凭据只落在其中一边。
+        var userIds = new List<long>();
+        if (accountId > 0)
+        {
+            userIds.Add(accountId);
+        }
+        if (recordUserUid > 0 && recordUserUid != accountId)
+        {
+            userIds.Add(recordUserUid);
+        }
+        string? storedCookie = dapper.QueryFirstOrDefault<string>(
+            "SELECT Cookie FROM GameRecordUser WHERE Uid = @uid AND IsHoyolab = @isHoyolab LIMIT 1;",
+            new { uid = userIds[0], isHoyolab });
+        string cookie = MergeCookiePasteWins(storedCookie, pastedCookie)!;
+        using var t = dapper.BeginTransaction();
+        int updatedAccounts = dapper.Execute(
+            "UPDATE GameRecordUser SET Cookie = @cookie WHERE IsHoyolab = @isHoyolab AND Uid IN @uids;",
+            new { cookie, isHoyolab, uids = userIds }, t);
+        // 角色行优先按整条 Cookie 认（刚粘贴的那条或当时读到的那条）。
+        int updatedRoles = dapper.Execute(
+            "UPDATE GameRecordRole SET Cookie = @cookie WHERE Cookie = @storedCookie OR Cookie = @pastedCookie;",
+            new { cookie, storedCookie, pastedCookie }, t);
+        if (updatedRoles == 0)
+        {
+            // 兜底：角色行里存的既不是刚粘贴的那条，也不是当时读到的那条（例如期间被通行证刷新过），
+            // 这时按 Cookie 里的账号 ID 认行——角色表的 Uid 是游戏 UID，只能这样对应。
+            long roleOwner = accountId > 0 ? accountId : userIds[0];
+            foreach (GameRecordRole role in dapper.Query<GameRecordRole>("SELECT * FROM GameRecordRole;", transaction: t))
+            {
+                if (GetCookieAccountId(role.Cookie) == roleOwner)
+                {
+                    updatedRoles += dapper.Execute("UPDATE GameRecordRole SET Cookie = @cookie WHERE GameBiz = @GameBiz AND Uid = @Uid;", new { cookie, role.GameBiz, role.Uid }, t);
+                }
+            }
+        }
+        t.Commit();
+        return (updatedAccounts, updatedRoles);
+    }
+
+
+
+
+    /// <summary>
+    /// 手工粘贴的 Cookie 覆盖在已有工具箱 Cookie 之上：同名的键取粘贴的值，已有 Cookie 里其余的键保留。
+    /// <para>
+    /// 与 <see cref="PassportTokenSet.CreateToolboxCookie"/> 的合并方向正好相反——那里是通行证刷新的值覆盖已有键，
+    /// 这里是用户自己粘贴的凭据优先，否则一次令牌刷新就会把粘贴进来的 <c>*_v2</c> 凭据换掉。
+    /// 同名键会先按不区分大小写合并，因此结果里不会出现重复的键（例如两个 <c>_MHYUUID</c>）。
+    /// </para>
+    /// </summary>
+    /// <param name="storedCookie">工具箱里已有的 Cookie；可为空。</param>
+    /// <param name="pastedCookie">用户粘贴的 Cookie。</param>
+    /// <returns>合并后的 Cookie；两个入参都为空时返回 null。</returns>
+    private static string? MergeCookiePasteWins(string? storedCookie, string? pastedCookie)
+    {
+        var cookies = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        AddCookiePairs(cookies, storedCookie);
+        // 后写入的覆盖先写入的：粘贴的键值优先，粘贴里没有的键由已有 Cookie 补齐。
+        AddCookiePairs(cookies, pastedCookie);
+        return cookies.Count == 0 ? null : string.Join("; ", cookies.Select(static x => $"{x.Key}={x.Value}"));
+    }
+
+
+
+
+    /// <summary>把分号分隔的 Cookie 合并进键值集合；每个条目只按第一个等号切分，同名键以后出现的为准。</summary>
+    /// <param name="cookies">目标集合。</param>
+    /// <param name="cookie">Cookie 字符串；可为空。</param>
+    private static void AddCookiePairs(Dictionary<string, string> cookies, string? cookie)
+    {
+        if (string.IsNullOrWhiteSpace(cookie))
+        {
+            return;
+        }
+        foreach (string part in cookie.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            int index = part.IndexOf('=');
+            if (index <= 0)
+            {
+                continue;
+            }
+            string key = part[..index].Trim();
+            if (key.Length > 0)
+            {
+                cookies[key] = part[(index + 1)..].Trim();
+            }
+        }
+    }
+
+
+
+
     /// <summary>从工具箱 Cookie 里读出米游社账号 ID（account_id 或 luid）。读不到时返回 0。</summary>
     public static long GetCookieAccountId(string? cookie)
     {
@@ -485,7 +1266,7 @@ internal class GameRecordService
         string key = $"game_record_role_head_icon_{role.GameBiz}_{role.Region}_{role.Uid}";
         if (!_memoryCache.TryGetValue(key, out bool _))
         {
-            role = await _gameRecordClient.UpdateGameRoleHeadIconAsync(role);
+            role = await ExecuteWithGameRecordRecoveryAsync(client => client.UpdateGameRoleHeadIconAsync(role));
             using var dapper = DatabaseService.CreateConnection();
             dapper.Execute("""
                 INSERT OR REPLACE INTO GameRecordRole (Uid, GameBiz, Nickname, Level, Region, RegionName, Cookie, HeadIcon)
@@ -746,7 +1527,7 @@ internal class GameRecordService
     /// <returns></returns>
     public async Task<SpiralAbyssInfo> RefreshSpiralAbyssInfoAsync(GameRecordRole role, int schedule, CancellationToken cancellationToken = default)
     {
-        var info = await _gameRecordClient.GetSpiralAbyssInfoAsync(role, schedule);
+        var info = await ExecuteWithGameRecordRecoveryAsync(client => client.GetSpiralAbyssInfoAsync(role, schedule), cancellationToken);
         var obj = new
         {
             info.Uid,
@@ -815,7 +1596,7 @@ internal class GameRecordService
 
     public async Task<TravelersDiarySummary> GetTravelersDiarySummaryAsync(GameRecordRole role, int month = 0)
     {
-        var summary = await _gameRecordClient.GetTravelsDiarySummaryAsync(role, month);
+        var summary = await ExecuteWithGameRecordRecoveryAsync(client => client.GetTravelsDiarySummaryAsync(role, month));
         if (summary.MonthData is null)
         {
             return summary;
@@ -845,7 +1626,7 @@ internal class GameRecordService
 
     public async Task<int> GetTravelersDiaryDetailAsync(GameRecordRole role, int month, int type, int limit = 100)
     {
-        var detail = await _gameRecordClient.GetTravelsDiaryDetailAsync(role, month, type, limit);
+        var detail = await ExecuteWithGameRecordRecoveryAsync(client => client.GetTravelsDiaryDetailAsync(role, month, type, limit));
         if (detail.List is null || detail.List.Count == 0)
         {
             return 0;
@@ -896,7 +1677,7 @@ internal class GameRecordService
     /// <returns></returns>
     public async Task RefreshImaginariumTheaterInfoAsync(GameRecordRole role, CancellationToken cancellationToken = default)
     {
-        var infos = await _gameRecordClient.GetImaginariumTheaterInfosAsync(role, cancellationToken);
+        var infos = await ExecuteWithGameRecordRecoveryAsync(client => client.GetImaginariumTheaterInfosAsync(role, cancellationToken), cancellationToken);
         if (infos.Count == 0)
         {
             return;
@@ -970,7 +1751,7 @@ internal class GameRecordService
 
     public async Task<SimulatedUniverseInfo> GetSimulatedUniverseInfoAsync(GameRecordRole role, bool detail)
     {
-        var info = await _gameRecordClient.GetSimulatedUniverseInfoAsync(role, detail);
+        var info = await ExecuteWithGameRecordRecoveryAsync(client => client.GetSimulatedUniverseInfoAsync(role, detail));
         if (detail)
         {
             using var dapper = DatabaseService.CreateConnection();
@@ -1046,7 +1827,7 @@ internal class GameRecordService
 
     public async Task<ForgottenHallInfo> RefreshForgottenHallInfoAsync(GameRecordRole role, int schedule, CancellationToken cancellationToken = default)
     {
-        var info = await _gameRecordClient.GetForgottenHallInfoAsync(role, schedule);
+        var info = await ExecuteWithGameRecordRecoveryAsync(client => client.GetForgottenHallInfoAsync(role, schedule), cancellationToken);
         var obj = new
         {
             info.Uid,
@@ -1111,7 +1892,7 @@ internal class GameRecordService
 
     public async Task<PureFictionInfo> RefreshPureFictionInfoAsync(GameRecordRole role, int schedule, CancellationToken cancellationToken = default)
     {
-        var info = await _gameRecordClient.GetPureFictionInfoAsync(role, schedule);
+        var info = await ExecuteWithGameRecordRecoveryAsync(client => client.GetPureFictionInfoAsync(role, schedule), cancellationToken);
         if (info.ScheduleId == 0)
         {
             return info;
@@ -1180,7 +1961,7 @@ internal class GameRecordService
 
     public async Task<ApocalypticShadowInfo> RefreshApocalypticShadowInfoAsync(GameRecordRole role, int schedule, CancellationToken cancellationToken = default)
     {
-        var info = await _gameRecordClient.GetApocalypticShadowInfoAsync(role, schedule);
+        var info = await ExecuteWithGameRecordRecoveryAsync(client => client.GetApocalypticShadowInfoAsync(role, schedule), cancellationToken);
         if (info.ScheduleId == 0)
         {
             return info;
@@ -1252,7 +2033,7 @@ internal class GameRecordService
 
     public async Task<TrailblazeCalendarSummary> GetTrailblazeCalendarSummaryAsync(GameRecordRole role, string month = "")
     {
-        var summary = await _gameRecordClient.GetTrailblazeCalendarSummaryAsync(role, month);
+        var summary = await ExecuteWithGameRecordRecoveryAsync(client => client.GetTrailblazeCalendarSummaryAsync(role, month));
         if (summary.MonthData is null)
         {
             return summary;
@@ -1279,9 +2060,9 @@ internal class GameRecordService
 
 
 
-    public async Task<int> GetTrailblazeCalendarDetailAsync(GameRecordRole role, string month, int type)
+    public async Task<int> GetTrailblazeCalendarDetailAsync(GameRecordRole role, string month, int type, CancellationToken cancellationToken = default)
     {
-        int total = (await _gameRecordClient.GetTrailblazeCalendarDetailByPageAsync(role, month, type, 1, 1)).Total;
+        int total = (await ExecuteWithGameRecordRecoveryAsync(client => client.GetTrailblazeCalendarDetailByPageAsync(role, month, type, 1, 1), cancellationToken)).Total;
         if (total == 0)
         {
             return 0;
@@ -1292,7 +2073,7 @@ internal class GameRecordService
         {
             return 0;
         }
-        var detail = await _gameRecordClient.GetTrailblazeCalendarDetailAsync(role, month, type);
+        var detail = await ExecuteWithGameRecordRecoveryAsync(client => client.GetTrailblazeCalendarDetailAsync(role, month, type));
         var list = detail.List;
         using var t = dapper.BeginTransaction();
         dapper.Execute($"DELETE FROM StarRailTrailblazeCalendarDetailItem WHERE Uid = @Uid AND Month = @Month AND Type = @Type;", list.FirstOrDefault(), t);
@@ -1326,7 +2107,7 @@ internal class GameRecordService
 
     public async Task<InterKnotReportSummary> GetInterKnotReportSummaryAsync(GameRecordRole role, string month = "")
     {
-        var summary = await _gameRecordClient.GetInterKnotReportSummaryAsync(role, month);
+        var summary = await ExecuteWithGameRecordRecoveryAsync(client => client.GetInterKnotReportSummaryAsync(role, month));
         using var dapper = DatabaseService.CreateConnection();
         var obj = new
         {
@@ -1370,9 +2151,9 @@ internal class GameRecordService
 
 
 
-    public async Task<int> GetInterKnotReportDetailAsync(GameRecordRole role, string month, string type)
+    public async Task<int> GetInterKnotReportDetailAsync(GameRecordRole role, string month, string type, CancellationToken cancellationToken = default)
     {
-        int total = (await _gameRecordClient.GetInterKnotReportDetailByPageAsync(role, month, type, 1, 1)).Total;
+        int total = (await ExecuteWithGameRecordRecoveryAsync(client => client.GetInterKnotReportDetailByPageAsync(role, month, type, 1, 1), cancellationToken)).Total;
         if (total == 0)
         {
             return 0;
@@ -1383,7 +2164,7 @@ internal class GameRecordService
         {
             return 0;
         }
-        var detail = await _gameRecordClient.GetInterKnotReportDetailAsync(role, month, type);
+        var detail = await ExecuteWithGameRecordRecoveryAsync(client => client.GetInterKnotReportDetailAsync(role, month, type));
         var list = detail.List;
         using var t = dapper.BeginTransaction();
         dapper.Execute($"DELETE FROM ZZZInterKnotReportDetailItem WHERE Uid = @Uid AND DataMonth = @DataMonth AND DataType = @DataType;", list.FirstOrDefault(), t);
@@ -1421,7 +2202,7 @@ internal class GameRecordService
         {
             await UpdateDeviceFpAsync(cancellationToken: cancellationToken);
         }
-        return await _gameRecordClient.GetZZZGachaRecordAsync(role, gachaType, endId, language, cancellationToken);
+        return await ExecuteWithGameRecordRecoveryAsync(client => client.GetZZZGachaRecordAsync(role, gachaType, endId, language, cancellationToken), cancellationToken);
     }
 
 
@@ -1438,7 +2219,7 @@ internal class GameRecordService
 
     public async Task<ShiyuDefenseWrapper> RefreshShiyuDefenseInfoAsync(GameRecordRole role, int schedule, CancellationToken cancellationToken = default)
     {
-        var wrapper = await _gameRecordClient.GetShiyuDefenseInfoAsync(role, schedule);
+        var wrapper = await ExecuteWithGameRecordRecoveryAsync(client => client.GetShiyuDefenseInfoAsync(role, schedule), cancellationToken);
         if (wrapper.HadalVer is "v1" && wrapper.InfoV1 is not null)
         {
             var info = wrapper.InfoV1;
@@ -1545,7 +2326,7 @@ internal class GameRecordService
 
     public async Task<DeadlyAssaultInfo> RefreshDeadlyAssaultInfoAsync(GameRecordRole role, int schedule, CancellationToken cancellationToken = default)
     {
-        var info = await _gameRecordClient.GetDeadlyAssaultInfoAsync(role, schedule);
+        var info = await ExecuteWithGameRecordRecoveryAsync(client => client.GetDeadlyAssaultInfoAsync(role, schedule), cancellationToken);
         if (!info.HasData)
         {
             return info;
@@ -1627,7 +2408,7 @@ internal class GameRecordService
         string key = $"{nameof(BH3DailyNote)}_{role.Region}_{role.Uid}";
         if (forceUpdate || !_memoryCache.TryGetValue(key, out BH3DailyNote? note))
         {
-            note = await _gameRecordClient.GetBH3DailyNoteAsync(role, cancellationToken);
+            note = await ExecuteWithGameRecordRecoveryAsync(client => client.GetBH3DailyNoteAsync(role, cancellationToken), cancellationToken);
             _memoryCache.Set(key, note, TimeSpan.FromMinutes(5));
         }
         return note!;
@@ -1640,7 +2421,7 @@ internal class GameRecordService
         string key = $"{nameof(GenshinDailyNote)}_{role.Region}_{role.Uid}";
         if (forceUpdate || !_memoryCache.TryGetValue(key, out GenshinDailyNote? note))
         {
-            note = await _gameRecordClient.GetGenshinDailyNoteAsync(role, cancellationToken);
+            note = await ExecuteWithGameRecordRecoveryAsync(client => client.GetGenshinDailyNoteAsync(role, cancellationToken), cancellationToken);
             _memoryCache.Set(key, note, TimeSpan.FromMinutes(5));
         }
         return note!;
@@ -1653,7 +2434,7 @@ internal class GameRecordService
         string key = $"{nameof(StarRailDailyNote)}_{role.Region}_{role.Uid}";
         if (forceUpdate || !_memoryCache.TryGetValue(key, out StarRailDailyNote? note))
         {
-            note = await _gameRecordClient.GetStarRailDailyNoteAsync(role, cancellationToken);
+            note = await ExecuteWithGameRecordRecoveryAsync(client => client.GetStarRailDailyNoteAsync(role, cancellationToken), cancellationToken);
             _memoryCache.Set(key, note, TimeSpan.FromMinutes(5));
         }
         return note!;
@@ -1665,7 +2446,7 @@ internal class GameRecordService
         string key = $"{nameof(ZZZDailyNote)}_{role.Region}_{role.Uid}";
         if (forceUpdate || !_memoryCache.TryGetValue(key, out ZZZDailyNote? note))
         {
-            note = await _gameRecordClient.GetZZZDailyNoteAsync(role, cancellationToken);
+            note = await ExecuteWithGameRecordRecoveryAsync(client => client.GetZZZDailyNoteAsync(role, cancellationToken), cancellationToken);
             _memoryCache.Set(key, note, TimeSpan.FromMinutes(5));
         }
         return note!;
@@ -1684,7 +2465,7 @@ internal class GameRecordService
 
     public async Task<List<StygianOnslaughtInfo>> RefreshStygianOnslaughtInfosAsync(GameRecordRole role, CancellationToken cancellationToken = default)
     {
-        var infos = await _gameRecordClient.GetStygianOnslaughtInfosAsync(role, cancellationToken);
+        var infos = await ExecuteWithGameRecordRecoveryAsync(client => client.GetStygianOnslaughtInfosAsync(role, cancellationToken), cancellationToken);
         if (infos.Count == 0)
         {
             return infos;
@@ -1769,7 +2550,7 @@ internal class GameRecordService
     {
         using var dapper = DatabaseService.CreateConnection();
 
-        var data = await _gameRecordClient.GetStarRailChallengePeakDataAsync(role, 1, cancellationToken);
+        var data = await ExecuteWithGameRecordRecoveryAsync(client => client.GetStarRailChallengePeakDataAsync(role, 1, cancellationToken), cancellationToken);
         if (data.ChallengePeakRecords?.Count == 1)
         {
             var record = data.ChallengePeakRecords[0];
@@ -1789,7 +2570,7 @@ internal class GameRecordService
                 """, obj);
         }
 
-        data = await _gameRecordClient.GetStarRailChallengePeakDataAsync(role, 3, cancellationToken);
+        data = await ExecuteWithGameRecordRecoveryAsync(client => client.GetStarRailChallengePeakDataAsync(role, 3, cancellationToken), cancellationToken);
         foreach (var record in data.ChallengePeakRecords.ToList())
         {
             data.ChallengePeakRecords.Clear();

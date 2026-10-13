@@ -405,7 +405,7 @@ public sealed partial class AccountCenterPanel : UserControl
             // 倒计时期间不允许重新发送验证码。
             Button_SendSmsCode.IsEnabled = enabled && _countdownTimer is null;
             Button_SaveQrCode.IsEnabled = enabled;
-            Button_RefreshInfo.IsEnabled = enabled;
+            // Button_RefreshInfo 已删除（与"刷新信息"按钮重复）；其槽位现在是 Button_UpdateDeviceFp。
             Button_UpdateDeviceFp.IsEnabled = enabled;
         }
         catch { }
@@ -635,8 +635,21 @@ public sealed partial class AccountCenterPanel : UserControl
                 StatusMessage = Lang.PassportLogin_ImportCookieNotFound;
                 return;
             }
+            // 设备标识（x-rpc-device_id）是可选项：留空就完全不动现有值。
+            // 实测服务端只认这一枚"已登记"的值，所以只接受用户从浏览器请求头抄来的 GUID，不做任何自动获取/登记。
+            string deviceIdInput = TextBox_DeviceId.Text.Trim();
+            if (!string.IsNullOrEmpty(deviceIdInput))
+            {
+                if (!Guid.TryParse(deviceIdInput, out _))
+                {
+                    // 格式不合法：只提示，不写入，也不继续后面的导入。
+                    StatusMessage = Lang.PassportLogin_DeviceIdInvalid;
+                    return;
+                }
+                AppConfig.GetService<GameRecordService>().SaveDeviceId(deviceIdInput);
+                // 写入成功不额外提示：解析/导入本身的结局消息会覆盖这里，且成功的导入会直接收起面板。
+            }
             IsBusy = true;
-            StatusMessage = null;
             var outcome = await _accountService.ImportStokenAsync(stoken, mid, aid);
             if (outcome.IsSuccess)
             {
@@ -1379,29 +1392,14 @@ public sealed partial class AccountCenterPanel : UserControl
 
 
     /// <summary>
-    /// 更新设备指纹。和米游社工具箱共用同一份指纹，两边界面上的鉴权信息保持一致。
+    /// 【已改为"刷新信息"】原"更新指纹"按钮已删除（产品方要求）：它原来强制重申请一枚指纹，
+    /// 而重申请得到的必然是未被账号登记的设备指纹，只会把可用状态换成永久 10041。
+    /// 设备指纹现在只保留"首次运行没有指纹时申请一次"这一个自动入口。
+    /// 该槽位改为刷新账号信息，复用既有的刷新逻辑（<see cref="Button_RefreshInfo_Click"/>）。
     /// </summary>
-    private async void Button_UpdateDeviceFp_Click(object sender, RoutedEventArgs e)
+    private void Button_UpdateDeviceFp_Click(object sender, RoutedEventArgs e)
     {
-        if (IsBusy)
-        {
-            return;
-        }
-        try
-        {
-            IsBusy = true;
-            await _gameRecordService.UpdateDeviceFpAsync(true);
-            InAppToast.MainWindow?.Success(Lang.HoyolabToolboxPage_TheDeviceFingerprintIsAlreadyUpdated);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Update device info");
-            InAppToast.MainWindow?.Error(ex);
-        }
-        finally
-        {
-            IsBusy = false;
-        }
+        Button_RefreshInfo_Click(sender, e);
     }
 
 
