@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--  启动页右侧「时间节点」：卡池 / 活动倒计时  -->
+<UserControl x:Class="Starward.Features.TimeNode.TimeNodeButton"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:local="using:Starward.Features.TimeNode"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:sc="using:Starward.Controls"
+             xmlns:sh="using:Starward.Helpers"
+             x:DefaultBindMode="OneWay"
+             mc:Ignorable="d">
+
+    <Button x:Name="Button_TimeNode"
+            Padding="0"
+            HorizontalAlignment="Stretch"
+            VerticalAlignment="Stretch"
+            BorderThickness="0"
+            CornerRadius="8"
+            Loaded="Button_TimeNode_Loaded"
+            Style="{ThemeResource DateTimePickerFlyoutButtonStyle}"
+            Unloaded="Button_TimeNode_Unloaded">
+
+        <!--  静态日历图标（上游为悬浮播放的 Lottie，本分支不使用任何动画）  -->
+        <FontIcon FontSize="20"
+                  Glyph="&#xE787;"
+                  IsTextScaleFactorEnabled="False" />
+
+        <Button.Flyout>
+            <Flyout Closed="Flyout_TimeNode_Closed"
+                    Opened="Flyout_TimeNode_Opened"
+                    Placement="LeftEdgeAlignedTop">
+                <!--  固定高度上限 400，宽度保持 320  -->
+                <Grid Width="320"
+                      MaxHeight="400"
+                      MinHeight="80">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <!--  隐藏滚动条，仍可用滚轮/触控滚动  -->
+                    <ScrollViewer Grid.Row="0"
+                                  HorizontalScrollMode="Disabled"
+                                  VerticalScrollBarVisibility="Hidden">
+                        <StackPanel Spacing="16">
+                            <!--  分段列表  -->
+                            <ItemsControl ItemsSource="{x:Bind Sections}">
+                                <!--  间距放在 ItemsPanel 上：StackPanel.Spacing 只加在项与项之间，不会给最后一项留下尾巴  -->
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Spacing="8" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="local:TimeNodeSectionView">
+                                        <StackPanel Spacing="10">
+                                            <TextBlock FontSize="14"
+                                                       FontWeight="SemiBold"
+                                                       Text="{x:Bind Title}" />
+                                            <ItemsControl ItemsSource="{x:Bind Items}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <StackPanel Spacing="8" />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="local:TimeNodeItemView">
+                                                        <!--  可点击项：高亮边框 + 右箭头 + 手型光标  -->
+                                                        <Border Padding="10"
+                                                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                                                BorderThickness="1"
+                                                                CornerRadius="8"
+                                                                PointerEntered="Item_Border_PointerEntered"
+                                                                PointerExited="Item_Border_PointerExited"
+                                                                sh:PointerCursor.CursorShape="Hand"
+                                                                Tapped="Item_Tapped"
+                                                                Tag="{x:Bind}">
+                                                            <Grid ColumnSpacing="10">
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="Auto" />
+                                                                    <ColumnDefinition Width="*" />
+                                                                    <ColumnDefinition Width="Auto" />
+                                                                </Grid.ColumnDefinitions>
+
+                                                                <!--  热点封面  -->
+                                                                <Border Width="56"
+                                                                        Height="56"
+                                                                        CornerRadius="6"
+                                                                        Visibility="{x:Bind HasCover, Converter={StaticResource BoolToVisibilityConverter}}">
+                                                                    <sc:CachedImage Stretch="UniformToFill" Source="{x:Bind CoverIcon}" />
+                                                                </Border>
+
+                                                                <StackPanel Grid.Column="1" Spacing="4">
+                                                                    <TextBlock FontWeight="SemiBold"
+                                                                               Text="{x:Bind Title}"
+                                                                               TextTrimming="CharacterEllipsis"
+                                                                               TextWrapping="NoWrap" />
+                                                                    <TextBlock FontSize="12"
+                                                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                                               Text="{x:Bind Subtitle}"
+                                                                               TextTrimming="CharacterEllipsis"
+                                                                               TextWrapping="NoWrap"
+                                                                               Visibility="{x:Bind Subtitle, Converter={StaticResource ObjectToVisibilityConverter}}" />
+                                                                    <TextBlock FontSize="12"
+                                                                               Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                                                                               Text="{x:Bind CountdownText}"
+                                                                               Visibility="{x:Bind HasCountdown, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                                                    <!--  卡池图标行  -->
+                                                                    <ItemsControl Margin="0,2,0,0"
+                                                                                  ItemsSource="{x:Bind Icons}"
+                                                                                  Visibility="{x:Bind HasIcons, Converter={StaticResource BoolToVisibilityConverter}}">
+                                                                        <ItemsControl.ItemsPanel>
+                                                                            <ItemsPanelTemplate>
+                                                                                <StackPanel Orientation="Horizontal" Spacing="6" />
+                                                                            </ItemsPanelTemplate>
+                                                                        </ItemsControl.ItemsPanel>
+                                                                        <ItemsControl.ItemTemplate>
+                                                                            <DataTemplate x:DataType="local:TimeNodeIcon">
+                                                                                <Border Width="40"
+                                                                                        Height="40"
+                                                                                        CornerRadius="20">
+                                                                                    <sc:CachedImage Stretch="UniformToFill" Source="{x:Bind Url}" />
+                                                                                </Border>
+                                                                            </DataTemplate>
+                                                                        </ItemsControl.ItemTemplate>
+                                                                    </ItemsControl>
+                                                                </StackPanel>
+
+                                                                <!--  可点击提示：右箭头  -->
+                                                                <FontIcon Grid.Column="2"
+                                                                          VerticalAlignment="Center"
+                                                                          FontSize="12"
+                                                                          Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                                                                          Glyph="&#xE76C;"
+                                                                          Visibility="{x:Bind HasLink, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                                            </Grid>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!--  空态用 x:Load 而不是 Visibility：没加载的元素根本不在树里，不会给外层 StackPanel 的 Spacing 留下一段空白尾巴  -->
+                            <TextBlock x:Name="TextBlock_TimeNodeEmpty"
+                                       HorizontalAlignment="Center"
+                                       x:Load="{x:Bind IsEmpty}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       Text="{x:Bind EmptyMessage}" />
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!--  错误  -->
+                    <TextBlock Grid.Row="1"
+                               Margin="0,8,0,0"
+                               Foreground="{ThemeResource SystemFillColorCriticalBrush}"
+                               Text="{x:Bind ErrorMessage}"
+                               TextWrapping="WrapWholeWords"
+                               Visibility="{x:Bind ErrorMessage, Converter={StaticResource ObjectToVisibilityConverter}}" />
+
+                    <!--  加载中  -->
+                    <ProgressRing Grid.RowSpan="2"
+                                  Width="32"
+                                  Height="32"
+                                  HorizontalAlignment="Center"
+                                  VerticalAlignment="Center"
+                                  IsActive="{x:Bind IsLoading}"
+                                  Visibility="{x:Bind IsLoading, Converter={StaticResource BoolToVisibilityConverter}}" />
+                </Grid>
+            </Flyout>
+        </Button.Flyout>
+    </Button>
+</UserControl>
