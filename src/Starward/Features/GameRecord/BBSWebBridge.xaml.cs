@@ -592,6 +592,8 @@ public sealed partial class BBSWebBridge : UserControl
             {
                 ["x-rpc-client_type"] = "5",
                 ["x-rpc-app_version"] = _gameRecordClient.AppVersion,
+                // 与写进 WebView Cookie 的那一枚保持一致：Cookie 里的 DEVICEFP 是账号在服务端登记过的，
+                // 用它才不会被风控判成"头与 Cookie 不是同一台设备"。cookieDic 就是 ParseCookie() 的结果。
                 ["x-rpc-device_fp"] = _gameRecordClient.DeviceFp,
                 ["x-rpc-device_id"] = _gameRecordClient.DeviceId,
             },

@@ -32,6 +32,12 @@ public class PassportCookieParseResult
     /// <summary>User-Agent（设备名与 Android 版本的兜底来源）。</summary>
     public string? UserAgent { get; init; }
 
+    /// <summary>
+    /// 设备标识（<c>x-rpc-device_id</c> 请求头，或 Cookie 里的 <c>_MHYUUID</c>）。
+    /// 两者同时存在时取请求头那一枚：服务端只认它。
+    /// </summary>
+    public string? DeviceId { get; init; }
+
     /// <summary>解析到的全部键值，键名不区分大小写。</summary>
     public IReadOnlyDictionary<string, string> Values { get; init; } = new Dictionary<string, string>();
 }
@@ -121,6 +127,20 @@ public static class PassportCookieParser
     /// <summary>设备指纹可能的键名（请求头 <c>x-rpc-device_fp</c> 与 Cookie <c>DEVICEFP</c>）。</summary>
     private static readonly string[] DeviceFpKeys = ["x-rpc-device_fp", "x_rpc_device_fp", "x-rpc-device-fp", "device_fp", "devicefp", "deviceFp"];
 
+    /// <summary>
+    /// 设备标识的<b>请求头</b>形态键名（<c>x-rpc-device_id: &lt;guid&gt;</c>，冒号分隔）。最高优先级。
+    /// </summary>
+    private static readonly string[] DeviceIdHeaderKeys = ["x-rpc-device_id", "x_rpc_device_id", "x-rpc-device-id", "device_id", "deviceid"];
+
+    /// <summary>
+    /// 设备标识的<b>等号</b>形态键名（<c>x-rpc-device_id=&lt;guid&gt;</c>，整段 Cookie / 抓包文本里很常见）。
+    /// 产品方实测就踩在这里：只把它放进冒号表时，输入框不会自动填充。
+    /// </summary>
+    private static readonly string[] DeviceIdEqualsKeys = ["x-rpc-device_id", "x_rpc_device_id", "x-rpc-device-id", "device_id", "deviceid"];
+
+    /// <summary>设备标识的 Cookie 兜底形态键名（<c>_MHYUUID</c>）。优先级最低。</summary>
+    private static readonly string[] DeviceIdCookieKeys = ["_MHYUUID", "_mhyuuid", "mhyuuid", "_mhy_uuid"];
+
     /// <summary>设备名可能的键名。</summary>
     private static readonly string[] DeviceNameKeys = ["x-rpc-device_name", "x_rpc_device_name", "x-rpc-device-name", "device_name", "devicename"];
 
@@ -134,10 +154,10 @@ public static class PassportCookieParser
     private static readonly string[] UserAgentKeys = ["user-agent", "useragent"];
 
 
-    /// <summary>从 UA 里取 Android 版本：<c>Android 16; 23117RK66C Build/...</c>。</summary>
+    /// <summary>从 UA 里取 Android 版本：<c>Android 13; Pixel 5 Build/...</c>。</summary>
     private static readonly Regex UASystemVersionRegex = new(@"Android\s+([\d.]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-    /// <summary>从 UA 里取机型：<c>Android 16; 23117RK66C Build/...</c>。</summary>
+    /// <summary>从 UA 里取机型：<c>Android 13; Pixel 5 Build/...</c>。</summary>
     private static readonly Regex UADeviceNameRegex = new(@"Android\s+[\d.]+\s*;\s*([^;)]+?)\s+Build", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
 
@@ -146,6 +166,9 @@ public static class PassportCookieParser
     public static PassportCookieParseResult Parse(string? text)
     {
         var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        // 同时记下"冒号分隔的请求头"与"等号分隔的 Cookie"两种形态，供 DeviceId 判断来源优先级。
+        var equalsFacts = new List<KeyValuePair<string, string>>();
+        var colonFacts = new List<KeyValuePair<string, string>>();
         string? single = null;
         text = text?.Trim().Trim('"');
         if (!string.IsNullOrWhiteSpace(text))
@@ -153,6 +176,39 @@ public static class PassportCookieParser
             if (text.StartsWith('{'))
             {
                 ParseJson(text, values);
+            }
+            if (values.Count == 0)
+            {
+                // 整段请求头先按冒号拆一遍：x-rpc-device_id: <guid> 这种写法只有这里能识别。
+                foreach (string line in text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                {
+                    int colon = line.IndexOf(':');
+                    if (colon <= 0)
+                    {
+                        continue;
+                    }
+                    string ck = line[..colon].Trim().Trim('"');
+                    string cv = line[(colon + 1)..].Trim().Trim('"');
+                    if (!string.IsNullOrWhiteSpace(ck) && !string.IsNullOrWhiteSpace(cv))
+                    {
+                        // 值里可能还带分号分隔的 Cookie，最后统一再拆一次。
+                        foreach (string fragment in cv.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                        {
+                            int eq2 = fragment.IndexOf('=');
+                            if (eq2 > 0)
+                            {
+                                string fk = fragment[..eq2].Trim().Trim('"');
+                                string fv = fragment[(eq2 + 1)..].Trim().Trim('"');
+                                if (!string.IsNullOrWhiteSpace(fk) && !string.IsNullOrWhiteSpace(fv))
+                                {
+                                    values[fk] = fv;
+                                    equalsFacts.Add(new(fk, fv));
+                                }
+                            }
+                        }
+                        colonFacts.Add(new(ck, cv));
+                    }
+                }
             }
             if (values.Count == 0)
             {
@@ -166,6 +222,7 @@ public static class PassportCookieParser
                         if (!string.IsNullOrWhiteSpace(key) && !string.IsNullOrWhiteSpace(value))
                         {
                             values[key] = value;
+                            equalsFacts.Add(new(key, value));
                         }
                     }
                     else
@@ -194,6 +251,9 @@ public static class PassportCookieParser
             SystemVersion = GetFirst(values, SystemVersionKeys),
             AppVersion = GetFirst(values, AppVersionKeys),
             UserAgent = GetFirst(values, UserAgentKeys),
+            DeviceId = GetFirstFact(colonFacts, DeviceIdHeaderKeys)
+                ?? GetFirstFact(equalsFacts, DeviceIdEqualsKeys)
+                ?? GetFirstFact(equalsFacts, DeviceIdCookieKeys),
             Values = values,
         };
     }
@@ -319,6 +379,28 @@ public static class PassportCookieParser
             }
         }
         return false;
+    }
+
+
+
+
+    /// <summary>
+    /// 从"原始形态"的键值里按候选键名取第一个非空值（用于区分请求头形态与 Cookie 形态；后出现的同名键优先）。
+    /// </summary>
+    /// <param name="facts">按出现顺序记录的原始键值。</param>
+    /// <param name="keys">候选键名。</param>
+    /// <returns>命中的值；没有则返回 null。</returns>
+    private static string? GetFirstFact(List<KeyValuePair<string, string>> facts, string[] keys)
+    {
+        string? result = null;
+        foreach (var fact in facts)
+        {
+            if (Contains(keys, fact.Key) && !string.IsNullOrWhiteSpace(fact.Value))
+            {
+                result = fact.Value;
+            }
+        }
+        return result;
     }
 
 
