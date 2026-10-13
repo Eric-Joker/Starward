@@ -211,6 +211,25 @@
                              FontSize="15"
                              IsSpellCheckEnabled="False"
                              PlaceholderText="{x:Bind lang:Lang.PassportLogin_Mid}" />
+                    <!--  设备标识：GetToken 是句中那个可点的词，前缀/链接/后缀三段拼成一句话，保证只出现一次  -->
+                    <TextBlock FontSize="12"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               TextWrapping="Wrap">
+                        <Run Text="{x:Bind lang:Lang.PassportLogin_DeviceIdHintPrefix}" />
+                        <Hyperlink NavigateUri="https://github.com/PaiGramTeam/GetToken" UnderlineStyle="None">
+                            <Run FontWeight="Bold"
+                                 Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                                 Text="{x:Bind lang:Lang.PassportLogin_GetToken}" />
+                        </Hyperlink>
+                        <Run Text="{x:Bind lang:Lang.PassportLogin_DeviceIdHintSuffix}" />
+                    </TextBlock>
+                    <TextBox x:Name="TextBox_DeviceId"
+                             MinHeight="44"
+                             Padding="12,11,12,11"
+                             VerticalContentAlignment="Center"
+                             FontSize="15"
+                             IsSpellCheckEnabled="False"
+                             PlaceholderText="{x:Bind lang:Lang.PassportLogin_DeviceId}" />
                     <Button MinHeight="44"
                             HorizontalAlignment="Stretch"
                             Click="Button_ImportToken_Click"
@@ -331,25 +350,12 @@
                        TextWrapping="Wrap"
                        Visibility="{x:Bind AccountErrorVisibility}" />
 
-            <!--  刷新按钮落在分隔线的右端：不额外占一行，上面也不会空出一块；
-                  和每行的删除按钮同一个中心：删除按钮 28 宽、刷新按钮 20 宽，右边留 4 就对齐了  -->
+            <!--  分隔线：右端原来那个刷新按钮已删除（与下方"刷新信息"按钮重复）  -->
             <Grid Margin="0,0,0,0">
                 <Rectangle Height="1"
                            Margin="0,0,28,0"
                            VerticalAlignment="Center"
                            Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
-                <Button x:Name="Button_RefreshInfo"
-                        Width="20"
-                        Height="20"
-                        Margin="0,0,4,0"
-                        Padding="0"
-                        HorizontalAlignment="Right"
-                        VerticalAlignment="Center"
-                        Click="Button_RefreshInfo_Click"
-                        Style="{ThemeResource DateTimePickerFlyoutButtonStyle}"
-                        ToolTipService.ToolTip="{x:Bind lang:Lang.HoyolabToolboxPage_RefreshInfo}">
-                    <FontIcon FontSize="12" Glyph="&#xE72C;" />
-                </Button>
             </Grid>
         </StackPanel>
 
@@ -389,7 +395,8 @@
                     </StackPanel>
                 </Button>
 
-                <!--  更新设备指纹：从米游社工具箱移过来，两个界面的鉴权信息保持一致  -->
+                <!--  刷新信息：该槽位原来放"更新设备指纹"，按钮已按产品方要求删除；
+                        重申请指纹会换掉账号已登记的设备标识，必然导致 10041  -->
                 <Button x:Name="Button_UpdateDeviceFp"
                         Grid.Column="1"
                         MinWidth="0"
@@ -397,8 +404,8 @@
                         Click="Button_UpdateDeviceFp_Click"
                         Style="{ThemeResource DateTimePickerFlyoutButtonStyle}">
                     <StackPanel Orientation="Horizontal" Spacing="12">
-                        <FontIcon FontSize="16" Glyph="&#xE928;" />
-                        <TextBlock VerticalAlignment="Center" Text="{x:Bind lang:Lang.HoyolabToolboxPage_UpdateDeviceFingerprint}" />
+                        <FontIcon FontSize="16" Glyph="&#xE72C;" />
+                        <TextBlock VerticalAlignment="Center" Text="{x:Bind lang:Lang.PassportLogin_RefreshInfo}" />
                     </StackPanel>
                 </Button>
             </Grid>

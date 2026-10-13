@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Starward.Core.GameRecord.BH3.DailyNote;
 using Starward.Core.GameRecord.Genshin.DailyNote;
 using Starward.Core.GameRecord.Genshin.ImaginariumTheater;
@@ -18,6 +19,7 @@ using Starward.Core.GameRecord.ZZZ.InterKnotReport;
 using Starward.Core.GameRecord.ZZZ.ShiyuDefense;
 using Starward.Core.GameRecord.ZZZ.ThresholdSimulation;
 using Starward.Core.GameRecord.ZZZ.UpgradeGuide;
+using Starward.Core.GameRecord.SignIn;
 
 namespace Starward.Core.GameRecord;
 
@@ -27,30 +29,186 @@ public class HyperionClient : GameRecordClient
 
 
     /// <summary>
-    /// 默认设备名（UA 与 getFp 的 body 共用）。UA 里长这样：<c>Android 16; 23117RK66C Build/...</c>。
-    /// 默认值取真机抓包里的设备，免得 UA 自称一台机器、body 里的 ext_fields 又说另一台。
+    /// 默认设备名（UA、<c>x-rpc-device_name</c> 与 getFp 的 body 共用）。UA 里长这样：<c>Android 13; Pixel 5 Build/TQ3A.230901.001</c>。
+    /// <para>
+    /// 默认值是一台仓库自带的公开机型（Pixel 5），不是任何人的实机，免得 UA 自称一台机器、
+    /// body 里的 ext_fields 又说另一台。需要真实机型时由用户自己填，见 <see cref="DeviceName"/>。
+    /// </para>
     /// </summary>
-    public const string DefaultDeviceName = "23117RK66C";
+    public const string DefaultDeviceName = "Pixel 5";
 
-    /// <summary>默认 Android 版本，同时用作 SDK 版本的来源。</summary>
-    public const string DefaultSystemVersion = "16";
+    /// <summary>默认 Android 版本，与 <see cref="HyperionDeviceProfile.Default"/> 的 build 串、SDK 版本对应。</summary>
+    public const string DefaultSystemVersion = "13";
 
     /// <summary>默认米游社 App 版本，取抓包里的值。</summary>
     public const string DefaultAppVersion = "2.114.0";
 
+    /// <summary>
+    /// 默认 Android WebView / Chromium 版本，取仓库自带的 Pixel 5 机型标识对应的那一版。
+    /// 这个版本由系统 WebView 决定，与 <see cref="HyperionDeviceProfile"/> 无关，所以单独放在这里；
+    /// 与 <see cref="UAContent"/> 里的 Android 13、<see cref="DefaultDeviceName"/> 同属一套公开机型标识。
+    /// </summary>
+    public const string DefaultWebViewVersion = "118.0.0.0";
 
-    /// <summary>设备名，UA、<c>x-rpc-device_name</c> 与 getFp 的 body 三处共用同一个值。</summary>
+
+
+    /// <summary>
+    /// 设备名，UA、<c>x-rpc-device_name</c> 与 getFp 的 body 三处共用同一个值。
+    /// <para>
+    /// 写入前先用 <see cref="NormalizeDeviceName(string?)"/> 归一：用户从抓包里整段复制进来的
+    /// <c>x-rpc-device_name</c> 是已经百分号转义过的，直接当机型用会被再转义一次。
+    /// </para>
+    /// </summary>
     public string DeviceName { get; set; } = DefaultDeviceName;
 
     /// <summary>Android 版本，UA、<c>x-rpc-sys_version</c> 与 getFp 的 body 三处共用同一个值。</summary>
     public string SystemVersion { get; set; } = DefaultSystemVersion;
 
 
+    /// <summary>
+    /// 把设备名归一成人类可读的形式：<c>Pixel%205</c> 与 <c>Pixel 5</c> 都归一成后者。
+    /// <para>
+    /// 抓包里的 <c>x-rpc-device_name</c> 本身就是转义过的（例如 <c>Pixel%205</c>），
+    /// 整段粘进工具箱就会被当成机型存下来；UA 与请求头再各自转义一次，
+    /// 发出去就变成 <c>Pixel%25205</c>，服务端看到的是双重转义的机型。
+    /// 因此使用前统一解码一次：UA 用 <c>Pixel 5</c>，
+    /// <c>x-rpc-device_name</c> 用一次 <see cref="Uri.EscapeDataString"/> 得到的 <c>Pixel%205</c>，两者与抓包一致。
+    /// </para>
+    /// <para>
+    /// 不含 <c>%XX</c> 转义时原样返回，普通的 <c>%</c>（例如 <c>100%</c>）不受影响；
+    /// 转义序列不合法时也原样返回，不会抛异常。
+    /// </para>
+    /// </summary>
+    /// <param name="deviceName">配置里存着的设备名；可为空。</param>
+    /// <returns>解码后的设备名；没有可解码的转义序列时是去掉首尾空白的原值。</returns>
+    public static string NormalizeDeviceName(string? deviceName)
+    {
+        string value = deviceName?.Trim() ?? "";
+        if (value.Length == 0 || !ContainsPercentEscape(value))
+        {
+            return value;
+        }
+        try
+        {
+            return Uri.UnescapeDataString(value);
+        }
+        catch (Exception)
+        {
+            // 非法转义序列（落单的 % 或 %ZZ）当作普通字符，原样返回。
+            return value;
+        }
+    }
+
+
+    /// <summary>
+    /// 判断字符串里是否含 <c>%XX</c> 形式的百分号转义（XX 为十六进制）。
+    /// 只有这种序列才需要解码，其余的 <c>%</c> 是用户输入的一部分。
+    /// </summary>
+    /// <param name="value">待检查的字符串。</param>
+    /// <returns>存在转义序列时返回 true。</returns>
+    private static bool ContainsPercentEscape(string value)
+    {
+        for (int i = 0; i + 2 < value.Length; i++)
+        {
+            if (value[i] is '%' && Uri.IsHexDigit(value[i + 1]) && Uri.IsHexDigit(value[i + 2]))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+
     /// <summary>首次运行时给设备 ID 一个初始值，之后一直沿用。</summary>
     public static string GenerateDeviceId() => Guid.NewGuid().ToString("D");
 
 
-    public override string UAContent => $"Mozilla/5.0 (Linux; Android {SystemVersion}; {DeviceName} Build/TQ3A.230901.001; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/118.0.0.0 Mobile Safari/537.36 miHoYoBBS/{AppVersion}";
+    /// <summary>
+    /// 当前 getFp 的 <c>ext_fields</c> 载荷版本。
+    /// 旧版本的载荷里写死了 Windows 的硬件字段，服务端会把设备判成模拟器，
+    /// 所以升级后必须强制重刷一次指纹，不能继续用旧载荷申请到的指纹。
+    /// </summary>
+    public const int DeviceFpPayloadVersion = 2;
+
+
+    /// <summary>
+    /// getFp 请求体里的 <c>device_id</c>。真机上是 16 位十六进制的 ANDROID_ID，
+    /// 与 <see cref="DeviceId"/>（米游社自己的设备号）不是同一个值，但同样要跨刷新稳定复用。
+    /// </summary>
+    public string AndroidId { get; set; } = "";
+
+
+    // DeviceFpSeedId / DeviceFpSeedTime 已上移到基类 GameRecordClient：
+    // 战绩 Cookie 合并（DEVICEFP_SEED_ID / DEVICEFP_SEED_TIME）与 getFp 需要共用同一组值。
+    // AndroidId 仍留在本类，由 getFp 单独使用。
+
+
+    /// <summary>
+    /// getFp 载荷里无法由设备名推导的机型字段。
+    /// <para>
+    /// 取值必须来自一台公开存在、且与 UA、<c>x-rpc-device_name</c> 自洽的 Android 手机；
+    /// 默认取仓库自带的 Pixel 5，不写任何人的实机。**这份档案是固定的**：
+    /// 实机验证过"机型身份与账号是否匹配"不影响接口结果（中性 Pixel 5 / Android 13 时便笺照样正常，
+    /// 10041 只与"这枚指纹有没有被账号登记"有关），所以不要再把它做成可配置项。
+    /// </para>
+    /// </summary>
+    /// <param name="Brand">Build.BRAND。同时是 <c>deviceInfo</c> 串的第一段。</param>
+    /// <param name="Manufacturer">Build.MANUFACTURER。</param>
+    /// <param name="ProductName">Build.PRODUCT / Build.DEVICE，通常是机型代号；同时也是 <c>hostname</c>、<c>deviceType</c> 与 <c>board</c>。</param>
+    /// <param name="Hardware">Build.HARDWARE，通常是 SoC 代号。</param>
+    /// <param name="BuildId">Build.ID / Build.DISPLAY，同时也是 UA 里的 build 串与 <c>display</c>。</param>
+    /// <param name="Incremental">Build.VERSION.INCREMENTAL，厂商版本号。</param>
+    /// <param name="BuildTime">Build.TIME，毫秒时间戳。</param>
+    public sealed record HyperionDeviceProfile(
+        string Brand,
+        string Manufacturer,
+        string ProductName,
+        string Hardware,
+        string BuildId,
+        string Incremental,
+        long BuildTime)
+    {
+        /// <summary>
+        /// 默认机型：Pixel 5（<c>redfin</c>）Android 13，与 <see cref="DefaultDeviceName"/>、<see cref="DefaultSystemVersion"/> 对应。
+        /// <para>
+        /// 各字段互相对应：<c>google/redfin/redfin:13/TQ3A.230901.001/10161073:user/release-keys</c>
+        /// 即 <see cref="Brand"/>/<see cref="ProductName"/>/<see cref="ProductName"/>:13/<see cref="BuildId"/>/<see cref="Incremental"/>；
+        /// Android 13 在 <see cref="GetApiLevel"/> 里映射到 API level 33，<see cref="BuildTime"/> 是 Android 13 那版 build 的时间戳。
+        /// </para>
+        /// </summary>
+        public static HyperionDeviceProfile Default { get; } = new(
+            "google",
+            "Google",
+            "redfin",
+            "redfin",
+            "TQ3A.230901.001",
+            "10161073",
+            1692921600000);
+    }
+
+
+    /// <summary>当前使用的机型字段，默认取 <see cref="HyperionDeviceProfile.Default"/>（仓库自带的中性档案）。</summary>
+    public HyperionDeviceProfile DeviceProfile { get; set; } = HyperionDeviceProfile.Default;
+
+
+
+    /// <summary>
+    /// 战绩与签到接口共用的米游社 App UA，所有游戏走同一个值（见 <see cref="CommonSendAsync"/>）。
+    /// <para>
+    /// 机型、Android 版本、build 串、App 版本全部从 <see cref="DeviceName"/>、<see cref="SystemVersion"/>、
+    /// <see cref="DeviceProfile"/>、<see cref="AppVersion"/> 推导，不要再写死字面量：
+    /// UA 与同一请求里 <c>x-rpc-device_name</c> / <c>x-rpc-sys_version</c> / getFp 的
+    /// <c>ext_fields.deviceInfo</c> 必须描述同一台机器，否则风控一眼就能看出是拼出来的。
+    /// </para>
+    /// <para>
+    /// 这里用 <c>{DeviceName}</c> 而不是 <c>{Build.MANUFACTURER} {Build.MODEL}</c>：
+    /// 同一个值还要进 <c>x-rpc-device_name</c>，官方抓包那里是带厂商前缀的
+    /// （例如 <c>Pixel%205</c>），但用户可在设置里手填设备名，
+    /// 推导厂商前缀会产生「Google Pixel 5 Pixel 5」这种重复，所以保持与 <c>x-rpc-device_name</c> 完全一致。
+    /// </para>
+    /// </summary>
+    public override string UAContent => $"Mozilla/5.0 (Linux; Android {SystemVersion}; {DeviceName} Build/{DeviceProfile.BuildId}; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/{DefaultWebViewVersion} Mobile Safari/537.36 miHoYoBBS/{AppVersion}";
+
 
     public override string AppVersion => AppVersionOverride;
 
@@ -65,11 +223,43 @@ public class HyperionClient : GameRecordClient
 
     protected override string ApiSalt2 => "xV8v4Qu54lUKrEYFZkJhB8cuOh9Asafs";
 
+    protected override string ActOrigin => "https://act.mihoyo.com";
+
+    protected override string XRequestedWithValue => com_mihoyo_hyperion;
+
+    /// <summary>战绩 H5 的 <c>x-rpc-device_name</c>，与 UA、getFp 的 body 共用同一个设备名。</summary>
+    protected override string RpcDeviceName => DeviceName;
+
+    /// <summary>战绩 H5 的 <c>x-rpc-sys_version</c>，与 UA、getFp 的 body 共用同一个系统版本。</summary>
+    protected override string RpcSysVersionValue => SystemVersion;
+
 
 
     public HyperionClient(HttpClient? httpClient = null) : base(httpClient)
     {
 
+    }
+
+
+
+
+    /// <summary>
+    /// 国服（米游社）签到请求头：Referer 用 webstatic，带 <c>x-rpc-signgame</c> 区分游戏；
+    /// 绝区零活动主机需要它自己的 Origin，其余游戏用默认 act.mihoyo.com。
+    /// </summary>
+    /// <param name="request">待发送的 HTTP 请求。</param>
+    /// <param name="config">签到活动配置，提供 signgame / origin。</param>
+    /// <param name="signData">是否为数据接口（保留参数，当前与 home 共用相同请求头）。</param>
+    protected override void AddSignInPlatformHeaders(HttpRequestMessage request, SignInActivityConfig config, bool signData)
+    {
+        request.Headers.Add(Referer, "https://webstatic.mihoyo.com/");
+        request.Headers.Add("x-rpc-signgame", config.SignGame);
+        request.Headers.TryAddWithoutValidation(Origin, string.IsNullOrEmpty(config.Origin) ? ActOrigin : config.Origin);
+        request.Headers.TryAddWithoutValidation(X_Request_With, XRequestedWithValue);
+        request.Headers.Add(x_rpc_app_version, AppVersion);
+        request.Headers.Add(x_rpc_client_type, "5");
+        request.Headers.Add(x_rpc_device_id, DeviceId);
+        request.Headers.Add(x_rpc_device_fp, DeviceFp);
     }
 
 
@@ -195,13 +385,14 @@ public class HyperionClient : GameRecordClient
             _ => throw new ArgumentOutOfRangeException($"Unsupport GameBiz: {role.GameBiz}"),
         };
         var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.Add(Cookie, role.Cookie);
-        request.Headers.Add(DS, CreateSecret2(url));
-        request.Headers.Add(Referer, "https://webstatic.mihoyo.com/");
-        request.Headers.Add(x_rpc_app_version, AppVersion);
-        request.Headers.Add(x_rpc_client_type, "5");
-        request.Headers.Add(x_rpc_device_id, DeviceId);
-        request.Headers.Add(x_rpc_device_fp, DeviceFp);
+        if (role.GameBiz is GameBiz.nap_cn)
+        {
+            AddZZZGameRecordH5Headers(request, role, url);
+        }
+        else
+        {
+            AddGameRecordAppHeaders(request, role.Cookie, url);
+        }
         var data = await CommonSendAsync<GameRecordIndex>(request, cancellationToken);
         return data.HeadIcon;
     }
@@ -217,16 +408,32 @@ public class HyperionClient : GameRecordClient
     public override async Task<string> GetDeviceFpAsync(CancellationToken cancellationToken = default)
     {
         const string url = "https://public-data-api.mihoyo.com/device-fp/api/getFp";
-        string productName = GenerateProductName();
+        // device_id / seed_id / seed_time 都要跨刷新稳定复用：每次换值，服务端就当成换了一台设备。
+        if (string.IsNullOrWhiteSpace(AndroidId))
+        {
+            AndroidId = GenerateAndroidId();
+        }
+        if (string.IsNullOrWhiteSpace(DeviceFpSeedId))
+        {
+            DeviceFpSeedId = Guid.NewGuid().ToString("D");
+        }
+        if (string.IsNullOrWhiteSpace(DeviceFpSeedTime))
+        {
+            DeviceFpSeedTime = DateTimeOffset.Now.ToUnixTimeMilliseconds().ToString();
+        }
+        // ext_fields 是「装着 JSON 的字符串」，所以要序列化两次：
+        // 先把机型字段序列化成 JSON 文本，再把这个文本当成字符串值序列化进 body。
+        // 只序列化一次会把 ext_fields 变成 JSON 对象，服务端直接 -502。
+        string extFields = JsonSerializer.Serialize(BuildDeviceExtFields());
         string postContent = $$"""
             {
-                "device_id": "{{DeviceId}}",
-                "seed_id": "{{Guid.NewGuid():D}}",
-                "seed_time": "{{DateTimeOffset.Now.ToUnixTimeMilliseconds()}}",
+                "device_id": "{{AndroidId}}",
+                "seed_id": "{{DeviceFpSeedId}}",
+                "seed_time": "{{DeviceFpSeedTime}}",
                 "platform": "2",
                 "device_fp": "{{DeviceFp}}",
                 "app_name": "bbs_cn",
-                "ext_fields": "{\"proxyStatus\":0,\"isRoot\":0,\"romCapacity\":\"512\",\"deviceName\":\"{{DeviceName}}\",\"productName\":\"{{productName}}\",\"romRemain\":\"512\",\"hostname\":\"db1ba5f7c000000\",\"screenSize\":\"1080x2400\",\"isTablet\":0,\"aaid\":\"\",\"model\":\"{{DeviceName}}\",\"brand\":\"google\",\"hardware\":\"windows_x86_64\",\"deviceType\":\"redfin\",\"devId\":\"REL\",\"serialNumber\":\"unknown\",\"sdCapacity\":125943,\"buildTime\":\"1704316741000\",\"buildUser\":\"cloudtest\",\"simState\":0,\"ramRemain\":\"124603\",\"appUpdateTimeDiff\":1716369357492,\"deviceInfo\":\"google\\\/{{productName}}\\\/redfin:{{SystemVersion}}\\\/TQ3A.230901.001\\\/2311.40000.5.0:user\\\/release-keys\",\"vaid\":\"\",\"buildType\":\"user\",\"sdkVersion\":\"{{SystemVersion}}\",\"ui_mode\":\"UI_MODE_TYPE_NORMAL\",\"isMockLocation\":0,\"cpuType\":\"arm64-v8a\",\"isAirMode\":0,\"ringMode\":2,\"chargeStatus\":3,\"manufacturer\":\"Google\",\"emulatorStatus\":0,\"appMemory\":\"512\",\"osVersion\":\"{{SystemVersion}}\",\"vendor\":\"unknown\",\"accelerometer\":\"\",\"sdRemain\":123276,\"buildTags\":\"release-keys\",\"packageName\":\"com.mihoyo.hyperion\",\"networkType\":\"WiFi\",\"oaid\":\"\",\"debugStatus\":1,\"ramCapacity\":\"125943\",\"magnetometer\":\"\",\"display\":\"TQ3A.230901.001\",\"appInstallTimeDiff\":1706444666737,\"packageVersion\":\"2.20.2\",\"gyroscope\":\"\",\"batteryStatus\":85,\"hasKeyboard\":10,\"board\":\"windows\"}",
+                "ext_fields": {{JsonSerializer.Serialize(extFields)}},
                 "bbs_device_id": "{{DeviceId}}"
             }
             """;
@@ -238,6 +445,12 @@ public class HyperionClient : GameRecordClient
         // 这两个头要和 body 里的设备信息一致，不能各说各话。
         request.Headers.TryAddWithoutValidation("x-rpc-device_name", Uri.EscapeDataString(DeviceName));
         request.Headers.TryAddWithoutValidation("x-rpc-sys_version", SystemVersion);
+        // B 组：带上账号 Cookie 申请，服务端才会把这枚指纹登记到该账号上（见 GameRecordClient.GetDeviceFpCookie）。
+        // 没有账号 Cookie 时照旧匿名申请，不影响申请本身能否成功。
+        if (!string.IsNullOrWhiteSpace(GetDeviceFpCookie))
+        {
+            request.Headers.TryAddWithoutValidation(Cookie, GetDeviceFpCookie);
+        }
         var data = await CommonSendAsync<DeviceFpResult>(request, cancellationToken);
         if (data.Code != 200)
         {
@@ -250,8 +463,8 @@ public class HyperionClient : GameRecordClient
 
 
 
-    /// <summary>16 位十六进制随机串，用于 seed_id。</summary>
-    private static string GenerateSeedId()
+    /// <summary>16 位十六进制随机串。真机上的 ANDROID_ID 就是这个形状。</summary>
+    public static string GenerateAndroidId()
     {
         var bytes = new byte[8];
         Random.Shared.NextBytes(bytes);
@@ -260,12 +473,97 @@ public class HyperionClient : GameRecordClient
 
 
 
-    private static string GenerateProductName()
+    /// <summary>
+    /// 组装 getFp 的 <c>ext_fields</c>。
+    /// <para>
+    /// 服务端会拿这些字段判断设备是否可信。之前这里固定写着 <c>hardware=windows_x86_64</c>、
+    /// <c>board=windows</c>、<c>debugStatus=1</c>，等于自称一台 Windows 模拟器，
+    /// 设备指纹因此被标记，绝区零便笺、绳网月报这些接口直接返回 10041（账号存在风险）。
+    /// 现在整份载荷由一台仓库自带的公开机型（Pixel 5）推导，并且与 UA、<c>x-rpc-device_name</c> 保持自洽。
+    /// </para>
+    /// </summary>
+    private object BuildDeviceExtFields()
     {
-        const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-        char[] name = Random.Shared.GetItems<char>(chars, 6);
-        return new string(name);
+        HyperionDeviceProfile profile = DeviceProfile;
+        long nowMs = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+        string deviceInfo = $"{profile.Brand}/{profile.ProductName}/{profile.ProductName}:{SystemVersion}/{profile.BuildId}/{profile.Incremental}:user/release-keys";
+        return new
+        {
+            proxyStatus = 0,
+            isRoot = 0,
+            romCapacity = "128",
+            deviceName = DeviceName,
+            productName = profile.ProductName,
+            romRemain = "64",
+            hostname = profile.ProductName,
+            screenSize = "1080x2400",
+            isTablet = 0,
+            aaid = "",
+            model = DeviceName,
+            brand = profile.Brand,
+            hardware = profile.Hardware,
+            deviceType = profile.ProductName,
+            devId = "REL",
+            serialNumber = "unknown",
+            sdCapacity = 128000,
+            buildTime = profile.BuildTime.ToString(),
+            buildUser = "android-build",
+            simState = 1,
+            ramRemain = "4096",
+            appUpdateTimeDiff = nowMs - 172800000,
+            deviceInfo,
+            vaid = "",
+            buildType = "user",
+            sdkVersion = GetApiLevel(SystemVersion).ToString(),
+            ui_mode = "UI_MODE_TYPE_NORMAL",
+            isMockLocation = 0,
+            cpuType = "arm64-v8a",
+            isAirMode = 0,
+            ringMode = 2,
+            chargeStatus = 3,
+            manufacturer = profile.Manufacturer,
+            emulatorStatus = 0,
+            appMemory = "512",
+            osVersion = SystemVersion,
+            vendor = "unknown",
+            accelerometer = "0.12x9.81x0.35",
+            sdRemain = 96000,
+            buildTags = "release-keys",
+            packageName = "com.mihoyo.hyperion",
+            networkType = "WiFi",
+            oaid = "",
+            debugStatus = 0,
+            ramCapacity = "8192",
+            magnetometer = "-12.4x3.1x41.7",
+            display = profile.BuildId,
+            appInstallTimeDiff = nowMs - 2592000000,
+            packageVersion = AppVersion,
+            gyroscope = "0.001x-0.002x0.0",
+            batteryStatus = 82,
+            hasKeyboard = 0,
+            board = profile.ProductName,
+        };
     }
+
+
+
+    /// <summary>
+    /// Android 版本号对应的 API level，用于 ext_fields 的 <c>sdkVersion</c>。
+    /// 该字段是数字，之前直接填了版本号字符串。无法识别时按最高的 API level（36，Android 16）处理。
+    /// </summary>
+    private static int GetApiLevel(string systemVersion) => systemVersion switch
+    {
+        "8.0" => 26,
+        "9" => 28,
+        "10" => 29,
+        "11" => 30,
+        "12" => 31,
+        "12L" => 32,
+        "13" => 33,
+        "14" => 34,
+        "15" => 35,
+        _ => 36,
+    };
 
 
 
@@ -284,13 +582,7 @@ public class HyperionClient : GameRecordClient
     {
         string url = $"https://act-api-takumi.mihoyo.com/game_record/appv2/honkai3rd/api/note?server={role.Region}&role_id={role.Uid}";
         var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.Add(Cookie, role.Cookie);
-        request.Headers.Add(DS, CreateSecret2(url));
-        request.Headers.Add(Referer, "https://act.mihoyo.com/");
-        request.Headers.Add(x_rpc_app_version, AppVersion);
-        request.Headers.Add(x_rpc_client_type, "5");
-        request.Headers.Add(x_rpc_device_id, DeviceId);
-        request.Headers.Add(x_rpc_device_fp, DeviceFp);
+        AddGameRecordAppHeaders(request, role.Cookie, url, "https://act.mihoyo.com/");
         return await CommonSendAsync<BH3DailyNote>(request, cancellationToken);
     }
 
@@ -320,7 +612,6 @@ public class HyperionClient : GameRecordClient
         var url = "https://api-takumi.mihoyo.com/binding/api/getUserGameRolesByCookie?game_biz=hk4e_cn";
         var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Add(Cookie, cookie);
-        request.Headers.Add(DS, CreateSecret2(url));
         request.Headers.Add(X_Request_With, com_mihoyo_hyperion);
         request.Headers.Add(x_rpc_app_version, AppVersion);
         request.Headers.Add(x_rpc_client_type, "5");
@@ -342,14 +633,7 @@ public class HyperionClient : GameRecordClient
     {
         var url = $"https://api-takumi-record.mihoyo.com/game_record/app/genshin/api/spiralAbyss?schedule_type={schedule}&server={role.Region}&role_id={role.Uid}";
         var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.Add(Cookie, role.Cookie);
-        request.Headers.Add(DS, CreateSecret2(url));
-        request.Headers.Add(Referer, "https://webstatic.mihoyo.com/");
-        request.Headers.Add(x_rpc_app_version, AppVersion);
-        request.Headers.Add(x_rpc_client_type, "5");
-        request.Headers.Add(x_rpc_device_id, DeviceId);
-        request.Headers.Add(x_rpc_device_fp, DeviceFp);
-        request.Headers.Add(X_Request_With, com_mihoyo_hyperion);
+        AddGameRecordAppHeaders(request, role.Cookie, url);
         var data = await CommonSendAsync<SpiralAbyssInfo>(request, cancellationToken);
         data.Uid = role.Uid;
         return data;
@@ -475,14 +759,7 @@ public class HyperionClient : GameRecordClient
     {
         var url = $"https://api-takumi-record.mihoyo.com/game_record/app/genshin/api/hard_challenge?server={role.Region}&role_id={role.Uid}&need_detail=true";
         var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.Add(Cookie, role.Cookie);
-        request.Headers.Add(DS, CreateSecret2(url));
-        request.Headers.Add(Referer, "https://webstatic.mihoyo.com/");
-        request.Headers.Add(x_rpc_app_version, AppVersion);
-        request.Headers.Add(x_rpc_client_type, "5");
-        request.Headers.Add(x_rpc_device_id, DeviceId);
-        request.Headers.Add(x_rpc_device_fp, DeviceFp);
-        request.Headers.Add(X_Request_With, com_mihoyo_hyperion);
+        AddGameRecordAppHeaders(request, role.Cookie, url);
         var warpper = await CommonSendAsync<StygianOnslaughtWrapper>(request, cancellationToken);
         foreach (var item in warpper.Data)
         {
@@ -508,13 +785,7 @@ public class HyperionClient : GameRecordClient
     {
         string url = $"https://api-takumi-record.mihoyo.com/game_record/app/genshin/api/dailyNote?server={role.Region}&role_id={role.Uid}";
         var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.Add(Cookie, role.Cookie);
-        request.Headers.Add(DS, CreateSecret2(url));
-        request.Headers.Add(Referer, "https://webstatic.mihoyo.com/");
-        request.Headers.Add(x_rpc_app_version, AppVersion);
-        request.Headers.Add(x_rpc_client_type, "5");
-        request.Headers.Add(x_rpc_device_id, DeviceId);
-        request.Headers.Add(x_rpc_device_fp, DeviceFp);
+        AddGameRecordAppHeaders(request, role.Cookie, url);
         return await CommonSendAsync<GenshinDailyNote>(request, cancellationToken);
     }
 
@@ -543,7 +814,6 @@ public class HyperionClient : GameRecordClient
         const string url = "https://api-takumi.mihoyo.com/binding/api/getUserGameRolesByCookie?game_biz=hkrpg_cn";
         var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Add(Cookie, cookie);
-        request.Headers.Add(DS, CreateSecret2(url));
         request.Headers.Add(X_Request_With, com_mihoyo_hyperion);
         request.Headers.Add(x_rpc_app_version, AppVersion);
         request.Headers.Add(x_rpc_client_type, "5");
@@ -565,14 +835,7 @@ public class HyperionClient : GameRecordClient
     {
         var url = $"https://api-takumi-record.mihoyo.com/game_record/app/hkrpg/api/challenge?schedule_type={schedule}&server={role.Region}&role_id={role.Uid}&need_all=true";
         var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.Add(Cookie, role.Cookie);
-        request.Headers.Add(DS, CreateSecret2(url));
-        request.Headers.Add(Referer, "https://webstatic.mihoyo.com/");
-        request.Headers.Add(x_rpc_app_version, AppVersion);
-        request.Headers.Add(x_rpc_device_id, DeviceId);
-        request.Headers.Add(x_rpc_device_fp, DeviceFp);
-        request.Headers.Add(x_rpc_client_type, "5");
-        request.Headers.Add(X_Request_With, com_mihoyo_hyperion);
+        AddGameRecordAppHeaders(request, role.Cookie, url);
         var data = await CommonSendAsync<ForgottenHallInfo>(request, cancellationToken);
         data.Uid = role.Uid;
         return data;
@@ -590,14 +853,7 @@ public class HyperionClient : GameRecordClient
     {
         var url = $"https://api-takumi-record.mihoyo.com/game_record/app/hkrpg/api/challenge_story?schedule_type={schedule}&server={role.Region}&role_id={role.Uid}&isPrev=1&need_all=true";
         var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.Add(Cookie, role.Cookie);
-        request.Headers.Add(DS, CreateSecret2(url));
-        request.Headers.Add(Referer, "https://webstatic.mihoyo.com/");
-        request.Headers.Add(x_rpc_app_version, AppVersion);
-        request.Headers.Add(x_rpc_device_id, DeviceId);
-        request.Headers.Add(x_rpc_device_fp, DeviceFp);
-        request.Headers.Add(x_rpc_client_type, "5");
-        request.Headers.Add(X_Request_With, com_mihoyo_hyperion);
+        AddGameRecordAppHeaders(request, role.Cookie, url);
         var data = await CommonSendAsync<PureFictionInfo>(request, cancellationToken);
         data.Uid = role.Uid;
         if (data.Metas?.Count > 0)
@@ -630,14 +886,7 @@ public class HyperionClient : GameRecordClient
     {
         var url = $"https://api-takumi-record.mihoyo.com/game_record/app/hkrpg/api/challenge_boss?schedule_type={schedule}&server={role.Region}&role_id={role.Uid}&isPrev=1&need_all=true";
         var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.Add(Cookie, role.Cookie);
-        request.Headers.Add(DS, CreateSecret2(url));
-        request.Headers.Add(Referer, "https://webstatic.mihoyo.com/");
-        request.Headers.Add(x_rpc_app_version, AppVersion);
-        request.Headers.Add(x_rpc_device_id, DeviceId);
-        request.Headers.Add(x_rpc_device_fp, DeviceFp);
-        request.Headers.Add(x_rpc_client_type, "5");
-        request.Headers.Add(X_Request_With, com_mihoyo_hyperion);
+        AddGameRecordAppHeaders(request, role.Cookie, url);
         var data = await CommonSendAsync<ApocalypticShadowInfo>(request, cancellationToken);
         data.Uid = role.Uid;
         if (data.Metas?.Count > 0)
@@ -675,14 +924,7 @@ public class HyperionClient : GameRecordClient
     {
         var url = $"https://api-takumi-record.mihoyo.com/game_record/app/hkrpg/api/rogue?role_id={role.Uid}&server={role.Region}&schedule_type=3&need_detail={detail.ToString().ToLower()}";
         var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.Add(Cookie, role.Cookie);
-        request.Headers.Add(DS, CreateSecret2(url));
-        request.Headers.Add(Referer, "https://webstatic.mihoyo.com/");
-        request.Headers.Add(x_rpc_app_version, AppVersion);
-        request.Headers.Add(x_rpc_device_id, DeviceId);
-        request.Headers.Add(x_rpc_device_fp, DeviceFp);
-        request.Headers.Add(x_rpc_client_type, "5");
-        request.Headers.Add(X_Request_With, com_mihoyo_hyperion);
+        AddGameRecordAppHeaders(request, role.Cookie, url);
         var data = await CommonSendAsync<SimulatedUniverseInfo>(request, cancellationToken);
         return data;
     }
@@ -774,13 +1016,7 @@ public class HyperionClient : GameRecordClient
     {
         string url = $"https://api-takumi-record.mihoyo.com/game_record/app/hkrpg/api/note?server={role.Region}&role_id={role.Uid}";
         var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.Add(Cookie, role.Cookie);
-        request.Headers.Add(DS, CreateSecret2(url));
-        request.Headers.Add(Referer, "https://webstatic.mihoyo.com/");
-        request.Headers.Add(x_rpc_app_version, AppVersion);
-        request.Headers.Add(x_rpc_client_type, "5");
-        request.Headers.Add(x_rpc_device_id, DeviceId);
-        request.Headers.Add(x_rpc_device_fp, DeviceFp);
+        AddGameRecordAppHeaders(request, role.Cookie, url);
         return await CommonSendAsync<StarRailDailyNote>(request, cancellationToken);
     }
 
@@ -796,13 +1032,7 @@ public class HyperionClient : GameRecordClient
     {
         string url = $"https://api-takumi-record.mihoyo.com/game_record/app/hkrpg/api/challenge_peak?server={role.Region}&role_id={role.Uid}&schedule_type={scheduleType}";
         var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.Add(Cookie, role.Cookie);
-        request.Headers.Add(DS, CreateSecret2(url));
-        request.Headers.Add(Referer, "https://webstatic.mihoyo.com/");
-        request.Headers.Add(x_rpc_app_version, AppVersion);
-        request.Headers.Add(x_rpc_client_type, "5");
-        request.Headers.Add(x_rpc_device_id, DeviceId);
-        request.Headers.Add(x_rpc_device_fp, DeviceFp);
+        AddGameRecordAppHeaders(request, role.Cookie, url);
         return await CommonSendAsync<ChallengePeakData>(request, cancellationToken);
     }
 
@@ -832,7 +1062,6 @@ public class HyperionClient : GameRecordClient
         var url = "https://api-takumi.mihoyo.com/binding/api/getUserGameRolesByCookie?game_biz=nap_cn";
         var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Add(Cookie, cookie);
-        request.Headers.Add(DS, CreateSecret2(url));
         request.Headers.Add(X_Request_With, com_mihoyo_hyperion);
         request.Headers.Add(x_rpc_app_version, AppVersion);
         request.Headers.Add(x_rpc_client_type, "5");
@@ -861,12 +1090,7 @@ public class HyperionClient : GameRecordClient
             url += $"&end_id={validEndId}";
         }
         var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.Add(Cookie, role.Cookie);
-        request.Headers.Add(Referer, "https://act.mihoyo.com/");
-        request.Headers.Add(x_rpc_app_version, AppVersion);
-        request.Headers.Add(x_rpc_client_type, "5");
-        request.Headers.Add(x_rpc_device_id, DeviceId);
-        request.Headers.Add(x_rpc_device_fp, DeviceFp);
+        AddZZZGameRecordH5Headers(request, role, url);
         return await CommonSendAsync<ZZZGachaRecordData>(request, cancellationToken);
     }
 
@@ -882,14 +1106,7 @@ public class HyperionClient : GameRecordClient
     {
         var url = $"https://api-takumi-record.mihoyo.com/event/game_record_zzz/api/zzz/hadal_info_v2?schedule_type={schedule}&server={role.Region}&role_id={role.Uid}&need_all=true";
         var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.Add(Cookie, role.Cookie);
-        request.Headers.Add(DS, CreateSecret2(url));
-        request.Headers.Add(Referer, "https://webstatic.mihoyo.com/");
-        request.Headers.Add(x_rpc_app_version, AppVersion);
-        request.Headers.Add(x_rpc_device_id, DeviceId);
-        request.Headers.Add(x_rpc_device_fp, DeviceFp);
-        request.Headers.Add(x_rpc_client_type, "5");
-        request.Headers.Add(X_Request_With, com_mihoyo_hyperion);
+        AddZZZGameRecordH5Headers(request, role, url);
         return await CommonSendAsync<ShiyuDefenseWrapper>(request, cancellationToken);
     }
 
@@ -905,14 +1122,7 @@ public class HyperionClient : GameRecordClient
     {
         var url = $"https://api-takumi-record.mihoyo.com/event/game_record_zzz/api/zzz/hadal_mem_detail_v2?schedule_type={schedule}&region={role.Region}&uid={role.Uid}";
         var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.Add(Cookie, role.Cookie);
-        request.Headers.Add(DS, CreateSecret2(url));
-        request.Headers.Add(Referer, "https://webstatic.mihoyo.com/");
-        request.Headers.Add(x_rpc_app_version, AppVersion);
-        request.Headers.Add(x_rpc_device_id, DeviceId);
-        request.Headers.Add(x_rpc_device_fp, DeviceFp);
-        request.Headers.Add(x_rpc_client_type, "5");
-        request.Headers.Add(X_Request_With, com_mihoyo_hyperion);
+        AddZZZGameRecordH5Headers(request, role, url);
         return await CommonSendAsync<DeadlyAssaultInfo>(request, cancellationToken);
     }
 
@@ -928,11 +1138,7 @@ public class HyperionClient : GameRecordClient
     {
         var url = $"https://api-takumi.mihoyo.com/event/nap_ledger/month_info?uid={role.Uid}&region={role.Region}&month={month}";
         var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.Add(Cookie, role.Cookie);
-        request.Headers.Add(Referer, "https://act.mihoyo.com/");
-        request.Headers.Add(x_rpc_app_version, AppVersion);
-        request.Headers.Add(x_rpc_device_id, DeviceId);
-        request.Headers.Add(x_rpc_device_fp, DeviceFp);
+        AddZZZGameRecordH5Headers(request, role, url);
         return await CommonSendAsync<InterKnotReportSummary>(request, cancellationToken);
     }
 
@@ -950,11 +1156,7 @@ public class HyperionClient : GameRecordClient
     {
         var url = $"https://api-takumi.mihoyo.com/event/nap_ledger/month_detail?uid={role.Uid}&region={role.Region}&month={month}&type={type}&current_page={page}&page_size={page_size}";
         var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.Add(Cookie, role.Cookie);
-        request.Headers.Add(Referer, "https://act.mihoyo.com/");
-        request.Headers.Add(x_rpc_app_version, AppVersion);
-        request.Headers.Add(x_rpc_device_id, DeviceId);
-        request.Headers.Add(x_rpc_device_fp, DeviceFp);
+        AddZZZGameRecordH5Headers(request, role, url);
         return await CommonSendAsync<InterKnotReportDetail>(request, cancellationToken);
     }
 
@@ -1043,12 +1245,7 @@ public class HyperionClient : GameRecordClient
     {
         string url = $"https://api-takumi-record.mihoyo.com/event/game_record_zzz/api/zzz/note?server={role.Region}&role_id={role.Uid}";
         var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.Add(Cookie, role.Cookie);
-        request.Headers.Add(Referer, "https://act.mihoyo.com/");
-        request.Headers.Add(x_rpc_app_version, AppVersion);
-        request.Headers.Add(x_rpc_client_type, "5");
-        request.Headers.Add(x_rpc_device_id, DeviceId);
-        request.Headers.Add(x_rpc_device_fp, DeviceFp);
+        AddZZZGameRecordH5Headers(request, role, url);
         return await CommonSendAsync<ZZZDailyNote>(request, cancellationToken);
     }
 
@@ -1064,12 +1261,7 @@ public class HyperionClient : GameRecordClient
     {
         string url = $"https://api-takumi-record.mihoyo.com/event/game_record_zzz/api/zzz/void_front_battle_abstract_info?region={role.Region}&uid={role.Uid}";
         var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.Add(Cookie, role.Cookie);
-        request.Headers.Add(Referer, "https://act.mihoyo.com/");
-        request.Headers.Add(x_rpc_app_version, AppVersion);
-        request.Headers.Add(x_rpc_client_type, "5");
-        request.Headers.Add(x_rpc_device_id, DeviceId);
-        request.Headers.Add(x_rpc_device_fp, DeviceFp);
+        AddZZZGameRecordH5Headers(request, role, url);
         return await CommonSendAsync<ThresholdSimulationAbstractInfo>(request, cancellationToken);
     }
 
@@ -1086,12 +1278,7 @@ public class HyperionClient : GameRecordClient
     {
         string url = $"https://api-takumi-record.mihoyo.com/event/game_record_zzz/api/zzz/void_front_battle_detail?region={role.Region}&uid={role.Uid}&void_front_id={void_front_id}";
         var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.Add(Cookie, role.Cookie);
-        request.Headers.Add(Referer, "https://act.mihoyo.com/");
-        request.Headers.Add(x_rpc_app_version, AppVersion);
-        request.Headers.Add(x_rpc_client_type, "5");
-        request.Headers.Add(x_rpc_device_id, DeviceId);
-        request.Headers.Add(x_rpc_device_fp, DeviceFp);
+        AddZZZGameRecordH5Headers(request, role, url);
         return await CommonSendAsync<ThresholdSimulationDetailInfo>(request, cancellationToken);
     }
 

@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Logging;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -30,6 +31,27 @@ public sealed partial class DailyNoteButton : UserControl
     {
         this.InitializeComponent();
         this.Visibility = Visibility.Collapsed;
+        // 登录 / 新增角色后 GameRecordRoleChangedMessage 会到达，此时必须重新解析角色并重算可见性：
+        // 本控件只在 Loaded 时刷新一次，而登录完成可能发生在它已经加载之后（那时它还是 Collapsed）。
+        WeakReferenceMessenger.Default.Register<GameRecordRoleChangedMessage>(this, (_, _) => OnGameRecordRoleChanged());
+    }
+
+
+
+    /// <summary>
+    /// 账号角色列表变化后重新解析当前角色，并在解析到时让按钮出现（不轮询、不改计时器）。
+    /// </summary>
+    private void OnGameRecordRoleChanged()
+    {
+        if (!IsLoaded || CurrentGameId is null)
+        {
+            return;
+        }
+        if (!GameFeatureConfig.FromGameId(CurrentGameId).SupportDailyNote)
+        {
+            return;
+        }
+        RefreshDailyNoteCommand.Execute(true);
     }
 
 
