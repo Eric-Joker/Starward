@@ -10,6 +10,7 @@ using Starward.Features.GameLauncher;
 using Starward.Features.Overlay;
 using Starward.Features.Screenshot;
 using Starward.Frameworks;
+using Starward.Helpers;
 using System;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
@@ -170,7 +171,27 @@ public sealed partial class MainWindow : WindowEx
     {
         base.Hide();
         WeakReferenceMessenger.Default.Send(new MainWindowStateChangedMessage { Hide = true, CurrentTime = DateTimeOffset.Now });
-        GC.Collect();
+        // 隐藏到托盘后进程还要继续驻留，这里把手里的内存交还系统。
+        // 延迟几秒等视频解码器、Win2D 与页面的释放真正落地，并确认期间用户没把窗口开回来。
+        MemoryTrimmer.TrimLater(IsInvisible);
+    }
+
+
+
+    /// <summary>
+    /// 窗口当前是否不可见（隐藏到托盘或最小化）。延迟回收内存前用它确认用户没把窗口开回来。
+    /// </summary>
+    /// <returns>窗口已隐藏或最小化时为 true。</returns>
+    private bool IsInvisible()
+    {
+        try
+        {
+            return !AppWindow.IsVisible || User32.IsIconic(WindowHandle);
+        }
+        catch
+        {
+            return false;
+        }
     }
 
 

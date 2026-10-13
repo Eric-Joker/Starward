@@ -364,6 +364,14 @@ public sealed partial class MainView : UserControl
             DateTimeOffset now = DateTimeOffset.Now;
             if (now - _lastCheckUpdateTime > TimeSpan.FromHours(1))
             {
+                // 按流量计费时不自动检查更新：用户没主动要，不该占他的流量。
+                // 设置里的「检查更新」按钮仍可随时手动触发。
+                if (NetworkHelper.IsMeteredConnection())
+                {
+                    _logger.LogInformation("Skip the automatic update check on a metered connection");
+                    _lastCheckUpdateTime = now;
+                    return;
+                }
                 var release = await AppConfig.GetService<UpdateService>().CheckUpdateAsync(false);
                 _lastCheckUpdateTime = now;
                 if (release != null && now - _lastShowUpdateTime > TimeSpan.FromHours(6) && now.Date != _lastShowUpdateTime.Date)
