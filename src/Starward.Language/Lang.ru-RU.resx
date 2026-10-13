@@ -1168,9 +1168,6 @@
   <data name="LauncherPage_PleaseCheckTheRelatedLogs" xml:space="preserve">
     <value>Проверьте соответствующие логи.</value>
   </data>
-  <data name="SettingPage_Donate" xml:space="preserve">
-    <value>Пожертвовать</value>
-  </data>
   <data name="SettingPage_URLProtocolExperimental" xml:space="preserve">
     <value>Протокол URL (Экспериментально)</value>
   </data>

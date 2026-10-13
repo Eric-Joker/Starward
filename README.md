@@ -84,3 +84,15 @@ And the [third-party libraries](./docs/ThirdParty.md) used in this project.
 ## Screenshot
 
 <img width="1200" src="https://github.com/user-attachments/assets/d1704d44-fadd-4672-aade-c09584b7f16c" />
+
+## Build from source
+
+This repository consumes the asset projects (`Starward.Assets`, `Starward.Codec`, `Starward.NativeLib`) from the `large-resource` branch of this same repository through a git submodule. Clone it recursively:
+
+```sh
+git clone --recursive https://github.com/Eric-Joker/Starward.git
+# existing clone
+git submodule update --init --recursive
+```
+
+Note: GitHub's "Download ZIP" does not include submodules, so building from a zip archive will fail.

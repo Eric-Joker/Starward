@@ -1168,9 +1168,6 @@ Bạn có chấp nhận rủi ro và tiếp tục?</value>
   <data name="LauncherPage_PleaseCheckTheRelatedLogs" xml:space="preserve">
     <value>Vui lòng kiểm tra các nhật ký liên quan.</value>
   </data>
-  <data name="SettingPage_Donate" xml:space="preserve">
-    <value>Ủng hộ</value>
-  </data>
   <data name="SettingPage_URLProtocolExperimental" xml:space="preserve">
     <value>Giao thức URL (thử nghiệm)</value>
   </data>
