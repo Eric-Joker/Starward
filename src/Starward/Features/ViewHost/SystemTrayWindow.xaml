@@ -62,11 +62,6 @@
                                                          UriSource="{x:Bind ServerIcon}" />
                                         </Image.Source>
                                     </Image>
-                                    <Border Background="#60000000" Opacity="{x:Bind MaskOpacity}">
-                                        <Border.OpacityTransition>
-                                            <ScalarTransition />
-                                        </Border.OpacityTransition>
-                                    </Border>
                                 </Grid>
                                 <TextBlock Grid.Column="1"
                                            VerticalAlignment="Center"
