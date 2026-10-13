@@ -7,7 +7,9 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Starward.Core;
 using Starward.Core.HoYoPlay;
+using Starward.Features.CloudGame;
 using Starward.Features.GameLauncher;
+using Starward.Features.GameRecord.SignIn;
 using Starward.Features.GameSelector;
 using Starward.Features.Setting;
 using Starward.Frameworks;
@@ -36,6 +38,10 @@ public sealed partial class SystemTrayWindow : WindowEx
 
     private readonly GameLauncherService _gameLauncherService = AppConfig.GetService<GameLauncherService>();
 
+    private readonly AutoCloudGameFreeTimeService _autoCloudGameFreeTimeService = AppConfig.GetService<AutoCloudGameFreeTimeService>();
+
+    private readonly AutoSignInService _autoSignInService = AppConfig.GetService<AutoSignInService>();
+
 
 
 
@@ -48,6 +54,10 @@ public sealed partial class SystemTrayWindow : WindowEx
         WeakReferenceMessenger.Default.Register<LanguageChangedMessage>(this, (_, _) => this.Bindings.Update());
         WeakReferenceMessenger.Default.Register<InstalledGameRefreshedMessage>(this, (_, _) => UpdateInstalledGames());
         WeakReferenceMessenger.Default.Register<GameInstallPathChangedMessage>(this, (_, _) => UpdateInstalledGames());
+        // 托盘窗口是常驻状态下唯一必然存在且不会销毁的窗口，云游戏免费时长的领取循环挂在这里。
+        _autoCloudGameFreeTimeService.StartResident();
+        // 每日自动签到同样挂在常驻窗口上：启动后签一轮，之后跨日再签。
+        _autoSignInService.StartResident();
     }
 
 
@@ -174,6 +184,12 @@ public sealed partial class SystemTrayWindow : WindowEx
             {
                 foreach (GameBizIcon server in display.Servers)
                 {
+                    // GameId.FromGameBiz 对少数区服没有映射（例如 bh3_bilibili 落到默认的 null），
+                    // 所以不能假设每个已知区服都有 GameId，否则托盘每次刷新都会抛 NullReferenceException。
+                    if (server.GameId is null)
+                    {
+                        continue;
+                    }
                     string? path = GameLauncherService.GetGameInstallPath(server.GameId, out bool storageRemoved);
                     if (!storageRemoved && Directory.Exists(path))
                     {
