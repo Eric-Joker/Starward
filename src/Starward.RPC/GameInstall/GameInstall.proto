@@ -56,6 +56,8 @@ message GameInstallContextDTO {
     int64 storage_read_speed = 19;
     int64 storage_write_speed = 20;
     int64 remain_time_seconds = 21;
+    // 安装时选择的资源场景（GameScenarioPackageType：0 未指定、1 完整资源、2 基础资源）
+    int32 package_type = 24;
 }
 
 message GameInstallRequest {
@@ -65,6 +67,8 @@ message GameInstallRequest {
     int32 operation = 4;
     int32 audio_language = 5;
     google.protobuf.StringValue hard_link_path = 6;
+    // 安装时选择的资源场景（GameScenarioPackageType）；其他操作为 0，RPC 按游戏目录里的记录处理
+    int32 package_type = 7;
 }
 
 message RateLimiterMessage {

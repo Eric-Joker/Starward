@@ -91,6 +91,11 @@ public sealed partial class PreDownloadDialog : ContentDialog
 
     private List<string> _ignoreMatchingFields;
 
+    /// <summary>
+    /// 本地是基础资源时只属于完整资源的分类，本地没有该分类的文件就不计入（与 RPC 一致）
+    /// </summary>
+    private HashSet<string> _baseExcludedMatchingFields = [];
+
     private async Task GetGamePackageAsync()
     {
         try
@@ -130,6 +135,17 @@ public sealed partial class PreDownloadDialog : ContentDialog
                     _logger.LogWarning("GameBranch.PreDownload of ({GameBiz}) is null.", CurrentGameId.GameBiz);
                     TextBlock_PredownloadUnavailable.Visibility = Visibility.Visible;
                     return;
+                }
+                if (GameScenarioPackage.GetLocalPackageType(_installationPath, config) is GameScenarioPackageType.Base)
+                {
+                    if (!gameBranch.EnableBasePackagePredownload)
+                    {
+                        // 官方启动器同样不给基础资源预下载
+                        _logger.LogInformation("Predownload of ({GameBiz}) is disabled for base package.", CurrentGameId.GameBiz);
+                        TextBlock_PredownloadUnavailable.Visibility = Visibility.Visible;
+                        return;
+                    }
+                    _baseExcludedMatchingFields = GameScenarioPackage.GetFullOnlyMatchingFields(gameBranch.PreDownload);
                 }
                 _hasPatch = gameBranch.PreDownload.DiffTags.Count > 0;
                 _canPatch = gameBranch.PreDownload.DiffTags.Any(x => x == _localGameVersion);
@@ -244,6 +260,15 @@ public sealed partial class PreDownloadDialog : ContentDialog
             else if (_gameSophonChunkBuild is not null)
             {
                 List<GameSophonChunkManifest> manifests = GetAvailableGameSophonChunkManifests(_gameSophonChunkBuild, _audioLanguage, _ignoreMatchingFields);
+                foreach (GameSophonChunkManifest manifest in manifests.Where(x => _baseExcludedMatchingFields.Contains(x.MatchingField)).ToList())
+                {
+                    // 基础资源：本地没有该完整资源分类的文件就不计入（与 RPC 一致）
+                    List<SophonChunkFile> items = await GetSophonChunkFilesAsync(manifest);
+                    if (!ScenarioPackageFiles.AnyFileExists(_installationPath, items, null))
+                    {
+                        manifests.Remove(manifest);
+                    }
+                }
                 foreach (GameSophonChunkManifest manifest in manifests)
                 {
                     size += manifest.Stats.CompressedSize;
@@ -267,6 +292,12 @@ public sealed partial class PreDownloadDialog : ContentDialog
                     else
                     {
                         SophonPatchManifest patchManifest = await GetSophonPatchManifestAsync(manifest);
+                        if (_baseExcludedMatchingFields.Contains(manifest.MatchingField)
+                            && !ScenarioPackageFiles.AnyFileExists(_installationPath, patchManifest, _localGameVersion))
+                        {
+                            // 基础资源：本地没有该完整资源分类的文件就不计入（与 RPC 一致）
+                            continue;
+                        }
                         List<SophonPatch> patches = new();
                         foreach (SophonPatchFile item in patchManifest.Patches)
                         {
@@ -524,6 +555,15 @@ public sealed partial class PreDownloadDialog : ContentDialog
             }
         }
         throw new Exception($"Download manifest file ({manifestFile.Id}) failed.");
+    }
+
+
+
+    private async Task<List<SophonChunkFile>> GetSophonChunkFilesAsync(GameSophonChunkManifest manifest, CancellationToken cancellationToken = default)
+    {
+        byte[] bytes = await EnsureSophonManifestFileAsync(manifest.ManifestDownload, manifest.Manifest, cancellationToken);
+        SophonChunkManifest manifest1 = SophonChunkManifest.Parser.ParseFrom(bytes);
+        return manifest1.Chuncks.ToList();
     }
 
 
