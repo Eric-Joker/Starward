@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <root>
   <!-- 
     Microsoft ResX Schema 
@@ -2962,5 +2962,14 @@
   </data>
   <data name="GachaLogPage_ImportUIGF4UseUIGF4WindowDesc" xml:space="preserve">
     <value>UIGF v4.x 的文件不能通过旧版格式导入。请改用「UIGF v4.2」按钮，在那里选择要导入的档案。</value>
+  </data>
+<data name="SettingPage_StartAtLoginDesc" xml:space="preserve">
+    <value>登录 Windows 后自动在系统托盘启动 Starward。也可在 Windows「设置 → 应用 → 启动」中关闭。</value>
+  </data>
+<data name="SettingPage_StartAtLoginSwitch" xml:space="preserve">
+    <value>开机自启</value>
+  </data>
+<data name="SettingPage_StartAtLoginWindowsSettings" xml:space="preserve">
+    <value>Windows 启动应用</value>
   </data>
 </root>

@@ -1,10 +1,11 @@
-﻿using CommunityToolkit.Mvvm.Messaging;
+using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.Windows.AppLifecycle;
 using Starward.Features.Database;
 using Starward.Features.GamepadControl;
 using Starward.Features.Passport;
+using Starward.Features.Setting;
 using Starward.Features.ViewHost;
 using System;
 using System.Collections;
@@ -90,6 +91,8 @@ public partial class App : Application
         instance = AppInstance.GetCurrent();
         instance.Activated += AppInstance_Activated;
 
+        // 程序挪过目录 / 应用更新过之后，把仍启用的开机自启快捷方式指回当前 exe；用户已关掉自启则不动。
+        AutoStartService.RepairIfNeeded();
         if (Environment.GetCommandLineArgs().Contains("--hide"))
         {
             m_SystemTrayWindow = new SystemTrayWindow();

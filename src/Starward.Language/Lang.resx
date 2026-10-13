@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <root>
   <!-- 
     Microsoft ResX Schema 
@@ -2962,5 +2962,14 @@ You are welcome to submit the exported data to the following repository:</value>
   </data>
   <data name="GachaLogPage_ImportUIGF4UseUIGF4WindowDesc" xml:space="preserve">
     <value>UIGF v4.x files cannot be imported through the legacy import. Use the "UIGF v4.2" button instead, where you can select the archives to import.</value>
+  </data>
+<data name="SettingPage_StartAtLoginDesc" xml:space="preserve">
+    <value>Start Starward in the system tray when you sign in to Windows. You can also turn this off in Windows Settings &gt; Apps &gt; Startup.</value>
+  </data>
+<data name="SettingPage_StartAtLoginSwitch" xml:space="preserve">
+    <value>Start at login</value>
+  </data>
+<data name="SettingPage_StartAtLoginWindowsSettings" xml:space="preserve">
+    <value>Windows Startup apps</value>
   </data>
 </root>

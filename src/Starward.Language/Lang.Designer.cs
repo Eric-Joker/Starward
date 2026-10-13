@@ -8497,5 +8497,33 @@ namespace Starward.Language {
                 return ResourceManager.GetString("ZZZGachaService_ImportSignalSearchRecordsSuccessfully", resourceCulture);
             }
         }
+        
+        /// <summary>
+        ///   查找类似 Start Starward in the system tray when you sign in to Windows. You can also turn this off in Windows Settings &gt; Apps &gt; Startup. 的本地化字符串。
+        /// </summary>
+        public static string SettingPage_StartAtLoginDesc {
+            get {
+                return ResourceManager.GetString("SettingPage_StartAtLoginDesc", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Start at login 的本地化字符串。
+        /// </summary>
+        public static string SettingPage_StartAtLoginSwitch {
+            get {
+                return ResourceManager.GetString("SettingPage_StartAtLoginSwitch", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Windows Startup apps 的本地化字符串。
+        /// </summary>
+        public static string SettingPage_StartAtLoginWindowsSettings {
+            get {
+                return ResourceManager.GetString("SettingPage_StartAtLoginWindowsSettings", resourceCulture);
+            }
+        }
+        
     }
 }
