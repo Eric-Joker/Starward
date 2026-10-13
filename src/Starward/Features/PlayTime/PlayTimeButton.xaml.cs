@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Starward.Core;
 using Starward.Features.Database;
+using Starward.Helpers;
 using System;
 using System.Threading.Tasks;
 
@@ -45,8 +46,7 @@ public sealed partial class PlayTimeButton : UserControl
     {
         try
         {
-            GameBiz gameBiz = CurrentGameBiz.IsBilibili() ? $"{CurrentGameBiz.Game}_cn" : CurrentGameBiz;
-            PlayTimeTotal = DatabaseService.GetValue<TimeSpan>($"playtime_total_{gameBiz}", out _);
+            PlayTimeTotal = DatabaseService.GetValue<TimeSpan>(PlayTimeStatsService.TotalPlayTimeKey(CurrentGameBiz), out _);
         }
         catch (Exception ex)
         {
@@ -67,11 +67,20 @@ public sealed partial class PlayTimeButton : UserControl
     [RelayCommand]
     private async Task OpenStatsDialogAsync()
     {
-        await new PlayTimeStatsDialog
+        try
         {
-            CurrentGameBiz = CurrentGameBiz,
-            XamlRoot = this.XamlRoot,
-        }.ShowAsync();
+            await new PlayTimeStatsDialog
+            {
+                CurrentGameBiz = CurrentGameBiz,
+                XamlRoot = this.XamlRoot,
+            }.ShowAsync();
+        }
+        catch (Exception ex)
+        {
+            // 对话框构造/加载失败不应该让整个应用崩掉
+            _logger.LogError(ex, "Open play time stats dialog: GameBiz {biz}", CurrentGameBiz);
+            InAppToast.MainWindow?.Error(ex);
+        }
         InitializePlayTime();
     }
 
