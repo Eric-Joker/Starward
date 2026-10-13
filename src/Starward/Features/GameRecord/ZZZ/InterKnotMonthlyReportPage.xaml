@@ -223,14 +223,37 @@
                 </Grid>
 
                 <!--  Historical Data  -->
-                <TextBlock Margin="0,8,0,0"
-                           FontSize="16"
-                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                           Visibility="{x:Bind SelectMonthData, Converter={StaticResource ObjectToVisibilityConverter}}">
-                    <Run Text="{x:Bind lang:Lang.TravelersDiaryPage_HistoricalData}" />
-                    <Run Text="" />
-                    <Run Text="{x:Bind SelectMonthData.DataMonth}" />
-                </TextBlock>
+                <Grid Margin="0,8,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock VerticalAlignment="Center"
+                               FontSize="16"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               Visibility="{x:Bind SelectMonthData, Converter={StaticResource ObjectToVisibilityConverter}}">
+                        <Run Text="{x:Bind lang:Lang.TravelersDiaryPage_HistoricalData}" />
+                        <Run Text="" />
+                        <Run Text="{x:Bind SelectMonthData.DataMonth}" />
+                    </TextBlock>
+                    <!--  分享  -->
+                    <Button Grid.Column="1"
+                            Width="32"
+                            Height="32"
+                            Padding="0"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Click="Button_ShareRecordImage_Click"
+                            IsEnabled="{x:Bind IsSharingRecordImage, Converter={StaticResource BoolReversedConverter}}"
+                            ToolTipService.ToolTip="{x:Bind lang:Lang.GamepadControlSetting_ShareButton}">
+                        <FontIcon FontSize="16"
+                                  Foreground="White"
+                                  Glyph="&#xE72D;"
+                                  IsTextScaleFactorEnabled="False" />
+                    </Button>
+                </Grid>
                 <Grid Padding="24,8,24,8"
                       Background="{ThemeResource CustomOverlayAcrylicBrush}"
                       CornerRadius="8"

@@ -8,10 +8,12 @@ using Starward.Controls;
 using Starward.Core;
 using Starward.Core.GameRecord;
 using Starward.Core.GameRecord.Genshin.TravelersDiary;
+using Starward.Features.GameRecord.Share;
 using Starward.Frameworks;
 using Starward.Helpers;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
@@ -299,6 +301,54 @@ public sealed partial class TravelersDiaryPage : PageBase
 
         public double MoraProgress { get; set; }
 
+    }
+
+
+
+    public bool IsSharingRecordImage { get; set => SetProperty(ref field, value); }
+
+
+
+    private async void Button_ShareRecordImage_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (SelectMonthData is not { } data)
+            {
+                InAppToast.MainWindow?.Warning(Lang.HoyolabToolboxPage_NoData);
+                return;
+            }
+            var snapshot = new MonthlyReportShareSnapshot
+            {
+                FileStem = "travelers_diary",
+                Title = $"{Lang.TravelersDiaryPage_HistoricalData}  {data.Year}-{data.Month:D2}",
+                Currencies =
+                [
+                    new MonthlyReportShareCurrency
+                    {
+                        Icon = "ms-appx:///Assets/Image/UI_ItemIcon_201.png",
+                        Name = Lang.TravelersDiaryPage_Primogems,
+                        Value = data.CurrentPrimogems.ToString(CultureInfo.CurrentCulture),
+                    },
+                    new MonthlyReportShareCurrency
+                    {
+                        Icon = "ms-appx:///Assets/Image/UI_ItemIcon_202.png",
+                        Name = Lang.TravelersDiaryPage_Mora,
+                        Value = data.CurrentMora.ToString(CultureInfo.CurrentCulture),
+                    },
+                ],
+                SourcesTitle = Lang.TravelersDiaryPage_PrimogemsObtained,
+                Sources = MonthlyReportShareSnapshot.CaptureSources(SelectSeries),
+            };
+            await GameRecordShareHelper.ShareAsync(this, gameRole, _logger,
+                busy => IsSharingRecordImage = busy,
+                (bg, accent) => MonthlyReportShareRenderer.RenderAndSaveAsync(snapshot, gameRole.Uid, bg, accent));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Share game record image");
+            InAppToast.MainWindow?.Error(Lang.Common_Error);
+        }
     }
 
 

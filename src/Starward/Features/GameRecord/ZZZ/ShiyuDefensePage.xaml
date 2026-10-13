@@ -133,14 +133,35 @@
             <StackPanel Margin="24" Spacing="8">
 
                 <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
                     <!--  统计周期  -->
-                    <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}">
+                    <TextBlock VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}">
                         <Run Text="{x:Bind lang:Lang.ForgottenHallPage_Period}" />
                         <Run Text="" />
                         <Run Text="{x:Bind CurrentShiyuDefense.BeginTime.LocalDateTime.ToString('yyyy/MM/dd', x:Null)}" />
                         <Run Text=" - " />
                         <Run Text="{x:Bind CurrentShiyuDefense.EndTime.LocalDateTime.ToString('yyyy/MM/dd', x:Null)}" />
                     </TextBlock>
+                    <!--  分享  -->
+                    <Button Grid.Column="1"
+                            Width="32"
+                            Height="32"
+                            Padding="0"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Click="Button_ShareRecordImage_Click"
+                            IsEnabled="{x:Bind IsSharingRecordImage, Converter={StaticResource BoolReversedConverter}}"
+                            ToolTipService.ToolTip="{x:Bind lang:Lang.GamepadControlSetting_ShareButton}">
+                        <FontIcon FontSize="16"
+                                  Foreground="White"
+                                  Glyph="&#xE72D;"
+                                  IsTextScaleFactorEnabled="False" />
+                    </Button>
                 </Grid>
 
                 <!--  出战统计  -->
@@ -868,14 +889,35 @@
             <StackPanel Margin="24" Spacing="8">
 
                 <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
                     <!--  统计周期  -->
-                    <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}">
+                    <TextBlock VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}">
                         <Run Text="{x:Bind lang:Lang.ForgottenHallPage_Period}" />
                         <Run Text="" />
                         <Run Text="{x:Bind CurrentShiyuDefenseV2.BeginTime.LocalDateTime.ToString('yyyy/MM/dd', x:Null)}" />
                         <Run Text=" - " />
                         <Run Text="{x:Bind CurrentShiyuDefenseV2.EndTime.LocalDateTime.ToString('yyyy/MM/dd', x:Null)}" />
                     </TextBlock>
+                    <!--  分享  -->
+                    <Button Grid.Column="1"
+                            Width="32"
+                            Height="32"
+                            Padding="0"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Click="Button_ShareRecordImage_Click"
+                            IsEnabled="{x:Bind IsSharingRecordImage, Converter={StaticResource BoolReversedConverter}}"
+                            ToolTipService.ToolTip="{x:Bind lang:Lang.GamepadControlSetting_ShareButton}">
+                        <FontIcon FontSize="16"
+                                  Foreground="White"
+                                  Glyph="&#xE72D;"
+                                  IsTextScaleFactorEnabled="False" />
+                    </Button>
                 </Grid>
 
                 <!--  第五防线  -->

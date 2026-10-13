@@ -8,10 +8,12 @@ using Starward.Controls;
 using Starward.Core;
 using Starward.Core.GameRecord;
 using Starward.Core.GameRecord.StarRail.TrailblazeCalendar;
+using Starward.Features.GameRecord.Share;
 using Starward.Frameworks;
 using Starward.Helpers;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
@@ -311,6 +313,54 @@ public sealed partial class TrailblazeCalendarPage : PageBase
 
         public double PassProgress { get; set; }
 
+    }
+
+
+
+    public bool IsSharingRecordImage { get; set => SetProperty(ref field, value); }
+
+
+
+    private async void Button_ShareRecordImage_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (SelectMonthData is not { } data)
+            {
+                InAppToast.MainWindow?.Warning(Lang.HoyolabToolboxPage_NoData);
+                return;
+            }
+            var snapshot = new MonthlyReportShareSnapshot
+            {
+                FileStem = "trailblaze_calendar",
+                Title = $"{Lang.TravelersDiaryPage_HistoricalData}  {data.Month}",
+                Currencies =
+                [
+                    new MonthlyReportShareCurrency
+                    {
+                        Icon = "ms-appx:///Assets/Image/900001.png",
+                        Name = Lang.TrailblazeCalendarPage_StellarJade,
+                        Value = data.CurrentHcoin.ToString(CultureInfo.CurrentCulture),
+                    },
+                    new MonthlyReportShareCurrency
+                    {
+                        Icon = "ms-appx:///Assets/Image/101.png",
+                        Name = Lang.TrailblazeCalendarPage_PassAndSpecialPass,
+                        Value = data.CurrentRailsPass.ToString(CultureInfo.CurrentCulture),
+                    },
+                ],
+                SourcesTitle = Lang.TrailblazeCalendarPage_StellarJadeSources,
+                Sources = MonthlyReportShareSnapshot.CaptureSources(SelectSeries),
+            };
+            await GameRecordShareHelper.ShareAsync(this, gameRole, _logger,
+                busy => IsSharingRecordImage = busy,
+                (bg, accent) => MonthlyReportShareRenderer.RenderAndSaveAsync(snapshot, gameRole.Uid, bg, accent));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Share game record image");
+            InAppToast.MainWindow?.Error(Lang.Common_Error);
+        }
     }
 
 
