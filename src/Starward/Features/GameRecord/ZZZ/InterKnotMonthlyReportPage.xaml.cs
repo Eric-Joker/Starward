@@ -9,10 +9,12 @@ using Starward.Controls;
 using Starward.Core;
 using Starward.Core.GameRecord;
 using Starward.Core.GameRecord.ZZZ.InterKnotReport;
+using Starward.Features.GameRecord.Share;
 using Starward.Frameworks;
 using Starward.Helpers;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
@@ -373,6 +375,45 @@ public sealed partial class InterKnotMonthlyReportPage : PageBase
     public static int GetPolychromeCount(InterKnotReportMonthData monthData)
     {
         return monthData?.List?.FirstOrDefault(a => a.DataType == InterKnotReportDataType.PolychromesData)?.Count ?? 0;
+    }
+
+
+
+    public bool IsSharingRecordImage { get; set => SetProperty(ref field, value); }
+
+
+
+    private async void Button_ShareRecordImage_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (SelectMonthData is not { } data)
+            {
+                InAppToast.MainWindow?.Warning(Lang.HoyolabToolboxPage_NoData);
+                return;
+            }
+            var snapshot = new MonthlyReportShareSnapshot
+            {
+                FileStem = "interknot_report",
+                Title = $"{Lang.TravelersDiaryPage_HistoricalData}  {data.DataMonth}",
+                Currencies = (data.MonthData?.List ?? []).Select(a => new MonthlyReportShareCurrency
+                {
+                    Icon = DataTypeToImage(a.DataType)?.UriSource?.OriginalString ?? "",
+                    Name = a.DataName,
+                    Value = a.Count.ToString(CultureInfo.CurrentCulture),
+                }).ToList(),
+                SourcesTitle = Lang.InterKnotMonthlyReportPage_PolychromeRevenueStreams,
+                Sources = MonthlyReportShareSnapshot.CaptureSources(SelectSeries),
+            };
+            await GameRecordShareHelper.ShareAsync(this, gameRole, _logger,
+                busy => IsSharingRecordImage = busy,
+                (bg, accent) => MonthlyReportShareRenderer.RenderAndSaveAsync(snapshot, gameRole.Uid, bg, accent));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Share game record image");
+            InAppToast.MainWindow?.Error(Lang.Common_Error);
+        }
     }
 
 

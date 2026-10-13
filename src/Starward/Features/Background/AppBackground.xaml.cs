@@ -515,6 +515,49 @@ public sealed partial class AppBackground : UserControl
     }
 
 
+    /// <summary>
+    /// 把正在播放的视频背景的<b>当前帧</b>存成一张 PNG 并返回文件路径；
+    /// 没有在放视频背景、当前显示的不是 <paramref name="gameId"/> 的背景、
+    /// 或者视频还没出帧时返回 null。
+    /// <para>
+    /// 视频壁纸的帧只存在于 <see cref="_mediaPlayer"/> 里，磁盘上没有对应的图片文件
+    /// （<see cref="BackgroundService.GetCachedBackgroundFile"/> 给出的是视频文件本身），
+    /// 分享图需要一张静态背景时就现抓这一帧。
+    /// </para>
+    /// <para>必须在 UI 线程调用：<see cref="MediaPlayer.CopyFrameToVideoSurface"/> 要用到播放器的 DispatcherQueue。</para>
+    /// </summary>
+    public async Task<string?> CaptureCurrentVideoFrameAsync(GameId gameId)
+    {
+        try
+        {
+            if (gameId is null || _mediaPlayer is null || CurrentGameId?.GameBiz != gameId.GameBiz)
+            {
+                return null;
+            }
+            int width = (int)_mediaPlayer.PlaybackSession.NaturalVideoWidth;
+            int height = (int)_mediaPlayer.PlaybackSession.NaturalVideoHeight;
+            if (width <= 0 || height <= 0)
+            {
+                return null;
+            }
+            // 先在 UI 线程把这一帧拷进一块新表面：拷完就和播放器无关了，
+            // 之后异步落盘期间即使背景被换掉也不会拿到半张图。
+            using var frame = new CanvasRenderTarget(CanvasDevice.GetSharedDevice(), width, height, 96);
+            _mediaPlayer.CopyFrameToVideoSurface(frame);
+            string folder = Path.Join(AppConfig.CacheFolder, "bgframe");
+            Directory.CreateDirectory(folder);
+            string file = Path.Join(folder, $"{gameId.GameBiz}.png");
+            await frame.SaveAsync(file, CanvasBitmapFileFormat.Png);
+            return file;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Capture current video background frame ({gameId})", gameId);
+            return null;
+        }
+    }
+
+
     private async Task PrepareVideoOverlayImageAsync(string url, CancellationToken cancellationToken = default)
     {
         try
