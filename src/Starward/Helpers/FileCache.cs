@@ -189,6 +189,28 @@ internal static class FileCache
     }
 
 
+    /// <summary>
+    /// 只在磁盘缓存里查找已下载的文件，找不到返回 null。
+    /// <para>绝不触发下载——供分享图渲染等只需要读取已缓存图标的场景复用。</para>
+    /// </summary>
+    /// <param name="url">图标的 http(s) URL。</param>
+    /// <returns>已存在的非空缓存文件路径；未缓存时返回 null。</returns>
+    public static string? GetCachedFilePath(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            return null;
+        }
+        string? folder = CacheFolder;
+        if (string.IsNullOrWhiteSpace(folder))
+        {
+            return null;
+        }
+        string filePath = Path.Combine(folder, GetCacheFileName(url));
+        return File.Exists(filePath) && new FileInfo(filePath).Length > 0 ? filePath : null;
+    }
+
+
     public static async void DeleteCacheFile(string url)
     {
         try

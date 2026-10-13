@@ -4,6 +4,7 @@ using Microsoft.UI;
 using Microsoft.UI.Xaml.Data;
 using Microsoft.UI.Xaml.Media;
 using Starward.Core;
+using Starward.Core.Gacha;
 using Starward.Core.Gacha.Genshin;
 using Starward.Core.Localization;
 using Starward.Features.Database;
@@ -48,6 +49,72 @@ internal class GenshinBeyondGachaService
     public string? GetGachaLogUrlFromWebCache(GameBiz gameBiz, string path)
     {
         return GenshinBeyondGachaClient.GetGachaUrlFromWebCache(gameBiz, path);
+    }
+
+
+
+    /// <summary>
+    /// 从网页缓存提取多个候选 URL，并依次调用官方接口校验 authkey，返回第一个有效的 URL。
+    /// 全部候选都因 authkey 过期失败时抛出最后一次 <see cref="GachaApiException"/>，供 UI 引导用户清理缓存。
+    /// </summary>
+    /// <param name="gameBiz">游戏业务线。</param>
+    /// <param name="path">游戏安装根目录。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>校验通过的 URL；没有任何候选时返回 null。</returns>
+    /// <exception cref="GachaApiException">所有候选的 authkey 均已过期时抛出。</exception>
+    public async Task<string?> GetValidatedGachaLogUrlFromWebCacheAsync(GameBiz gameBiz, string path, CancellationToken cancellationToken = default)
+    {
+        var candidates = GenshinBeyondGachaClient.GetGachaUrlCandidatesFromWebCache(gameBiz, path);
+        if (candidates.Count == 0)
+        {
+            return null;
+        }
+
+        GachaApiException? lastAuthError = null;
+        foreach (var url in candidates)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                // uid==0 仍说明 authkey 有效；authkey 过期会抛 GachaApiException
+                await _client.GetUidByGachaUrlAsync(url);
+                return url;
+            }
+            catch (GachaApiException ex) when (ex.IsAuthkeyExpired)
+            {
+                _logger.LogInformation("Beyond gacha authkey candidate expired, try next: {Message}", ex.Message);
+                lastAuthError = ex;
+            }
+            catch (ArgumentException ex)
+            {
+                _logger.LogDebug(ex, "Skip unparsable beyond gacha URL candidate");
+            }
+        }
+
+        if (lastAuthError is not null)
+        {
+            throw lastAuthError;
+        }
+        return null;
+    }
+
+
+
+    /// <summary>
+    /// 删除本地保存的 Beyond 抽卡 URL（用于清理已过期的 authkey，例如一键删除 webCaches 之后）。
+    /// </summary>
+    /// <param name="uid">可选 UID；为 null 或 &lt;= 0 时清除 hk4eugc 下全部 URL。</param>
+    public void DeleteSavedGachaLogUrl(long? uid = null)
+    {
+        using var dapper = DatabaseService.CreateConnection();
+        if (uid is > 0)
+        {
+            dapper.Execute("DELETE FROM GachaLogUrl WHERE Uid = @uid AND GameBiz = @GameBiz;", new { uid, GameBiz = "hk4eugc" });
+        }
+        else
+        {
+            dapper.Execute("DELETE FROM GachaLogUrl WHERE GameBiz = @GameBiz;", new { GameBiz = "hk4eugc" });
+        }
     }
 
 

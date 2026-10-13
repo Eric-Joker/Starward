@@ -39,4 +39,11 @@ public partial class GachaLogItemEx : GachaLogItem
 
     public double UpTextOpacity => IsUp ? 1 : 0;
 
+
+    /// <summary>
+    /// 紧凑视图图标方块的悬停提示：名称 + 换行 + 抽取时间。
+    /// 方块内只画图标与抽数，名称与时间靠悬停提示补足（与列表视图行内的文案等价）。
+    /// </summary>
+    public string RecordTooltipText => $"{Name}\n{Time:yyyy-MM-dd HH:mm:ss}";
+
 }

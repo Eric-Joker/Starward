@@ -8525,5 +8525,302 @@ namespace Starward.Language {
             }
         }
         
+        /// <summary>
+        ///   查找类似 Auto-claim free time 的本地化字符串。
+        /// </summary>
+        public static string CloudGameButton_AutoClaimFreeTime {
+            get {
+                return ResourceManager.GetString("CloudGameButton_AutoClaimFreeTime", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Bangboo Points Time 的本地化字符串。
+        /// </summary>
+        public static string CloudGameButton_BangbooPointsTime {
+            get {
+                return ResourceManager.GetString("CloudGameButton_BangbooPointsTime", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 The sign-in credential can only be read after you sign in to the cloud game client. 的本地化字符串。
+        /// </summary>
+        public static string CloudGameButton_CredentialFromClient {
+            get {
+                return ResourceManager.GetString("CloudGameButton_CredentialFromClient", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 {0} d 的本地化字符串。
+        /// </summary>
+        public static string CloudGameButton_Days {
+            get {
+                return ResourceManager.GetString("CloudGameButton_Days", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 {0} d {1} h 的本地化字符串。
+        /// </summary>
+        public static string CloudGameButton_DaysHours {
+            get {
+                return ResourceManager.GetString("CloudGameButton_DaysHours", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Free Time 的本地化字符串。
+        /// </summary>
+        public static string CloudGameButton_FreeTime {
+            get {
+                return ResourceManager.GetString("CloudGameButton_FreeTime", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 {0} h 的本地化字符串。
+        /// </summary>
+        public static string CloudGameButton_Hours {
+            get {
+                return ResourceManager.GetString("CloudGameButton_Hours", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 {0} h {1} min 的本地化字符串。
+        /// </summary>
+        public static string CloudGameButton_HoursMinutes {
+            get {
+                return ResourceManager.GetString("CloudGameButton_HoursMinutes", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 {0} min 的本地化字符串。
+        /// </summary>
+        public static string CloudGameButton_Minutes {
+            get {
+                return ResourceManager.GetString("CloudGameButton_Minutes", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Play Card 的本地化字符串。
+        /// </summary>
+        public static string CloudGameButton_PlayCard {
+            get {
+                return ResourceManager.GetString("CloudGameButton_PlayCard", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Not activated 的本地化字符串。
+        /// </summary>
+        public static string CloudGameButton_PlayCardInactive {
+            get {
+                return ResourceManager.GetString("CloudGameButton_PlayCardInactive", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Yuan Points Time 的本地化字符串。
+        /// </summary>
+        public static string CloudGameButton_YuanPointsTime {
+            get {
+                return ResourceManager.GetString("CloudGameButton_YuanPointsTime", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Download 的本地化字符串。
+        /// </summary>
+        public static string Common_Download {
+            get {
+                return ResourceManager.GetString("Common_Download", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Removed from device 的本地化字符串。
+        /// </summary>
+        public static string FavorWallpaper_Deleted {
+            get {
+                return ResourceManager.GetString("FavorWallpaper_Deleted", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Failed to delete 的本地化字符串。
+        /// </summary>
+        public static string FavorWallpaper_DeleteFailed {
+            get {
+                return ResourceManager.GetString("FavorWallpaper_DeleteFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Download completed 的本地化字符串。
+        /// </summary>
+        public static string FavorWallpaper_DownloadCompleted {
+            get {
+                return ResourceManager.GetString("FavorWallpaper_DownloadCompleted", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Download failed 的本地化字符串。
+        /// </summary>
+        public static string FavorWallpaper_DownloadFailed {
+            get {
+                return ResourceManager.GetString("FavorWallpaper_DownloadFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 In Use 的本地化字符串。
+        /// </summary>
+        public static string FavorWallpaper_InUse {
+            get {
+                return ResourceManager.GetString("FavorWallpaper_InUse", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Failed to load trust wallpapers 的本地化字符串。
+        /// </summary>
+        public static string FavorWallpaper_LoadFailed {
+            get {
+                return ResourceManager.GetString("FavorWallpaper_LoadFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Loading {0}/{1} 的本地化字符串。
+        /// </summary>
+        public static string FavorWallpaper_LoadingProgress {
+            get {
+                return ResourceManager.GetString("FavorWallpaper_LoadingProgress", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Mindscape Wallpapers 的本地化字符串。
+        /// </summary>
+        public static string FavorWallpaper_MindscapeTitle {
+            get {
+                return ResourceManager.GetString("FavorWallpaper_MindscapeTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Background updated 的本地化字符串。
+        /// </summary>
+        public static string FavorWallpaper_SetSuccess {
+            get {
+                return ResourceManager.GetString("FavorWallpaper_SetSuccess", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Shuffle mode 的本地化字符串。
+        /// </summary>
+        public static string FavorWallpaper_ShuffleMode {
+            get {
+                return ResourceManager.GetString("FavorWallpaper_ShuffleMode", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Download some wallpapers first, then turn on shuffle mode. 的本地化字符串。
+        /// </summary>
+        public static string FavorWallpaper_ShuffleNeedDownload {
+            get {
+                return ResourceManager.GetString("FavorWallpaper_ShuffleNeedDownload", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Trust Wallpapers 的本地化字符串。
+        /// </summary>
+        public static string FavorWallpaper_Title {
+            get {
+                return ResourceManager.GetString("FavorWallpaper_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Cache folder deleted. Restart the game, open the gacha history page, then update records. 的本地化字符串。
+        /// </summary>
+        public static string GachaLogPage_CacheFolderDeleted {
+            get {
+                return ResourceManager.GetString("GachaLogPage_CacheFolderDeleted", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Cache folder not found. 的本地化字符串。
+        /// </summary>
+        public static string GachaLogPage_CacheFolderNotFound {
+            get {
+                return ResourceManager.GetString("GachaLogPage_CacheFolderNotFound", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Cannot delete the cache while the game is running. Please quit the game first. 的本地化字符串。
+        /// </summary>
+        public static string GachaLogPage_CannotDeleteCacheWhileGameIsRunning {
+            get {
+                return ResourceManager.GetString("GachaLogPage_CannotDeleteCacheWhileGameIsRunning", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 This will delete the game's webCaches folder used for gacha URL authkeys. After deleting, restart the game and open the gacha history page, then update records again. The game must be closed first. 的本地化字符串。
+        /// </summary>
+        public static string GachaLogPage_DeleteCacheFolderConfirmContent {
+            get {
+                return ResourceManager.GetString("GachaLogPage_DeleteCacheFolderConfirmContent", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Delete game webCaches? 的本地化字符串。
+        /// </summary>
+        public static string GachaLogPage_DeleteCacheFolderConfirmTitle {
+            get {
+                return ResourceManager.GetString("GachaLogPage_DeleteCacheFolderConfirmTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Open Folder 的本地化字符串。
+        /// </summary>
+        public static string GachaLogPage_OpenCacheFolder {
+            get {
+                return ResourceManager.GetString("GachaLogPage_OpenCacheFolder", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Validating gacha URL… 的本地化字符串。
+        /// </summary>
+        public static string GachaLogPage_ValidatingGachaUrl {
+            get {
+                return ResourceManager.GetString("GachaLogPage_ValidatingGachaUrl", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 No-UP rate 的本地化字符串。
+        /// </summary>
+        public static string GachaStatsCard_NoUpProbability {
+            get {
+                return ResourceManager.GetString("GachaStatsCard_NoUpProbability", resourceCulture);
+            }
+        }
+        
     }
 }

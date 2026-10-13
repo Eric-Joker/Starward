@@ -2972,4 +2972,103 @@
 <data name="SettingPage_StartAtLoginWindowsSettings" xml:space="preserve">
     <value>Windows 启动应用</value>
   </data>
+<data name="CloudGameButton_AutoClaimFreeTime" xml:space="preserve">
+    <value>自动获取免费时长</value>
+  </data>
+<data name="CloudGameButton_BangbooPointsTime" xml:space="preserve">
+    <value>邦邦点时长</value>
+  </data>
+<data name="CloudGameButton_CredentialFromClient" xml:space="preserve">
+    <value>登录凭证需要在云游戏客户端登录后才能获取。</value>
+  </data>
+<data name="CloudGameButton_Days" xml:space="preserve">
+    <value>{0} 天</value>
+  </data>
+<data name="CloudGameButton_DaysHours" xml:space="preserve">
+    <value>{0} 天 {1} 小时</value>
+  </data>
+<data name="CloudGameButton_FreeTime" xml:space="preserve">
+    <value>免费时长</value>
+  </data>
+<data name="CloudGameButton_Hours" xml:space="preserve">
+    <value>{0} 小时</value>
+  </data>
+<data name="CloudGameButton_HoursMinutes" xml:space="preserve">
+    <value>{0} 小时 {1} 分钟</value>
+  </data>
+<data name="CloudGameButton_Minutes" xml:space="preserve">
+    <value>{0} 分钟</value>
+  </data>
+<data name="CloudGameButton_PlayCard" xml:space="preserve">
+    <value>畅玩卡</value>
+  </data>
+<data name="CloudGameButton_PlayCardInactive" xml:space="preserve">
+    <value>未开通</value>
+  </data>
+<data name="CloudGameButton_YuanPointsTime" xml:space="preserve">
+    <value>原点时长</value>
+  </data>
+<data name="Common_Download" xml:space="preserve">
+    <value>下载</value>
+  </data>
+<data name="FavorWallpaper_Deleted" xml:space="preserve">
+    <value>已从本地删除</value>
+  </data>
+<data name="FavorWallpaper_DeleteFailed" xml:space="preserve">
+    <value>删除失败</value>
+  </data>
+<data name="FavorWallpaper_DownloadCompleted" xml:space="preserve">
+    <value>下载完成</value>
+  </data>
+<data name="FavorWallpaper_DownloadFailed" xml:space="preserve">
+    <value>下载失败</value>
+  </data>
+<data name="FavorWallpaper_InUse" xml:space="preserve">
+    <value>使用中</value>
+  </data>
+<data name="FavorWallpaper_LoadFailed" xml:space="preserve">
+    <value>加载好感壁纸失败</value>
+  </data>
+<data name="FavorWallpaper_LoadingProgress" xml:space="preserve">
+    <value>正在加载 {0}/{1}</value>
+  </data>
+<data name="FavorWallpaper_MindscapeTitle" xml:space="preserve">
+    <value>满影画壁纸</value>
+  </data>
+<data name="FavorWallpaper_SetSuccess" xml:space="preserve">
+    <value>已设为背景</value>
+  </data>
+<data name="FavorWallpaper_ShuffleMode" xml:space="preserve">
+    <value>随机模式</value>
+  </data>
+<data name="FavorWallpaper_ShuffleNeedDownload" xml:space="preserve">
+    <value>请先下载壁纸，再开启随机模式。</value>
+  </data>
+<data name="FavorWallpaper_Title" xml:space="preserve">
+    <value>好感壁纸</value>
+  </data>
+<data name="GachaLogPage_CacheFolderDeleted" xml:space="preserve">
+    <value>已删除缓存文件夹。请重启游戏，打开抽卡记录页后再更新。</value>
+  </data>
+<data name="GachaLogPage_CacheFolderNotFound" xml:space="preserve">
+    <value>未找到缓存文件夹。</value>
+  </data>
+<data name="GachaLogPage_CannotDeleteCacheWhileGameIsRunning" xml:space="preserve">
+    <value>游戏正在运行，无法删除缓存。请先退出游戏。</value>
+  </data>
+<data name="GachaLogPage_DeleteCacheFolderConfirmContent" xml:space="preserve">
+    <value>将删除游戏用于抽卡链接 authkey 的 webCaches 文件夹。删除后请重启游戏并打开游戏内抽卡记录页，再点更新记录。删除前须先退出游戏。</value>
+  </data>
+<data name="GachaLogPage_DeleteCacheFolderConfirmTitle" xml:space="preserve">
+    <value>删除游戏 webCaches？</value>
+  </data>
+<data name="GachaLogPage_OpenCacheFolder" xml:space="preserve">
+    <value>打开文件夹</value>
+  </data>
+<data name="GachaLogPage_ValidatingGachaUrl" xml:space="preserve">
+    <value>正在校验抽卡链接…</value>
+  </data>
+<data name="GachaStatsCard_NoUpProbability" xml:space="preserve">
+    <value>不歪概率</value>
+  </data>
 </root>
