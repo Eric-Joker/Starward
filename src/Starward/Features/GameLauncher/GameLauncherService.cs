@@ -360,8 +360,10 @@ internal partial class GameLauncherService
                     throw new FileNotFoundException("Game exe not found", name);
                 }
             }
-            arg = AppConfig.GetStartArgument(gameId.GameBiz)?.Trim();
-            if (AppConfig.GetEnableAuthTicketLogin(gameId.GameBiz))
+            // 启动参数、自动登录和 DX12 都属于启动预设，取该区服当前选中的预设。
+            GameLaunchProfile profile = GameLaunchProfileStore.GetCurrentProfile(gameId.GameBiz);
+            arg = profile.Argument?.Trim();
+            if (profile.EnableAuthTicketLogin)
             {
                 string? ticket = await _gameAuthLoginService.CreateAuthTicketByGameBiz(gameId);
                 if (!string.IsNullOrWhiteSpace(ticket))
@@ -373,7 +375,7 @@ internal partial class GameLauncherService
             {
                 arg += " -popupwindow";
             }
-            if (AppConfig.GetEnableDX12(gameId.GameBiz))
+            if (profile.EnableDX12)
             {
                 arg += " -use-d3d12";
             }

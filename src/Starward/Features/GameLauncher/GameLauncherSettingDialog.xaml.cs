@@ -138,11 +138,14 @@ public sealed partial class GameLauncherSettingDialog : ContentDialog
         InitializeStartArgument();
         InitializeCustomBg();
         await InitializeGamePackagesAsync();
+        // 对话框还开着的时候预设被改了或换人了，顶部那行预设名也要跟着变。
+        WeakReferenceMessenger.Default.Register<GameLaunchProfileChangedMessage>(this, OnGameLaunchProfileChanged);
     }
 
 
     private void GameLauncherSettingDialog_Unloaded(object sender, RoutedEventArgs e)
     {
+        WeakReferenceMessenger.Default.UnregisterAll(this);
         LatestPackageGroups = null!;
         PreInstallPackageGroups = null!;
         FlipView_Settings.Items.Clear();
@@ -615,13 +618,28 @@ public sealed partial class GameLauncherSettingDialog : ContentDialog
 
 
     /// <summary>
-    /// 命令行启动参数
+    /// 当前区服选中的启动预设。启动器里的游戏配置就是改这个预设。
+    /// </summary>
+    private GameLaunchProfile CurrentLaunchProfile => GameLaunchProfileStore.GetCurrentProfile(CurrentGameBiz);
+
+
+    /// <summary>
+    /// 当前预设名，显示在启动参数页顶部，说明这些设置改的是哪个预设。
+    /// 用带通知的属性而不是只读计算属性，否则换预设后这一行不会重新取值（WMC1506）。
+    /// 重新取值由 <see cref="InitializeStartArgument"/> 和 <see cref="OnGameLaunchProfileChanged"/> 触发。
+    /// </summary>
+    public string CurrentLaunchProfileName { get; set => SetProperty(ref field, value); }
+
+
+    /// <summary>
+    /// 命令行启动参数。属于当前预设，允许为空（不附加任何启动参数）。
     /// </summary>
     [ObservableProperty]
     public string? _StartGameArgument;
     partial void OnStartGameArgumentChanged(string? value)
     {
-        AppConfig.SetStartArgument(CurrentGameBiz, value);
+        CurrentLaunchProfile.Argument = value;
+        GameLaunchProfileStore.Save(CurrentGameBiz);
     }
 
 
@@ -654,13 +672,14 @@ public sealed partial class GameLauncherSettingDialog : ContentDialog
 
     /// <summary>
     /// 启动游戏时自动登录。用通行证令牌申请授权票据，只有国服的游戏才行，
-    /// 所以这个开关放在每个游戏的启动参数设置里、按游戏分别保存。
+    /// 所以这个开关放在每个游戏的启动参数设置里、按预设分别保存。
     /// </summary>
     [ObservableProperty]
     public bool _EnableAuthTicketLogin;
     partial void OnEnableAuthTicketLoginChanged(bool value)
     {
-        AppConfig.SetEnableAuthTicketLogin(CurrentGameBiz, value);
+        CurrentLaunchProfile.EnableAuthTicketLogin = value;
+        GameLaunchProfileStore.Save(CurrentGameBiz);
     }
 
 
@@ -682,16 +701,35 @@ public sealed partial class GameLauncherSettingDialog : ContentDialog
 
     private void InitializeStartArgument()
     {
-        _StartGameArgument = AppConfig.GetStartArgument(CurrentGameBiz);
+        GameLaunchProfile profile = CurrentLaunchProfile;
+        _StartGameArgument = profile.Argument;
         _EnableThirdPartyTool = AppConfig.GetEnableThirdPartyTool(CurrentGameBiz);
-        _EnableAuthTicketLogin = AppConfig.GetEnableAuthTicketLogin(CurrentGameBiz);
+        _EnableAuthTicketLogin = profile.EnableAuthTicketLogin;
         _ThirdPartyToolPath = GameLauncherService.GetThirdPartyToolPath(CurrentGameId);
+        // 当前预设可能已经换人了，标题那行预设名要跟着当前预设重新取值。
+        CurrentLaunchProfileName = profile.DisplayName;
         OnPropertyChanged(nameof(StartGameArgument));
         OnPropertyChanged(nameof(EnableThirdPartyTool));
         OnPropertyChanged(nameof(EnableAuthTicketLogin));
         OnPropertyChanged(nameof(ThirdPartyToolPath));
         // 自动登录用的是通行证令牌，只有国服的游戏才有。
         ToggleSwitch_AutoLogin.Visibility = CurrentGameBiz.IsChinaServer() ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+
+    /// <summary>
+    /// 预设被改名 / 新增 / 删除 / 排序，或者当前预设被换掉之后刷新：
+    /// 顶部那行预设名、命令行参数、第三方工具、自动登录、自定义背景都跟着当前预设走。
+    /// 和 <see cref="GameLauncherPage.OnGameLaunchProfileChanged"/> 同一个消息、同一种刷新方式。
+    /// </summary>
+    private void OnGameLaunchProfileChanged(object _, GameLaunchProfileChangedMessage message)
+    {
+        try
+        {
+            InitializeStartArgument();
+            InitializeCustomBg();
+        }
+        catch { }
     }
 
 
@@ -766,13 +804,14 @@ public sealed partial class GameLauncherSettingDialog : ContentDialog
 
 
     /// <summary>
-    /// 是否启用自定义背景
+    /// 是否启用自定义背景。属于当前预设。
     /// </summary>
     [ObservableProperty]
     public bool _EnableCustomBg;
     partial void OnEnableCustomBgChanged(bool value)
     {
-        AppConfig.SetEnableCustomBg(CurrentGameBiz, value);
+        CurrentLaunchProfile.EnableCustomBg = value;
+        GameLaunchProfileStore.Save(CurrentGameBiz);
         WeakReferenceMessenger.Default.Send(new BackgroundChangedMessage());
     }
 
@@ -791,8 +830,9 @@ public sealed partial class GameLauncherSettingDialog : ContentDialog
 
     private void InitializeCustomBg()
     {
-        _EnableCustomBg = AppConfig.GetEnableCustomBg(CurrentGameBiz);
-        CustomBg = AppConfig.GetCustomBg(CurrentGameBiz);
+        GameLaunchProfile profile = CurrentLaunchProfile;
+        _EnableCustomBg = profile.EnableCustomBg;
+        CustomBg = profile.CustomBg;
         OnPropertyChanged(nameof(EnableCustomBg));
     }
 
