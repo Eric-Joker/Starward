@@ -403,6 +403,177 @@ namespace Starward.Language {
         }
         
         /// <summary>
+        ///   查找类似 Day {0} 的本地化字符串。
+        /// </summary>
+        public static string AutoRecordRefresh_DayOfMonthFormat {
+            get {
+                return ResourceManager.GetString("AutoRecordRefresh_DayOfMonthFormat", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Days 的本地化字符串。
+        /// </summary>
+        public static string AutoRecordRefresh_Days {
+            get {
+                return ResourceManager.GetString("AutoRecordRefresh_Days", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Enable auto update 的本地化字符串。
+        /// </summary>
+        public static string AutoRecordRefresh_Enable {
+            get {
+                return ResourceManager.GetString("AutoRecordRefresh_Enable", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Update current month 的本地化字符串。
+        /// </summary>
+        public static string AutoRecordRefresh_EnableCurrentMonth {
+            get {
+                return ResourceManager.GetString("AutoRecordRefresh_EnableCurrentMonth", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Update previous month 的本地化字符串。
+        /// </summary>
+        public static string AutoRecordRefresh_EnablePreviousMonth {
+            get {
+                return ResourceManager.GetString("AutoRecordRefresh_EnablePreviousMonth", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Errors 的本地化字符串。
+        /// </summary>
+        public static string AutoRecordRefresh_Errors {
+            get {
+                return ResourceManager.GetString("AutoRecordRefresh_Errors", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Accounts and data sections skipped during auto update. The code and message come from HoYoLAB as they are. 的本地化字符串。
+        /// </summary>
+        public static string AutoRecordRefresh_ErrorsDescription {
+            get {
+                return ResourceManager.GetString("AutoRecordRefresh_ErrorsDescription", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Frequency 的本地化字符串。
+        /// </summary>
+        public static string AutoRecordRefresh_Frequency {
+            get {
+                return ResourceManager.GetString("AutoRecordRefresh_Frequency", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Last update 的本地化字符串。
+        /// </summary>
+        public static string AutoRecordRefresh_LastUpdate {
+            get {
+                return ResourceManager.GetString("AutoRecordRefresh_LastUpdate", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Every few days 的本地化字符串。
+        /// </summary>
+        public static string AutoRecordRefresh_ModeEveryDays {
+            get {
+                return ResourceManager.GetString("AutoRecordRefresh_ModeEveryDays", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Monthly 的本地化字符串。
+        /// </summary>
+        public static string AutoRecordRefresh_ModeMonthly {
+            get {
+                return ResourceManager.GetString("AutoRecordRefresh_ModeMonthly", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Weekly 的本地化字符串。
+        /// </summary>
+        public static string AutoRecordRefresh_ModeWeekly {
+            get {
+                return ResourceManager.GetString("AutoRecordRefresh_ModeWeekly", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Current month 的本地化字符串。
+        /// </summary>
+        public static string AutoRecordRefresh_MonthCurrent {
+            get {
+                return ResourceManager.GetString("AutoRecordRefresh_MonthCurrent", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Previous month 的本地化字符串。
+        /// </summary>
+        public static string AutoRecordRefresh_MonthPrevious {
+            get {
+                return ResourceManager.GetString("AutoRecordRefresh_MonthPrevious", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Month 的本地化字符串。
+        /// </summary>
+        public static string AutoRecordRefresh_MonthTarget {
+            get {
+                return ResourceManager.GetString("AutoRecordRefresh_MonthTarget", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Never 的本地化字符串。
+        /// </summary>
+        public static string AutoRecordRefresh_NeverUpdated {
+            get {
+                return ResourceManager.GetString("AutoRecordRefresh_NeverUpdated", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Next update 的本地化字符串。
+        /// </summary>
+        public static string AutoRecordRefresh_NextUpdate {
+            get {
+                return ResourceManager.GetString("AutoRecordRefresh_NextUpdate", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 No errors 的本地化字符串。
+        /// </summary>
+        public static string AutoRecordRefresh_NoErrors {
+            get {
+                return ResourceManager.GetString("AutoRecordRefresh_NoErrors", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Auto update 的本地化字符串。
+        /// </summary>
+        public static string AutoRecordRefresh_Title {
+            get {
+                return ResourceManager.GetString("AutoRecordRefresh_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   查找类似 {0} duplicate file(s) has been deleted. 的本地化字符串。
         /// </summary>
         public static string BackgroundViewPage_0DuplicateFileSHasBeenDeleted {
@@ -2367,6 +2538,33 @@ namespace Starward.Language {
         }
         
         /// <summary>
+        ///   查找类似 Cache folder deleted. Restart the game, open the gacha history page, then update records. 的本地化字符串。
+        /// </summary>
+        public static string GachaLogPage_CacheFolderDeleted {
+            get {
+                return ResourceManager.GetString("GachaLogPage_CacheFolderDeleted", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Cache folder not found. 的本地化字符串。
+        /// </summary>
+        public static string GachaLogPage_CacheFolderNotFound {
+            get {
+                return ResourceManager.GetString("GachaLogPage_CacheFolderNotFound", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Cannot delete the cache while the game is running. Please quit the game first. 的本地化字符串。
+        /// </summary>
+        public static string GachaLogPage_CannotDeleteCacheWhileGameIsRunning {
+            get {
+                return ResourceManager.GetString("GachaLogPage_CannotDeleteCacheWhileGameIsRunning", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   查找类似 Cannot find saved URL of UID {0}. 的本地化字符串。
         /// </summary>
         public static string GachaLogPage_CannotFindSavedURLOfUid {
@@ -2426,6 +2624,24 @@ namespace Starward.Language {
         public static string GachaLogPage_DeleteCacheFolder {
             get {
                 return ResourceManager.GetString("GachaLogPage_DeleteCacheFolder", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 This will delete the game&apos;s webCaches folder used for gacha URL authkeys. After deleting, restart the game and open the gacha history page, then update records again. The game must be closed first. 的本地化字符串。
+        /// </summary>
+        public static string GachaLogPage_DeleteCacheFolderConfirmContent {
+            get {
+                return ResourceManager.GetString("GachaLogPage_DeleteCacheFolderConfirmContent", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Delete game webCaches? 的本地化字符串。
+        /// </summary>
+        public static string GachaLogPage_DeleteCacheFolderConfirmTitle {
+            get {
+                return ResourceManager.GetString("GachaLogPage_DeleteCacheFolderConfirmTitle", resourceCulture);
             }
         }
         
@@ -2543,6 +2759,15 @@ namespace Starward.Language {
         public static string GachaLogPage_OnlySupportZZZCNServer {
             get {
                 return ResourceManager.GetString("GachaLogPage_OnlySupportZZZCNServer", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Open Folder 的本地化字符串。
+        /// </summary>
+        public static string GachaLogPage_OpenCacheFolder {
+            get {
+                return ResourceManager.GetString("GachaLogPage_OpenCacheFolder", resourceCulture);
             }
         }
         
@@ -2741,6 +2966,15 @@ namespace Starward.Language {
         public static string GachaLogPage_UpdateSavedURL {
             get {
                 return ResourceManager.GetString("GachaLogPage_UpdateSavedURL", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Validating gacha URL… 的本地化字符串。
+        /// </summary>
+        public static string GachaLogPage_ValidatingGachaUrl {
+            get {
+                return ResourceManager.GetString("GachaLogPage_ValidatingGachaUrl", resourceCulture);
             }
         }
         
@@ -5704,6 +5938,24 @@ namespace Starward.Language {
         }
         
         /// <summary>
+        ///   查找类似 World Map 的本地化字符串。
+        /// </summary>
+        public static string MapTool_BigMap {
+            get {
+                return ResourceManager.GetString("MapTool_BigMap", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Map 的本地化字符串。
+        /// </summary>
+        public static string MapTool_Map {
+            get {
+                return ResourceManager.GetString("MapTool_Map", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   查找类似 The program does not have permission to access the following folder. Please restart as administrator or move the folder. 的本地化字符串。
         /// </summary>
         public static string NoPermissionWindow_NoPermissionToFolderRestartOrClose {
@@ -7950,6 +8202,33 @@ namespace Starward.Language {
         public static string TheScreenshotFeatureDoesNotSupportCloudGame {
             get {
                 return ResourceManager.GetString("TheScreenshotFeatureDoesNotSupportCloudGame", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Current Warp 的本地化字符串。
+        /// </summary>
+        public static string TimeNode_Section_CurrentEventWarp {
+            get {
+                return ResourceManager.GetString("TimeNode_Section_CurrentEventWarp", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Current Wish 的本地化字符串。
+        /// </summary>
+        public static string TimeNode_Section_CurrentLimitedWish {
+            get {
+                return ResourceManager.GetString("TimeNode_Section_CurrentLimitedWish", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Current Signal Search 的本地化字符串。
+        /// </summary>
+        public static string TimeNode_Section_CurrentSignalSearch {
+            get {
+                return ResourceManager.GetString("TimeNode_Section_CurrentSignalSearch", resourceCulture);
             }
         }
         
