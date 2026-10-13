@@ -299,7 +299,8 @@ internal class GameInstallService
             _tasks.TryRemove(context.GameId, out _);
         }
         TaskStateChanged?.Invoke(this, context);
-        if (_tasks.Values.FirstOrDefault(x => x.State is not GameInstallState.Paused and not GameInstallState.Error && x != context) is GameInstallContext anotherTask)
+        // 按提交顺序先进先出：字典的枚举顺序并不固定，否则排队任务可能不按用户点选的顺序执行。
+        if (_tasks.Values.Where(x => x.State is not GameInstallState.Paused and not GameInstallState.Error && x != context).MinBy(x => x.QueueSequence) is GameInstallContext anotherTask)
         {
             CurrentTask = anotherTask;
             StartOrContinueTask(anotherTask);
