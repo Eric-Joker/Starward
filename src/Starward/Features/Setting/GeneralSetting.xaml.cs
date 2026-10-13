@@ -176,6 +176,53 @@ public sealed partial class GeneralSetting : PageBase
 
 
 
+    #region 开机自启
+
+
+
+    /// <summary>可移动存储上不提供开机自启：盘符换了快捷方式就失效。</summary>
+    public bool StartAtLoginAvailable { get; } = AutoStartService.IsAvailable;
+
+
+    /// <summary>
+    /// 开机自启。实现方式是在用户「启动」文件夹放一个快捷方式（不写注册表），
+    /// 用户可以在任务管理器的启动页里直接关掉。
+    /// </summary>
+    public bool StartAtLogin
+    {
+        get; set
+        {
+            if (!SetProperty(ref field, value))
+            {
+                return;
+            }
+            try
+            {
+                if (value)
+                {
+                    AutoStartService.Enable();
+                }
+                else
+                {
+                    AutoStartService.Disable();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Set start at login");
+                // 失败时把开关拨回去，别让界面显示一个没生效的状态。
+                field = !value;
+                OnPropertyChanged(nameof(StartAtLogin));
+            }
+        }
+    } = AutoStartService.IsAvailable && AutoStartService.IsEnabled();
+
+
+
+    #endregion
+
+
+
     #region 游戏账号切换
 
 
@@ -209,6 +256,18 @@ public sealed partial class GeneralSetting : PageBase
     private async void Hyperlink_VisualEffects_Click(Microsoft.UI.Xaml.Documents.Hyperlink sender, Microsoft.UI.Xaml.Documents.HyperlinkClickEventArgs args)
     {
         await Launcher.LaunchUriAsync(new Uri("ms-settings:easeofaccess-visualeffects"));
+    }
+
+
+
+    /// <summary>
+    /// 打开 Windows 的「启动应用」页，用户可以在那里看到并关掉开机自启。
+    /// </summary>
+    /// <param name="sender"></param>
+    /// <param name="args"></param>
+    private async void Hyperlink_StartupApps_Click(Microsoft.UI.Xaml.Documents.Hyperlink sender, Microsoft.UI.Xaml.Documents.HyperlinkClickEventArgs args)
+    {
+        await Launcher.LaunchUriAsync(new Uri("ms-settings:startupapps"));
     }
 
 
