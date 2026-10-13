@@ -166,6 +166,16 @@ public class GameInstallContext
     internal GameInstallState CancelState { get; private set; } = GameInstallState.Queueing;
 
 
+    private static long s_queueSequence;
+
+
+    /// <summary>
+    /// 任务创建顺序。当前任务结束后按它先进先出地挑选下一个排队任务，
+    /// 因为任务字典的枚举顺序并不固定。
+    /// </summary>
+    internal long QueueSequence { get; } = Interlocked.Increment(ref s_queueSequence);
+
+
     internal void Cancel(GameInstallState state)
     {
         CancelState = state;
