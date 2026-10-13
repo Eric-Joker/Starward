@@ -126,13 +126,64 @@ internal sealed class PlayTimeStatsService
 
 
     /// <summary>
+    /// bilibili 服与官服共用一份时长数据，统一折算成官服 <see cref="GameBiz"/> 作为存储与查询键。
+    /// 记录、统计、缓存总时长的 KVT 键都必须经过这里，否则会出现写入与读取用不同键（时长显示为 0）。
+    /// </summary>
+    public static GameBiz NormalizeBiz(GameBiz biz)
+    {
+        return biz.IsBilibili() ? $"{biz.Game}_cn" : biz;
+    }
+
+
+
+    /// <summary>
+    /// 缓存总时长的 KVT 键，供按钮与统计对话框共用。
+    /// </summary>
+    public static string TotalPlayTimeKey(GameBiz biz)
+    {
+        return $"playtime_total_{NormalizeBiz(biz)}";
+    }
+
+
+
+    /// <summary>
+    /// 列出有游戏时长记录的游戏（已归一化 GameBiz），按总时长从多到少排序。
+    /// </summary>
+    public List<GameBiz> GetRecordedGameBizs()
+    {
+        try
+        {
+            using var dapper = DatabaseService.CreateConnection();
+            // PlayTimeItem 里是尚未归档成会话的近期记录，一并纳入，避免刚玩过的游戏不在列表里
+            List<(string GameBiz, long TotalMs)> rows = dapper.Query<(string GameBiz, long TotalMs)>("""
+                SELECT GameBiz, SUM(MAX(EndTime - StartTime, 0)) AS TotalMs FROM PlayTimeStats GROUP BY GameBiz
+                UNION ALL
+                SELECT GameBiz, 0 AS TotalMs FROM PlayTimeItem GROUP BY GameBiz;
+                """).ToList();
+            return rows.GroupBy(x => x.GameBiz, StringComparer.OrdinalIgnoreCase)
+                       .Select(x => (Biz: GameBiz.TryParse(x.Key, out GameBiz biz) ? biz : default, Total: x.Sum(y => y.TotalMs)))
+                       .Where(x => x.Biz.IsKnown())
+                       .OrderByDescending(x => x.Total)
+                       .Select(x => x.Biz)
+                       .ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Get recorded game bizs");
+            return [];
+        }
+    }
+
+
+
+    /// <summary>
     /// 获取总游戏时间（全历史范围）
     /// </summary>
     /// <param name="biz"></param>
     /// <returns></returns>
     public TimeSpan GetPlayTimeTotal(GameBiz biz)
     {
-        biz = biz.IsBilibili() ? $"{biz.Game}_cn" : biz;
+        biz = NormalizeBiz(biz);
         long total = 0;
         foreach (var session in GetPlayTimeInRange(biz, DateTimeOffset.FromUnixTimeMilliseconds(0), DateTimeOffset.Now))
         {
@@ -153,7 +204,7 @@ internal sealed class PlayTimeStatsService
     /// <returns></returns>
     public List<PlayTimeStats> GetPlayTimeInRange(GameBiz biz, DateTimeOffset start, DateTimeOffset end)
     {
-        biz = biz.IsBilibili() ? $"{biz.Game}_cn" : biz;
+        biz = NormalizeBiz(biz);
         List<PlayTimeStats> result = new();
         long ts_start = start.ToUnixTimeMilliseconds();
         long ts_end = end.ToUnixTimeMilliseconds();
