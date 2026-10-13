@@ -8822,5 +8822,23 @@ namespace Starward.Language {
             }
         }
         
+        /// <summary>
+        ///   查找类似 World Map 的本地化字符串。
+        /// </summary>
+        public static string MapTool_BigMap {
+            get {
+                return ResourceManager.GetString("MapTool_BigMap", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Map 的本地化字符串。
+        /// </summary>
+        public static string MapTool_Map {
+            get {
+                return ResourceManager.GetString("MapTool_Map", resourceCulture);
+            }
+        }
+        
     }
 }

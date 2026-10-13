@@ -3071,4 +3071,10 @@ You are welcome to submit the exported data to the following repository:</value>
 <data name="GachaStatsCard_NoUpProbability" xml:space="preserve">
     <value>No-UP rate</value>
   </data>
+<data name="MapTool_BigMap" xml:space="preserve">
+    <value>World Map</value>
+  </data>
+<data name="MapTool_Map" xml:space="preserve">
+    <value>Map</value>
+  </data>
 </root>
