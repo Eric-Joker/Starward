@@ -127,6 +127,11 @@ public sealed partial class DailyNoteButton : UserControl
     [RelayCommand]
     private async Task RefreshDailyNoteAsync(bool? forceUpdate)
     {
+        // 只有浮窗上的刷新按钮是不带参数调用（命令无参数 → forceUpdate 为 null）：那次算用户发起，允许弹人机验证。
+        // 页面 Loaded（false）与角色变化（true）那两次自动调用继续抑制，不加载极验脚本。
+        using IDisposable captchaScope = forceUpdate is null
+            ? GameRecordService.AllowInteractiveCaptcha()
+            : GameRecordService.SuppressInteractiveCaptcha();
         try
         {
             if (!forceUpdate.HasValue)

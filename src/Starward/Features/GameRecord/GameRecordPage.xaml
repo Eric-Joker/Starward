@@ -9,6 +9,7 @@
              xmlns:sc="using:Starward.Controls"
              xmlns:scg="using:Starward.Core.GameRecord"
              xmlns:sf="using:Starward.Frameworks"
+             xmlns:sfgra="using:Starward.Features.GameRecord.AutoRefresh"
              xmlns:sh="using:Starward.Helpers"
              x:DefaultBindMode="OneWay"
              mc:Ignorable="d">
@@ -511,10 +512,45 @@
                     </NavigationViewItem.Content>
                 </NavigationViewItem>
 
+                <!--  地图工具：官方互动地图，点开后在独立窗口里用 WebView 打开  -->
+                <!--  使用 Tapped 事件，防止新窗口打开后此窗口重新获得焦点  -->
+                <!--  https://github.com/microsoft/microsoft-ui-xaml/issues/10272  -->
+                <NavigationViewItem Name="NavigationViewItem_MapTool"
+                                    Tag="MapTool"
+                                    Tapped="NavigationViewItem_MapTool_Tapped"
+                                    Visibility="Collapsed">
+                    <NavigationViewItem.Content>
+                        <Grid Margin="{x:Bind NavigationViewItemContentMargin}" ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition />
+                            </Grid.ColumnDefinitions>
+                            <!--  图标在代码里按游戏取：原神 / 星穹铁道各一张  -->
+                            <Image x:Name="Image_MapTool" Width="20" />
+                            <!--  文字在代码里按游戏取官方地图的名字：原神「大地图」、星穹铁道「地图」  -->
+                            <TextBlock x:Name="TextBlock_MapTool"
+                                       Grid.Column="1"
+                                       TextTrimming="CharacterEllipsis" />
+                        </Grid>
+                    </NavigationViewItem.Content>
+                </NavigationViewItem>
+
             </NavigationView.MenuItems>
 
 
-            <Frame Name="frame" />
+            <!--
+                战绩自动更新：整个工具箱只有这一个入口（TZ 是每个数据页工具栏最左边各放一个），
+                配置的对象是「当前账号 + 当前 frame 里打开的数据板块 + 月份」，
+                板块由代码在 Frame_Navigated 里按页面类型换算，月报类可在浮层里切换当月 / 上月。
+            -->
+            <NavigationView.PaneFooter>
+                <sfgra:RecordRefreshConfigButton x:Name="RecordRefreshConfigButton_Auto"
+                                                 Margin="-2,0,0,-4"
+                                                 Visibility="Collapsed" />
+            </NavigationView.PaneFooter>
+
+
+            <Frame Name="frame" Navigated="Frame_Navigated" />
 
 
         </NavigationView>

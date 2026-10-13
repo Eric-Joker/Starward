@@ -54,7 +54,7 @@ public sealed partial class TrailblazeCalendarPage : PageBase
     protected override async void OnLoaded()
     {
         await Task.Delay(16);
-        await InitializeDataAsync();
+        await InitializeDataCoreAsync(interactive: false);
     }
 
 
@@ -112,6 +112,22 @@ public sealed partial class TrailblazeCalendarPage : PageBase
     [RelayCommand]
     private async Task InitializeDataAsync()
     {
+        // 用户点页面上的刷新按钮：这次算用户发起，允许弹人机验证。
+        await InitializeDataCoreAsync(interactive: true);
+    }
+
+
+
+
+    /// <summary>
+    /// 首次加载（OnLoaded，自动）与用户点刷新按钮共用的一份实现：只有用户那次允许弹人机验证。
+    /// </summary>
+    /// <param name="interactive">是否由用户点击发起。</param>
+    private async Task InitializeDataCoreAsync(bool interactive)
+    {
+        using IDisposable captchaScope = interactive
+            ? GameRecordService.AllowInteractiveCaptcha()
+            : GameRecordService.SuppressInteractiveCaptcha();
         await Task.Delay(16);
         await GetCurrentSummaryAsync();
         GetMonthDataList();
@@ -193,6 +209,8 @@ public sealed partial class TrailblazeCalendarPage : PageBase
     [RelayCommand]
     private async Task GetDataDetailsAsync(string month)
     {
+        // 用户在月份菜单里选了一个月：这次算用户发起，允许弹人机验证。
+        using IDisposable captchaScope = GameRecordService.AllowInteractiveCaptcha();
         try
         {
             if (gameRole is null)

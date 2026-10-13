@@ -75,6 +75,24 @@ internal class GameRecordService
     private static readonly SemaphoreSlim _captchaPanelLock = new(1, 1);
 
 
+    /// <summary>
+    /// 显式抑制人机验证的深度（可嵌套）。大于 0 时遇到 aigis 不弹验证码，直接把原异常抛给调用方。
+    /// </summary>
+    private static readonly AsyncLocal<int> _interactiveCaptchaSuppressDepth = new();
+
+
+    /// <summary>
+    /// 显式放行人机验证的深度（可嵌套）。只有用户自己点出来的那条路径才需要它。
+    /// </summary>
+    private static readonly AsyncLocal<int> _interactiveCaptchaAllowDepth = new();
+
+
+    /// <summary>
+    /// 后台自动更新整轮共用的请求间隔；为 null 时不做额外间隔，手动刷新保持原速。
+    /// </summary>
+    private static readonly AsyncLocal<Func<CancellationToken, Task>?> _requestPace = new();
+
+
     public string Language { get => _hoyolabClient.Language; set => _hoyolabClient.Language = value; }
 
 
@@ -107,6 +125,127 @@ internal class GameRecordService
     }
 
 
+    /// <summary>
+    /// 为当前异步流禁止弹人机验证：遇到 aigis 时直接抛出原异常。
+    /// 可嵌套，作用域结束（Dispose）后恢复。
+    /// </summary>
+    /// <returns>结束抑制的作用域。</returns>
+    public static IDisposable SuppressInteractiveCaptcha()
+    {
+        _interactiveCaptchaSuppressDepth.Value++;
+        return new InteractiveCaptchaScope(_interactiveCaptchaSuppressDepth);
+    }
+
+
+    /// <summary>
+    /// 为当前异步流放行人机验证：只有明确由用户点击触发的路径才应该调用。
+    /// 弹验证码面板会加载极验（<c>static.geetest.com</c>）的第三方脚本，属于向非 mihoyo 服务发起请求，
+    /// 所以放行必须显式声明。抑制与放行同时存在时以抑制为准。
+    /// </summary>
+    /// <returns>结束放行的作用域。</returns>
+    public static IDisposable AllowInteractiveCaptcha()
+    {
+        _interactiveCaptchaAllowDepth.Value++;
+        return new InteractiveCaptchaScope(_interactiveCaptchaAllowDepth);
+    }
+
+
+    /// <summary>
+    /// 当前异步流是否禁止弹出人机验证。
+    /// <para>
+    /// 【刻意选择失败安全方向】默认就是抑制：只有显式 <see cref="AllowInteractiveCaptcha"/> 过的
+    /// 用户交互路径才允许加载极验；其余一切路径（后台自动更新、静默刷新、以及任何忘记声明的调用）
+    /// 都跳过弹窗、直接把风控异常交给调用方。宁可少弹一次验证码（用户重新登录或在工具箱里粘贴
+    /// Cookie 都能恢复），也不能在用户没有点的情况下自动向第三方发出请求。
+    /// </para>
+    /// </summary>
+    public static bool IsInteractiveCaptchaSuppressed
+        => _interactiveCaptchaSuppressDepth.Value > 0 || _interactiveCaptchaAllowDepth.Value <= 0;
+
+
+    /// <summary>
+    /// 结束 <see cref="SuppressInteractiveCaptcha"/> 或 <see cref="AllowInteractiveCaptcha"/> 的作用域。
+    /// </summary>
+    private sealed class InteractiveCaptchaScope : IDisposable
+    {
+
+        private AsyncLocal<int>? _depth;
+
+        public InteractiveCaptchaScope(AsyncLocal<int> depth)
+        {
+            _depth = depth;
+        }
+
+        public void Dispose()
+        {
+            if (_depth is null)
+            {
+                return;
+            }
+            int value = _depth.Value;
+            _depth.Value = value > 0 ? value - 1 : 0;
+            _depth = null;
+        }
+
+    }
+
+
+    /// <summary>
+    /// 为当前异步流套上请求间隔。后台自动更新的整轮请求（含月报翻页等内部请求）都按这个节奏发，
+    /// 手动刷新没有设置间隔，保持原速。
+    /// </summary>
+    /// <param name="pace">间隔委托，通常与自动更新外层的 3–8 秒节奏是同一个。</param>
+    /// <returns>结束间隔的作用域。</returns>
+    internal static IDisposable UseRequestPacing(Func<CancellationToken, Task> pace)
+    {
+        ArgumentNullException.ThrowIfNull(pace);
+        Func<CancellationToken, Task>? previous = _requestPace.Value;
+        _requestPace.Value = pace;
+        return new RequestPacingScope(previous);
+    }
+
+
+    /// <summary>
+    /// 按当前异步流的间隔等待一次；没有设置间隔（手动刷新）时立即返回。
+    /// </summary>
+    /// <param name="cancellationToken">取消令牌。</param>
+    private static async Task PaceRequestAsync(CancellationToken cancellationToken)
+    {
+        if (_requestPace.Value is { } pace)
+        {
+            await pace(cancellationToken);
+        }
+    }
+
+
+    /// <summary>
+    /// 结束 <see cref="UseRequestPacing"/> 的作用域，恢复外层（若有）的间隔。
+    /// </summary>
+    private sealed class RequestPacingScope : IDisposable
+    {
+
+        private readonly Func<CancellationToken, Task>? _previous;
+
+        private bool _disposed;
+
+        public RequestPacingScope(Func<CancellationToken, Task>? previous)
+        {
+            _previous = previous;
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+            _requestPace.Value = _previous;
+            _disposed = true;
+        }
+
+    }
+
+
 
 
 
@@ -129,6 +268,11 @@ internal class GameRecordService
     /// 国服其余业务错误（登录态失效除外）先尝试刷新设备指纹，指纹确实换了才重试一次。
     /// 每次请求最多重试一次，恢复动作自身失败不会覆盖用户真正遇到的业务错误。
     /// </para>
+    /// <para>
+    /// 人机验证只在用户自己点出来的路径上弹（<see cref="AllowInteractiveCaptcha"/>），
+    /// 默认抑制（<see cref="IsInteractiveCaptchaSuppressed"/>）：后台任务解不开验证码，弹窗既打扰用户、
+    /// 又会在他没点的情况下加载极验的第三方脚本。
+    /// </para>
     /// </summary>
     /// <typeparam name="T">请求返回类型。</typeparam>
     /// <param name="action">使用当前平台 Client 发起请求的委托。</param>
@@ -139,6 +283,8 @@ internal class GameRecordService
         GameRecordClient client = _gameRecordClient;
         // 用真正要发请求的那个 Client 判断平台，不依赖可能被并发请求改写的 IsHoyolab。
         bool isHoyolab = client is not HyperionClient;
+        // 后台自动更新整轮在此统一排队，月报翻页等内部请求也不会连打；手动刷新没有任何间隔。
+        await PaceRequestAsync(cancellationToken);
         try
         {
             return await action(client);
@@ -147,6 +293,13 @@ internal class GameRecordService
         {
             if (!isHoyolab && HasAigisChallenge(ex))
             {
+                if (IsInteractiveCaptchaSuppressed)
+                {
+                    // 后台 / 自动 / 未声明为用户交互的路径：不加载极验，直接把风控错误交回调用方，
+                    // 由调用方记一条异常或提示用户重新登录。
+                    _logger.LogWarning("Game record request requires an interactive captcha but it is suppressed (retcode {retcode}); the original exception is rethrown.", ex.ReturnCode);
+                    throw;
+                }
                 var (handled, result) = await TryRetryAfterAigisAsync(client, ex, action, cancellationToken);
                 if (handled)
                 {
@@ -182,6 +335,7 @@ internal class GameRecordService
 
     /// <summary>
     /// 若业务错误带有 <c>x-rpc-aigis</c>，弹出人机验证并带挑战头重试一次。
+    /// 当前异步流处于抑制状态时直接返回未处理，绝不创建验证码面板（见 <see cref="IsInteractiveCaptchaSuppressed"/>）。
     /// </summary>
     /// <param name="client">发起该请求的 Client，验证结果会临时写进去。</param>
     /// <param name="exception">带 aigis 载荷的原始业务错误。</param>
@@ -190,6 +344,11 @@ internal class GameRecordService
     /// <returns>已完成重试时为 (true, 结果)，否则为 (false, default)。</returns>
     private async Task<(bool Handled, T Result)> TryRetryAfterAigisAsync<T>(GameRecordClient client, miHoYoApiException exception, Func<GameRecordClient, Task<T>> action, CancellationToken cancellationToken)
     {
+        if (IsInteractiveCaptchaSuppressed)
+        {
+            // 双保险：即使有人绕过上面的分支直接调到这里，也不会加载极验。
+            return (false, default!);
+        }
         string? aigisHeader = await ResolveGameRecordAigisAsync(exception.Aigis!, cancellationToken);
         if (string.IsNullOrWhiteSpace(aigisHeader))
         {
@@ -1624,7 +1783,19 @@ internal class GameRecordService
 
 
 
-    public async Task<int> GetTravelersDiaryDetailAsync(GameRecordRole role, int month, int type, int limit = 100)
+    /// <summary>
+    /// 拉取并写入旅行札记明细。
+    /// </summary>
+    /// <param name="role">游戏角色。</param>
+    /// <param name="month">月份。</param>
+    /// <param name="type">收入类型。</param>
+    /// <param name="limit">单页条数。</param>
+    /// <param name="forceOverwrite">
+    /// 条数一致时也覆盖写入。后台自动更新用：当月数据还在滚动，条数不变但数值会变，
+    /// 只按条数判断会让本地库停在半程快照。手动获取详情保持默认的按条数跳过。
+    /// </param>
+    /// <returns>新增（或覆盖）的条数。</returns>
+    public async Task<int> GetTravelersDiaryDetailAsync(GameRecordRole role, int month, int type, int limit = 100, bool forceOverwrite = false)
     {
         var detail = await ExecuteWithGameRecordRecoveryAsync(client => client.GetTravelsDiaryDetailAsync(role, month, type, limit));
         if (detail.List is null || detail.List.Count == 0)
@@ -1634,7 +1805,7 @@ internal class GameRecordService
         var list = detail.List;
         using var dapper = DatabaseService.CreateConnection();
         var existCount = dapper.QuerySingleOrDefault<int>("SELECT COUNT(*) FROM GenshinTravelersDiaryAwardItem WHERE Uid=@Uid AND Year=@Year AND Month=@Month AND Type=@Type;", list.FirstOrDefault());
-        if (existCount == list.Count)
+        if (!forceOverwrite && existCount == list.Count)
         {
             return 0;
         }
@@ -2060,7 +2231,16 @@ internal class GameRecordService
 
 
 
-    public async Task<int> GetTrailblazeCalendarDetailAsync(GameRecordRole role, string month, int type, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// 拉取并写入开拓月历明细。
+    /// </summary>
+    /// <param name="role">游戏角色。</param>
+    /// <param name="month">月份，形如 202609。</param>
+    /// <param name="type">收入类型。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <param name="forceOverwrite">条数一致时也覆盖写入，供后台自动更新覆盖滚动中的当月数据。</param>
+    /// <returns>新增（或覆盖）的条数。</returns>
+    public async Task<int> GetTrailblazeCalendarDetailAsync(GameRecordRole role, string month, int type, CancellationToken cancellationToken = default, bool forceOverwrite = false)
     {
         int total = (await ExecuteWithGameRecordRecoveryAsync(client => client.GetTrailblazeCalendarDetailByPageAsync(role, month, type, 1, 1), cancellationToken)).Total;
         if (total == 0)
@@ -2069,7 +2249,7 @@ internal class GameRecordService
         }
         using var dapper = DatabaseService.CreateConnection();
         var existCount = dapper.QuerySingleOrDefault<int>("SELECT COUNT(*) FROM StarRailTrailblazeCalendarDetailItem WHERE Uid = @Uid AND Month = @month AND Type = @type;", new { role.Uid, month, type });
-        if (existCount == total)
+        if (!forceOverwrite && existCount == total)
         {
             return 0;
         }
@@ -2151,7 +2331,16 @@ internal class GameRecordService
 
 
 
-    public async Task<int> GetInterKnotReportDetailAsync(GameRecordRole role, string month, string type, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// 拉取并写入绳网月报明细。
+    /// </summary>
+    /// <param name="role">游戏角色。</param>
+    /// <param name="month">月份，形如 202609。</param>
+    /// <param name="type">数据类型。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <param name="forceOverwrite">条数一致时也覆盖写入，供后台自动更新覆盖滚动中的当月数据。</param>
+    /// <returns>新增（或覆盖）的条数。</returns>
+    public async Task<int> GetInterKnotReportDetailAsync(GameRecordRole role, string month, string type, CancellationToken cancellationToken = default, bool forceOverwrite = false)
     {
         int total = (await ExecuteWithGameRecordRecoveryAsync(client => client.GetInterKnotReportDetailByPageAsync(role, month, type, 1, 1), cancellationToken)).Total;
         if (total == 0)
@@ -2160,7 +2349,7 @@ internal class GameRecordService
         }
         using var dapper = DatabaseService.CreateConnection();
         var existCount = dapper.QuerySingleOrDefault<int>("SELECT COUNT(*) FROM ZZZInterKnotReportDetailItem WHERE Uid = @Uid AND DataMonth = @month AND DataType = @type;", new { role.Uid, month, type });
-        if (existCount == total)
+        if (!forceOverwrite && existCount == total)
         {
             return 0;
         }

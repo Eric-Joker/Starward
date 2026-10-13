@@ -9,6 +9,7 @@ using Starward.Core;
 using Starward.Core.HoYoPlay;
 using Starward.Features.CloudGame;
 using Starward.Features.GameLauncher;
+using Starward.Features.GameRecord.AutoRefresh;
 using Starward.Features.GameRecord.SignIn;
 using Starward.Features.GameSelector;
 using Starward.Features.Setting;
@@ -42,6 +43,12 @@ public sealed partial class SystemTrayWindow : WindowEx
 
     private readonly AutoSignInService _autoSignInService = AppConfig.GetService<AutoSignInService>();
 
+    /// <summary>
+    /// 自动更新战绩：与上面两个常驻循环挂在同一个窗口上，
+    /// 实例来自 <c>AppConfig.ServiceProvider.cs</c> 注册的 <c>AddSingleton&lt;AutoRecordRefreshService&gt;()</c>。
+    /// </summary>
+    private readonly AutoRecordRefreshService _autoRecordRefreshService = AppConfig.GetService<AutoRecordRefreshService>();
+
 
 
 
@@ -58,6 +65,8 @@ public sealed partial class SystemTrayWindow : WindowEx
         _autoCloudGameFreeTimeService.StartResident();
         // 每日自动签到同样挂在常驻窗口上：启动后签一轮，之后跨日再签。
         _autoSignInService.StartResident();
+        // 战绩自动更新：等云游戏免费时长那轮启动批量打完（它自己又排在签到首轮之后）再检查一次到期板块。
+        _autoRecordRefreshService.StartResident(_autoCloudGameFreeTimeService.StartupBatchCompleted);
     }
 
 
@@ -161,6 +170,8 @@ public sealed partial class SystemTrayWindow : WindowEx
 
     private void WindowEx_Closed(object sender, WindowEventArgs args)
     {
+        // 常驻宿主走了（软件退出）：取消还没跑完的自动更新战绩，之后不再发起任何请求。
+        _autoRecordRefreshService.StopResident();
         trayIcon?.Dispose();
     }
 
