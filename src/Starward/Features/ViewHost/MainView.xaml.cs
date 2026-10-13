@@ -83,7 +83,6 @@ public sealed partial class MainView : UserControl
         _ = CheckUpdateOrShowRecentUpdateContentAsync();
         UpdateAccountEntry();
         AppConfig.GetService<RpcService>().TrySetEnviromentAsync();
-        LogUploadService.Start();
         if (AppConfig.EnableGamepadController)
         {
             await Task.Delay(1000);

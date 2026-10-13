@@ -6928,15 +6928,6 @@ namespace Starward.Language {
         }
         
         /// <summary>
-        ///   查找类似 Donate 的本地化字符串。
-        /// </summary>
-        public static string SettingPage_Donate {
-            get {
-                return ResourceManager.GetString("SettingPage_Donate", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   查找类似 Download 的本地化字符串。
         /// </summary>
         public static string SettingPage_Download {

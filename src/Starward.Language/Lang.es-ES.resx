@@ -1168,9 +1168,6 @@ cerrar el programa durante la descompresión causará corrupciones en los archiv
   <data name="LauncherPage_PleaseCheckTheRelatedLogs" xml:space="preserve">
     <value>Por favor, revisa los registros relacionados.</value>
   </data>
-  <data name="SettingPage_Donate" xml:space="preserve">
-    <value>Donar</value>
-  </data>
   <data name="SettingPage_URLProtocolExperimental" xml:space="preserve">
     <value>Protocolo URL (Experimental)</value>
   </data>

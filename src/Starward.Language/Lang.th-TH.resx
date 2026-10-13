@@ -1167,9 +1167,6 @@
   <data name="LauncherPage_PleaseCheckTheRelatedLogs" xml:space="preserve">
     <value>กรุณาตรวจสอบบันทึกที่เกี่ยวข้อง</value>
   </data>
-  <data name="SettingPage_Donate" xml:space="preserve">
-    <value>บริจาค/สนับสนุน</value>
-  </data>
   <data name="SettingPage_URLProtocolExperimental" xml:space="preserve">
     <value>URL โพรโทคอล (ทดลอง)</value>
   </data>

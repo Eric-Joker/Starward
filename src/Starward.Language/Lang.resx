@@ -1177,9 +1177,6 @@ Do you accept the risk and continue to use it?</value>
   <data name="LauncherPage_PleaseCheckTheRelatedLogs" xml:space="preserve">
     <value>Please check the related logs.</value>
   </data>
-  <data name="SettingPage_Donate" xml:space="preserve">
-    <value>Donate</value>
-  </data>
   <data name="SettingPage_URLProtocolExperimental" xml:space="preserve">
     <value>URL Protocol (Experimental)</value>
   </data>

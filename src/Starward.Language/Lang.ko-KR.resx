@@ -1168,9 +1168,6 @@
   <data name="LauncherPage_PleaseCheckTheRelatedLogs" xml:space="preserve">
     <value>로그를 확인하세요.</value>
   </data>
-  <data name="SettingPage_Donate" xml:space="preserve">
-    <value>기부</value>
-  </data>
   <data name="SettingPage_URLProtocolExperimental" xml:space="preserve">
     <value>URL 프로토콜 (실험기능)</value>
   </data>

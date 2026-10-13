@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using NuGet.Versioning;
 using Polly;
 using Polly.Retry;
+using SharpSevenZip;
 using Snap.HPatch;
 using Starward.RPC.GameInstall;
 using Starward.Setup.Core;
@@ -50,6 +51,15 @@ internal class UpdateService
     private string _updateCacheFolder;
 
     private ReleaseManifest _releaseManifest;
+
+    /// <summary>
+    /// 本次更新走「整包下载」时对应的版本信息；走清单逐文件下载时为 null。
+    /// <para>
+    /// 只有便携版更新会用到：发布方没有提供文件级清单（<see cref="ReleaseInfoDetail.ManifestUrl"/> 为空）时，
+    /// 静默改用 <see cref="ReleaseInfoDetail.PackageUrl"/> 的便携版整包，状态机与进度字段完全复用清单路径那一套。
+    /// </para>
+    /// </summary>
+    private ReleaseInfoDetail? _releasePackage;
 
     private ConcurrentDictionary<string, string> _currentVersionFilesHash;
 
@@ -163,9 +173,22 @@ internal class UpdateService
             {
                 manifestUrl = diff.ManifestUrl;
             }
-            var manifest = await _releaseClient.GetReleaseManifestAsync(manifestUrl, cancellationToken);
             string targetPath = Path.GetDirectoryName(AppConfig.StarwardPortableLauncherExecutePath)!;
-            await PrepareForUpdateAsync(manifest, targetPath, cancellationToken);
+            if (string.IsNullOrWhiteSpace(manifestUrl))
+            {
+                // 发布方没有提供文件级清单（例如只发整包的版本）：静默走整包下载。
+                // 状态机、进度字段与错误处理都与清单路径共用，用户看到的只是下载量变大，没有额外提示或交互步骤。
+                if (string.IsNullOrWhiteSpace(release.PackageUrl))
+                {
+                    throw new InvalidOperationException($"Cannot update: no manifest and no package url (version {release.Version}).");
+                }
+                await PrepareForPackageUpdateAsync(release, targetPath, cancellationToken);
+            }
+            else
+            {
+                var manifest = await _releaseClient.GetReleaseManifestAsync(manifestUrl, cancellationToken);
+                await PrepareForUpdateAsync(manifest, targetPath, cancellationToken);
+            }
         }
         catch (Exception ex)
         {
@@ -221,6 +244,32 @@ internal class UpdateService
 
 
 
+    /// <summary>
+    /// 整包更新的准备阶段，与 <see cref="PrepareForUpdateAsync"/> 对称：落点、缓存目录、状态机都一样，
+    /// 只是把「逐文件下载 + 打补丁」换成「下载整包 + 解压」。
+    /// </summary>
+    private async Task PrepareForPackageUpdateAsync(ReleaseInfoDetail release, string targetPath, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInformation("Prepare for update starward (full package)");
+            State = UpdateState.Pending;
+            _targetPath = targetPath;
+            _releasePackage = release;
+            _updateCacheFolder = Path.Combine(AppConfig.CacheFolder, "update");
+            Directory.CreateDirectory(_updateCacheFolder);
+            await UpdateAsync(cancellationToken);
+            _logger.LogInformation("Update finished");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Prepare for update");
+            State = UpdateState.Stop;
+        }
+    }
+
+
+
     private async Task GetCurrentVersionFilesHashAsync(CancellationToken cancellationToken = default)
     {
         if (_currentVersionFilesHash is null)
@@ -263,9 +312,20 @@ internal class UpdateService
         {
             BackupVersionIni();
             State = UpdateState.Downloading;
-            await DownloadFilesAsync(cancellationToken);
-            State = UpdateState.Pending;
-            await PatchAndVerifyAsync(cancellationToken);
+            if (_releasePackage is null)
+            {
+                await DownloadFilesAsync(cancellationToken);
+                State = UpdateState.Pending;
+                await PatchAndVerifyAsync(cancellationToken);
+            }
+            else
+            {
+                // 整包：下载完成后同样进入 Pending，再解压落盘，状态序列与清单路径一致
+                ReleaseInfoDetail package = _releasePackage;
+                await _polly.ExecuteAsync(async token => await DownloadPackageAsync(package, token), cancellationToken);
+                State = UpdateState.Pending;
+                await ExtractPackageAsync(package, cancellationToken);
+            }
             DeleteOldFiles();
             DeleteUpdateCacheFolder();
             await Task.Delay(1000, cancellationToken);
@@ -421,6 +481,130 @@ internal class UpdateService
 
 
 
+    /// <summary>
+    /// 整包在缓存目录里的落点。用 URL 里的文件名，方便日志与排查。
+    /// </summary>
+    private string GetPackagePath(ReleaseInfoDetail release)
+    {
+        string name = Path.GetFileName(release.PackageUrl);
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            name = "Starward_Portable.7z";
+        }
+        return Path.Combine(_updateCacheFolder, name);
+    }
+
+
+
+    /// <summary>
+    /// 下载便携版整包。断点续传与 SHA-256 校验照抄清单路径
+    /// （<see cref="DownloadReleaseFileAsync"/> / <see cref="VerifyAndDownloadFileAsync"/>）的写法，
+    /// 进度也写在同一对字段上，所以界面进度条的表现不变。
+    /// <para><see cref="ReleaseInfoDetail.PackageHash"/> 为空时跳过散列校验（与清单路径对空散列的处理一致）。</para>
+    /// </summary>
+    private async Task DownloadPackageAsync(ReleaseInfoDetail release, CancellationToken cancellationToken = default)
+    {
+        _progress_DownloadBytes = 0;
+        Progress_TotalBytes = release.PackageSize;
+        string path = GetPackagePath(release);
+        using var fs = File.Open(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite | FileShare.Delete);
+        Interlocked.Add(ref _progress_DownloadBytes, fs.Length);
+        if (fs.Length < release.PackageSize)
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get, release.PackageUrl) { VersionPolicy = HttpVersionPolicy.RequestVersionOrHigher };
+            request.Headers.Range = new RangeHeaderValue(fs.Length, null);
+            using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            response.EnsureSuccessStatusCode();
+            if (response.Content.Headers.ContentRange?.From is not null)
+            {
+                fs.Position = response.Content.Headers.ContentRange.From.Value;
+            }
+            using var hs = await response.Content.ReadAsStreamAsync(cancellationToken);
+            var buffer = new byte[1 << 16];
+            int length;
+            while ((length = await hs.ReadAsync(buffer, cancellationToken)) != 0)
+            {
+                await fs.WriteAsync(buffer.AsMemory(0, length), cancellationToken);
+                Interlocked.Add(ref _progress_DownloadBytes, length);
+            }
+        }
+        await fs.FlushAsync(cancellationToken);
+        if (release.PackageSize > 0 && new FileInfo(path).Length != release.PackageSize)
+        {
+            throw new Exception($"Package size mismatch: {path}");
+        }
+        if (string.IsNullOrWhiteSpace(release.PackageHash))
+        {
+            _logger.LogWarning("Package hash is empty, skip checksum: {url}", release.PackageUrl);
+            return;
+        }
+        fs.Position = 0;
+        string sha256 = Convert.ToHexStringLower(await SHA256.HashDataAsync(fs, cancellationToken));
+        if (string.Equals(sha256, release.PackageHash, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+        _logger.LogWarning("Package checksum failed: {path}", path);
+        fs.Dispose();
+        File.Delete(path);
+        Interlocked.Add(ref _progress_DownloadBytes, -release.PackageSize);
+        throw new Exception($"Checksum failed: {path}");
+    }
+
+
+
+    /// <summary>
+    /// 把整包解压到便携版根目录（<c>app-{version}/</c>、<c>Starward.exe</c>、<c>version.ini</c> 的落点）。
+    /// <para>
+    /// 先解压到缓存目录再逐文件铺回目标目录：压缩包可能把便携版根目录本身（<c>Starward/</c>）包进去，
+    /// 也可能直接以根目录内容开头，先在缓存里解一次就能按实际结构决定内容往哪铺，
+    /// 不依赖打包工具对顶层目录的处理方式。
+    /// </para>
+    /// </summary>
+    private async Task ExtractPackageAsync(ReleaseInfoDetail release, CancellationToken cancellationToken = default)
+    {
+        string packagePath = GetPackagePath(release);
+        string extractFolder = Path.Combine(_updateCacheFolder, "package");
+        Directory.CreateDirectory(extractFolder);
+        await Task.Run(() =>
+        {
+            using var archive = new SharpSevenZipExtractor(packagePath);
+            archive.ExtractArchive(extractFolder);
+        }, cancellationToken);
+
+        string source = Path.Combine(extractFolder, "Starward");
+        if (!File.Exists(Path.Combine(source, "Starward.exe")))
+        {
+            source = extractFolder;
+        }
+        _logger.LogInformation("Update Starward, extracting package to {path}", _targetPath);
+        await Task.Run(() => CopyDirectory(source, _targetPath, cancellationToken), cancellationToken);
+    }
+
+
+
+    /// <summary>
+    /// 把解压出来的内容铺到目标目录。逐文件复制而不是移动，保证便携版在移动盘、缓存目录在别的卷上时也能用。
+    /// </summary>
+    private static void CopyDirectory(string source, string target, CancellationToken cancellationToken = default)
+    {
+        Directory.CreateDirectory(target);
+        foreach (string directory in Directory.GetDirectories(source, "*", SearchOption.AllDirectories))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Directory.CreateDirectory(Path.Combine(target, Path.GetRelativePath(source, directory)));
+        }
+        foreach (string file in Directory.GetFiles(source, "*", SearchOption.AllDirectories))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string destination = Path.Combine(target, Path.GetRelativePath(source, file));
+            Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+            File.Copy(file, destination, true);
+        }
+    }
+
+
+
     private async Task DecompressOrPatchFileAsync(ReleaseFile releaseFile, CancellationToken cancellationToken = default)
     {
         string path = Path.Combine(_targetPath, releaseFile.Path);
@@ -491,7 +675,8 @@ internal class UpdateService
     {
         try
         {
-            if (_releaseManifest.DeleteFiles is null)
+            // 整包路径没有「已删除文件」清单，这里自然是空操作
+            if (_releaseManifest?.DeleteFiles is null)
             {
                 return;
             }

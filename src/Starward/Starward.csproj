@@ -52,10 +52,10 @@
 		<PackageReference Include="Scighost.WinUI" Version="0.1.0" />
 		<PackageReference Include="Serilog.Extensions.Logging" Version="10.0.0" />
 		<PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
-		<PackageReference Include="Starward.Assets" Version="0.6.5" />
-		<PackageReference Include="Starward.Codec" Version="0.5.2" />
+		<ProjectReference Include="..\..\large-resource\Starward.Assets\Starward.Assets.csproj" />
+		<ProjectReference Include="..\..\large-resource\Starward.Codec\Starward.Codec.csproj" />
 		<PackageReference Include="Starward.GameInput" Version="0.3.1" />
-		<PackageReference Include="Starward.NativeLib" Version="0.3.1" />
+		<ProjectReference Include="..\..\large-resource\Starward.NativeLib\Starward.NativeLib.csproj" />
 		<PackageReference Include="Starward.Win2D" Version="1.3.2-release.1" />
 		<PackageReference Include="System.IO.Hashing" Version="10.0.11" />
 		<PackageReference Include="Vanara.PInvoke.DwmApi" Version="5.0.7" />
@@ -78,6 +78,47 @@
 			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</Content>
 	</ItemGroup>
+
+	<!--
+		原生库（avif / lcms2 / jxl / uhdr / VP9DecoderMFT / 7z 等）在 Starward.Codec 和 Starward.NativeLib 里
+		按 NuGet 的 runtimes\<rid>\native\ 布局摆放。走 PackageReference 时 NuGet 会把当前平台那一份平铺到
+		输出根目录；但本仓库是直接用 ProjectReference 编译的，那批文件只会带着 runtimes\win-x64\native\ 这层
+		路径落进输出目录，而 [LibraryImport] 和 SharpSevenZip 都只在应用目录里找 DLL，于是运行时报
+		「Unable to load DLL 'avif' / 'lcms2.dll'」或「Can not load 7-zip library… DLL file does not exist」。
+		所以这里按目标平台再平铺一份到输出目录（含 avifdec.exe 这类命令行工具，截图/批量转换功能按文件名在
+		应用目录里找它们），发布后再删掉 runtimes 目录里那份重复的副本 —— 安装包里只保留当前架构，和 NuGet
+		时代保持一致。
+	-->
+	<PropertyGroup>
+		<!-- runtimes 下的目录名：优先用 RID（dotnet publish -r win-x64），其次用 Platform（VS 的 x64/ARM64），
+		     最后退回 SDK 自身的 RID，保证不带 RID 的普通 dotnet build 也能平铺。 -->
+		<StarwardNativeRid Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</StarwardNativeRid>
+		<StarwardNativeRid Condition="'$(StarwardNativeRid)' == '' and '$(Platform)' != '' and '$(Platform)' != 'AnyCPU'">win-$(Platform.ToLowerInvariant())</StarwardNativeRid>
+		<StarwardNativeRid Condition="'$(StarwardNativeRid)' == ''">$(NETCoreSdkRuntimeIdentifier)</StarwardNativeRid>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<None Include="..\..\large-resource\Starward.Codec\runtimes\$(StarwardNativeRid)\native\*.dll;..\..\large-resource\Starward.Codec\runtimes\$(StarwardNativeRid)\native\*.exe;..\..\large-resource\Starward.NativeLib\runtimes\$(StarwardNativeRid)\native\*.dll"
+		      CopyToOutputDirectory="PreserveNewest"
+		      CopyToPublishDirectory="PreserveNewest"
+		      Link="%(Filename)%(Extension)"
+		      Visible="false" />
+	</ItemGroup>
+
+	<!-- 少一个原生库就会在运行时报 DllNotFoundException，所以构建时就检查，别等到打包发版之后才发现。 -->
+	<Target Name="CheckNativeLibraries" AfterTargets="Build" Condition="'$(DesignTimeBuild)' != 'true'">
+		<Error Condition="!Exists('$(OutDir)avif.dll')" Text="缺少 avif.dll：Starward.Codec 的原生库没有平铺到 $(OutDir)。请确认 ..\..\large-resource\Starward.Codec\runtimes\$(StarwardNativeRid)\native 存在。" />
+		<Error Condition="!Exists('$(OutDir)lcms2.dll')" Text="缺少 lcms2.dll：Starward.Codec 的原生库没有平铺到 $(OutDir)。请确认 ..\..\large-resource\Starward.Codec\runtimes\$(StarwardNativeRid)\native 存在。" />
+		<Error Condition="!Exists('$(OutDir)jxl.dll')" Text="缺少 jxl.dll：Starward.Codec 的原生库没有平铺到 $(OutDir)。" />
+		<Error Condition="!Exists('$(OutDir)uhdr.dll')" Text="缺少 uhdr.dll：Starward.Codec 的原生库没有平铺到 $(OutDir)。" />
+		<Error Condition="!Exists('$(OutDir)VP9DecoderMFT.dll')" Text="缺少 VP9DecoderMFT.dll：Starward.Codec 的原生库没有平铺到 $(OutDir)。" />
+		<Error Condition="!Exists('$(OutDir)7z.dll')" Text="缺少 7z.dll：Starward.NativeLib 的原生库没有平铺到 $(OutDir)。" />
+		<Error Condition="!Exists('$(OutDir)Snap.HPatch.dll')" Text="缺少 Snap.HPatch.dll：Starward.NativeLib 的原生库没有平铺到 $(OutDir)。" />
+	</Target>
+
+	<Target Name="RemoveRedundantRuntimesFolder" AfterTargets="Publish" Condition="Exists('$(PublishDir)runtimes') and Exists('$(PublishDir)avif.dll')">
+		<RemoveDir Directories="$(PublishDir)runtimes" />
+	</Target>
 
 	<Target Name="RemoveDlls" AfterTargets="Publish">
 		<Delete Files="$(PublishDir)DirectML.dll" />

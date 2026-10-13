@@ -331,6 +331,8 @@ async Task CreatePackageAsync(string version, Architecture arch, InstallType typ
 
     if (enableDiff)
     {
+        // 仓库里还没有 release（首次发布）时 GetReleaseInfoDetailAsync 返回 null：
+        // 没有 diff 基线就没有补丁和 diff 清单，只留上面那份完整清单。
         var release = await _client.GetReleaseInfoDetailAsync(arch, type, CancellationToken.None);
         if (release is not null)
         {
@@ -1043,15 +1045,26 @@ public class BuildClient
     {
         return await _polly.ExecuteAsync(async token =>
         {
-            var info = await _releaseClient.GetLatestReleaseInfoAsync(true, "publish", token);
+            ReleaseInfo info = await _releaseClient.GetLatestReleaseInfoAsync(true, "publish", token);
             if (info.TryGetReleaseInfoDetail(arch, type, out ReleaseInfoDetail? detail))
             {
                 return detail;
             }
+            if (string.IsNullOrEmpty(info.Version))
+            {
+                // 仓库里一个 release 都还没有（首次发布就是如此）：没有可用来做 diff 的基线，
+                // 返回 null 让调用方只产出完整包和完整清单，不产出任何补丁。
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.WriteLine($"Warning: no previous release found, creating a full package without diffs ({arch}, {type}).");
+                Console.ResetColor();
+            }
             else
             {
-                return null;
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.WriteLine($"Warning: release {info.Version} has no package for ({arch}, {type}), skipping diffs.");
+                Console.ResetColor();
             }
+            return null;
         }, cancellation);
     }
 
