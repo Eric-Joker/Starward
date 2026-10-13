@@ -16,6 +16,8 @@
              xmlns:sfgd="using:Starward.Features.GameRecord.DailyNote"
              xmlns:sfgs="using:Starward.Features.GameRecord.SignIn"
              xmlns:sfp="using:Starward.Features.PlayTime"
+             xmlns:sfrc="using:Starward.Features.RedeemCode"
+             xmlns:sftn="using:Starward.Features.TimeNode"
              x:DefaultBindMode="OneWay"
              mc:Ignorable="d">
 
@@ -705,6 +707,14 @@
             <sfgs:SignInButton Width="40"
                                Height="40"
                                CurrentGameId="{x:Bind CurrentGameId}" />
+            <!--  时间节点（卡池 / 活动倒计时）；没有当前或即将到来的节点时自身收起  -->
+            <sftn:TimeNodeButton Width="40"
+                                 Height="40"
+                                 CurrentGameId="{x:Bind CurrentGameId}" />
+            <!--  前瞻直播兑换码；一条码都没有时自身收起  -->
+            <sfrc:RedeemCodeButton Width="40"
+                                   Height="40"
+                                   CurrentGameId="{x:Bind CurrentGameId}" />
         </StackPanel>
 
     </Grid>
