@@ -58,6 +58,21 @@
                           OffContent="{x:Bind lang:Lang.SettingPage_RegistryBasedGameAccountSwitchingFeature}"
                           OnContent="{x:Bind lang:Lang.SettingPage_RegistryBasedGameAccountSwitchingFeature}" />
 
+            <ToggleSwitch Margin="0,12,0,0"
+                          IsEnabled="{x:Bind StartAtLoginAvailable}"
+                          IsOn="{x:Bind StartAtLogin, Mode=TwoWay}"
+                          OffContent="{x:Bind lang:Lang.SettingPage_StartAtLoginSwitch}"
+                          OnContent="{x:Bind lang:Lang.SettingPage_StartAtLoginSwitch}" />
+            <TextBlock Margin="0,4,0,0"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       Text="{x:Bind lang:Lang.SettingPage_StartAtLoginDesc}"
+                       TextWrapping="Wrap" />
+            <TextBlock Margin="0,8,0,0" HorizontalAlignment="Left">
+                <Hyperlink Click="Hyperlink_StartupApps_Click" UnderlineStyle="None">
+                    <Run Text="{x:Bind lang:Lang.SettingPage_StartAtLoginWindowsSettings}" />
+                </Hyperlink>
+            </TextBlock>
+
 
             <MenuFlyoutSeparator Margin="0,20,0,0" />
 
