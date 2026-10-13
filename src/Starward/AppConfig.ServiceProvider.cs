@@ -2,6 +2,8 @@ using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
+using Starward.Core.CloudGame;
+using Starward.Core.Blackboard;
 using Starward.Core.Gacha.Genshin;
 using Starward.Core.Gacha.StarRail;
 using Starward.Core.Gacha.ZZZ;
@@ -12,6 +14,7 @@ using Starward.Core.Passport;
 using Starward.Core.SelfQuery;
 using Starward.Features.Account;
 using Starward.Features.Background;
+using Starward.Features.CloudGame;
 using Starward.Features.Database;
 using Starward.Features.Gacha;
 using Starward.Features.Gacha.UIGF;
@@ -19,6 +22,7 @@ using Starward.Features.GameAccount;
 using Starward.Features.GameInstall;
 using Starward.Features.GameLauncher;
 using Starward.Features.GameRecord;
+using Starward.Features.GameRecord.SignIn;
 using Starward.Features.HoYoPlay;
 using Starward.Features.PlayTime;
 using Starward.Features.RPC;
@@ -60,6 +64,10 @@ public static partial class AppConfig
             sc.AddSingleton<GameNoticeClient>();
             sc.AddSingleton<HoYoPlayService>();
             sc.AddSingleton<BackgroundService>();
+
+            // 米游社百科（好感壁纸的数据来源）与好感壁纸服务。
+            sc.AddSingleton<BlackboardClient>();
+            sc.AddSingleton<FavorWallpaperService>();
             sc.AddSingleton<GameLauncherService>();
             sc.AddSingleton<GamePackageService>();
             sc.AddSingleton<PlayTimeRecordService>();
@@ -81,6 +89,10 @@ public static partial class AppConfig
             sc.AddSingleton<HyperionClient>();
             sc.AddSingleton<GameRecordService>();
 
+            // 每日签到：服务本身无状态，自动签到由托盘窗口在常驻期间驱动。
+            sc.AddSingleton<SignInService>();
+            sc.AddSingleton<AutoSignInService>();
+
             sc.AddSingleton<SelfQueryClient>();
             sc.AddSingleton<SelfQueryService>();
 
@@ -99,6 +111,12 @@ public static partial class AppConfig
             sc.AddSingleton<PassportAccountService>();
 
             sc.AddSingleton<ScreenCaptureService>();
+
+            // 云游戏钱包与每日免费时长。凭证只从本机云游戏客户端的日志里读，不经过任何第三方服务。
+            sc.AddHttpClient<CloudGameClient>().ConfigStarwardHttpClient();
+            sc.AddSingleton<CloudGameClientCredentialProvider>();
+            sc.AddSingleton<CloudGameWalletService>();
+            sc.AddSingleton<AutoCloudGameFreeTimeService>();
 
             sc.AddHttpClient<LogUploadClient>().ConfigStarwardHttpClient();
 

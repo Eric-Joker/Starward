@@ -7,6 +7,7 @@ using Starward.Features.ViewHost;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Globalization;
 using System.Linq;
 using System.Runtime.CompilerServices;
 
@@ -170,16 +171,22 @@ public static partial class AppConfig
     }
 
     /// <summary>
-    /// 设备名。UA、<c>x-rpc-device_name</c> 与 getFp 的 body 三处共用，默认取真机抓包里的值，
+    /// 设备名。UA、<c>x-rpc-device_name</c> 与 getFp 的 body 三处共用。
+    /// 配置里有值就用配置里的，没有才回落到 <see cref="HyperionClient.DefaultDeviceName"/>（仓库自带的公开机型），
     /// 免得 UA 自称一台机器、body 里的 ext_fields 又说另一台。
+    /// <para>
+    /// 读取时统一走 <see cref="HyperionClient.NormalizeDeviceName(string?)"/>：配置里可能存着从抓包
+    /// 整段粘进来的转义形式（例如 <c>Pixel%205</c>），直接使用会被 UA 与请求头再转义一次。
+    /// 配置文件里的原值不改写，只归一化读出来的值。
+    /// </para>
     /// </summary>
     public static string HyperionDeviceName
     {
-        get => GetValue(HyperionClient.DefaultDeviceName)!;
+        get => HyperionClient.NormalizeDeviceName(GetValue<string>()) is { Length: > 0 } name ? name : HyperionClient.DefaultDeviceName;
         set => SetValue(value);
     }
 
-    /// <summary>Android 版本，同时用作 getFp body 里的 osVersion 与 sdkVersion。</summary>
+    /// <summary>Android 版本，同时用作 getFp body 里的 osVersion 与 sdkVersion。配置里有值就用配置里的，没有才回落到默认值。</summary>
     public static string HyperionSystemVersion
     {
         get => GetValue(HyperionClient.DefaultSystemVersion)!;
@@ -190,6 +197,42 @@ public static partial class AppConfig
     public static string HyperionAppVersion
     {
         get => GetValue(HyperionClient.DefaultAppVersion)!;
+        set => SetValue(value);
+    }
+
+    /// <summary>
+    /// getFp 请求体里的 <c>device_id</c>。真机上是 16 位十六进制的 ANDROID_ID，
+    /// 与 <see cref="HyperionDeviceId"/>（米游社自己的设备号）不是同一个值，但同样要跨刷新稳定复用。
+    /// </summary>
+    public static string? HyperionDeviceAndroidId
+    {
+        get => GetValue<string>();
+        set => SetValue(value);
+    }
+
+    /// <summary>
+    /// getFp 使用的 seed_id。必须与设备指纹成对稳定复用，否则每次重刷指纹都像是换了一台设备。
+    /// </summary>
+    public static string? HyperionDeviceFpSeedId
+    {
+        get => GetValue<string>();
+        set => SetValue(value);
+    }
+
+    /// <summary>getFp 使用的 seed_time（毫秒时间戳字符串），与 <see cref="HyperionDeviceFpSeedId"/> 成对复用。</summary>
+    public static string? HyperionDeviceFpSeedTime
+    {
+        get => GetValue<string>();
+        set => SetValue(value);
+    }
+
+    /// <summary>
+    /// 已保存的设备指纹是按哪个 <c>ext_fields</c> 载荷版本申请的。
+    /// 旧载荷含 Windows 硬件字段，会被服务端当成模拟器，所以版本不一致时必须强制重刷一次。
+    /// </summary>
+    public static int HyperionDeviceFpPayloadVersion
+    {
+        get => GetValue<int>();
         set => SetValue(value);
     }
 
@@ -235,6 +278,12 @@ public static partial class AppConfig
     /// 没有单独设置过的游戏沿用 <see cref="EnableAuthTicketLogin"/> 的值，
     /// 这样旧版本里关掉自动登录的用户升级后不会被重新打开。
     /// </para>
+    /// <para>
+    /// 现在每个区服可以有多个启动预设，这个开关属于预设。这里读写的是该区服的
+    /// <b>第一个</b>预设（旧版本的单套配置迁移过来的那个），供
+    /// <see cref="Features.GameSetting.GameSettingPage"/> 等没有预设概念的调用方使用；
+    /// 启动器页面请用 <see cref="GameLaunchProfileStore"/>。
+    /// </para>
     /// </summary>
     public static bool GetEnableAuthTicketLogin(GameBiz gameBiz)
     {
@@ -243,7 +292,12 @@ public static partial class AppConfig
         {
             return EnableAuthTicketLogin;
         }
-        return GetValue(EnableAuthTicketLogin, key);
+        bool legacy = GetValue(EnableAuthTicketLogin, key);
+        if (FindProfile(gameBiz, current: false) is GameLaunchProfile profile)
+        {
+            return profile.EnableAuthTicketLogin;
+        }
+        return legacy;
     }
 
 
@@ -253,6 +307,12 @@ public static partial class AppConfig
         if (key is null)
         {
             EnableAuthTicketLogin = value;
+            return;
+        }
+        if (FindProfile(gameBiz, current: false) is GameLaunchProfile profile)
+        {
+            profile.EnableAuthTicketLogin = value;
+            GameLaunchProfileStore.Save(gameBiz);
         }
         else
         {
@@ -532,14 +592,35 @@ public static partial class AppConfig
     #region Dynamic Setting
 
 
+    /// <summary>
+    /// 某个区服当前正在使用的背景文件名（启动器底部那排指示器选中的那张）。
+    /// <para>
+    /// 背景（壁纸类型）属于启动预设：内部走该区服<b>当前选中</b>预设的
+    /// <see cref="GameLaunchProfile.Bg"/>，这样切换预设时画面能跟着换成该预设保存的那张。
+    /// 旧数据没有这个字段时（读出 null）回退到旧键 <c>bg_{biz}</c>，用户当前背景不会丢。
+    /// </para>
+    /// </summary>
     public static string? GetBg(GameBiz biz)
     {
-        return GetValue<string>(default, $"bg_{biz}");
+        string? legacy = GetValue<string>(default, $"bg_{biz}");
+        if (FindProfile(biz, current: true) is GameLaunchProfile profile)
+        {
+            return profile.Bg ?? legacy;
+        }
+        return legacy;
     }
 
     public static void SetBg(GameBiz biz, string? value)
     {
-        SetValue(value, $"bg_{biz}");
+        if (FindProfile(biz, current: true) is GameLaunchProfile profile)
+        {
+            profile.Bg = value;
+            GameLaunchProfileStore.Save(biz);
+        }
+        else
+        {
+            SetValue(value, $"bg_{biz}");
+        }
     }
 
 
@@ -565,25 +646,120 @@ public static partial class AppConfig
     }
 
 
+    /// <summary>
+    /// 某个区服当前选中的启动预设的自定义背景文件名。
+    /// <para>
+    /// 自定义背景属于启动预设，背景服务和壁纸等没有预设概念的调用方读到的是
+    /// 该区服<b>当前选中</b>预设的值，这样界面上的预设和实际显示的背景才一致。
+    /// </para>
+    /// </summary>
     public static string? GetCustomBg(GameBiz biz)
     {
-        return GetValue<string>(default, $"custom_bg_{biz}");
+        string legacyKey = $"custom_bg_{biz}";
+        string? legacy = GetValue<string>(default, legacyKey);
+        // 预设数据写不进去时（例如数据文件夹还没就绪）退回旧键，行为与旧版本一致。
+        if (FindProfile(biz, current: true) is GameLaunchProfile profile)
+        {
+            return profile.CustomBg;
+        }
+        return legacy;
     }
 
     public static void SetCustomBg(GameBiz biz, string? value)
     {
-        SetValue(value, $"custom_bg_{biz}");
+        if (FindProfile(biz, current: true) is GameLaunchProfile profile)
+        {
+            profile.CustomBg = value;
+            GameLaunchProfileStore.Save(biz);
+        }
+        else
+        {
+            SetValue(value, $"custom_bg_{biz}");
+        }
     }
 
 
+    /// <summary>
+    /// 某个区服当前选中的启动预设是否启用自定义背景。
+    /// </summary>
     public static bool GetEnableCustomBg(GameBiz biz)
     {
-        return GetValue<bool>(default, $"enable_custom_bg_{biz}");
+        bool legacy = GetValue<bool>(default, $"enable_custom_bg_{biz}");
+        if (FindProfile(biz, current: true) is GameLaunchProfile profile)
+        {
+            return profile.EnableCustomBg;
+        }
+        return legacy;
     }
 
     public static void SetEnableCustomBg(GameBiz biz, bool value)
     {
-        SetValue(value, $"enable_custom_bg_{biz}");
+        if (FindProfile(biz, current: true) is GameLaunchProfile profile)
+        {
+            profile.EnableCustomBg = value;
+            GameLaunchProfileStore.Save(biz);
+        }
+        else
+        {
+            SetValue(value, $"enable_custom_bg_{biz}");
+        }
+    }
+
+
+    /// <summary>
+    /// 在预设列表里取一个预设。<paramref name="current"/> 为 true 时取当前选中的那个，
+    /// 否则取第一个（旧配置迁移过来的那个）。预设列表还是空的时候返回 null。
+    /// </summary>
+    private static GameLaunchProfile? FindProfile(GameBiz biz, bool current)
+    {
+        List<GameLaunchProfile> profiles = GameLaunchProfileStore.GetProfiles(biz);
+        if (profiles.Count == 0)
+        {
+            return null;
+        }
+        if (current && GetCurrentLaunchProfileId(biz) is string id)
+        {
+            return profiles.FirstOrDefault(x => x.Id == id) ?? profiles[0];
+        }
+        return profiles[0];
+    }
+
+
+    /// <summary>
+    /// 好感壁纸面板是否显示「满影画」而不是「好感」那一档。键名与旧版本保持一致，用户已有的选择不会丢。
+    /// </summary>
+    public static bool GetFavorWallpaperMindscapeMode(GameBiz biz)
+    {
+        return GetValue<bool>(default, $"favor_wallpaper_mindscape_{biz}");
+    }
+
+    public static void SetFavorWallpaperMindscapeMode(GameBiz biz, bool value)
+    {
+        SetValue(value, $"favor_wallpaper_mindscape_{biz}");
+    }
+
+
+    /// <summary>好感壁纸是否在切换游戏时随机换一张。</summary>
+    public static bool GetFavorWallpaperShuffle(GameBiz biz)
+    {
+        return GetValue<bool>(default, $"favor_wallpaper_shuffle_{biz}");
+    }
+
+    public static void SetFavorWallpaperShuffle(GameBiz biz, bool value)
+    {
+        SetValue(value, $"favor_wallpaper_shuffle_{biz}");
+    }
+
+
+    /// <summary>满影画壁纸是否在切换游戏时随机换一张（与好感壁纸分开记，两者不混池）。</summary>
+    public static bool GetMindscapeWallpaperShuffle(GameBiz biz)
+    {
+        return GetValue<bool>(default, $"mindscape_wallpaper_shuffle_{biz}");
+    }
+
+    public static void SetMindscapeWallpaperShuffle(GameBiz biz, bool value)
+    {
+        SetValue(value, $"mindscape_wallpaper_shuffle_{biz}");
     }
 
 
@@ -631,14 +807,35 @@ public static partial class AppConfig
     }
 
 
+    /// <summary>
+    /// 某个区服的启动参数。
+    /// <para>
+    /// 启动参数属于启动预设，这里读写的是该区服的<b>第一个</b>预设
+    /// （旧版本的单套配置迁移过来的那个），供没有预设概念的调用方使用；
+    /// 启动器页面请用 <see cref="GameLaunchProfileStore"/>。
+    /// </para>
+    /// </summary>
     public static string? GetStartArgument(GameBiz biz)
     {
-        return GetValue<string>(default, $"start_argument_{biz}");
+        string? legacy = GetValue<string>(default, $"start_argument_{biz}");
+        if (FindProfile(biz, current: false) is GameLaunchProfile profile)
+        {
+            return profile.Argument;
+        }
+        return legacy;
     }
 
     public static void SetStartArgument(GameBiz biz, string? value)
     {
-        SetValue(value, $"start_argument_{biz}");
+        if (FindProfile(biz, current: false) is GameLaunchProfile profile)
+        {
+            profile.Argument = value;
+            GameLaunchProfileStore.Save(biz);
+        }
+        else
+        {
+            SetValue(value, $"start_argument_{biz}");
+        }
     }
 
 
@@ -731,20 +928,203 @@ public static partial class AppConfig
 
 
     /// <summary>
-    /// 启用 DX12
+    /// 是否启用 DX12。
+    /// <para>
+    /// 属于启动预设，这里读写的是该区服的<b>第一个</b>预设
+    /// （旧版本的单套配置迁移过来的那个），供没有预设概念的调用方使用；
+    /// 启动器页面请用 <see cref="GameLaunchProfileStore"/>。
+    /// </para>
     /// </summary>
     public static bool GetEnableDX12(GameBiz biz)
     {
-        return GetValue<bool>(default, $"enable_dx12_{biz}");
+        bool legacy = GetValue<bool>(default, $"enable_dx12_{biz}");
+        if (FindProfile(biz, current: false) is GameLaunchProfile profile)
+        {
+            return profile.EnableDX12;
+        }
+        return legacy;
     }
 
     /// <summary>
-    /// 启用 DX12
+    /// 是否启用 DX12，见 <see cref="GetEnableDX12"/>。
     /// </summary>
     public static void SetEnableDX12(GameBiz biz, bool value)
     {
-        SetValue(value, $"enable_dx12_{biz}");
+        if (FindProfile(biz, current: false) is GameLaunchProfile profile)
+        {
+            profile.EnableDX12 = value;
+            GameLaunchProfileStore.Save(biz);
+        }
+        else
+        {
+            SetValue(value, $"enable_dx12_{biz}");
+        }
     }
+
+
+    /// <summary>
+    /// 某个区服当前选中的启动预设（内部名）。没有记录时返回 null，此时按第一个预设处理。
+    /// </summary>
+    public static string? GetCurrentLaunchProfileId(GameBiz biz)
+    {
+        return GetValue<string>(default, $"current_launch_profile_{biz}");
+    }
+
+
+    public static void SetCurrentLaunchProfileId(GameBiz biz, string? id)
+    {
+        SetValue(id, $"current_launch_profile_{biz}");
+    }
+
+
+    #endregion
+
+
+
+    #region 云游戏
+
+
+
+    /// <summary>该游戏是否自动领取云游戏每日免费时长。默认关闭，要用户在云游戏浮窗里主动打开。</summary>
+    public static bool GetAutoCloudGameFreeTimeEnabled(GameBiz gameBiz)
+    {
+        return GetValue(false, $"auto_cloud_game_free_time_enabled_{gameBiz}");
+    }
+
+
+    public static void SetAutoCloudGameFreeTimeEnabled(GameBiz gameBiz, bool value)
+    {
+        SetValue(value, $"auto_cloud_game_free_time_enabled_{gameBiz}");
+    }
+
+
+    /// <summary>某个云游戏账号最近一次领取免费时长的服务端日期（按 UTC+8 的 4:00 分界）。</summary>
+    public static DateOnly? GetCloudGameFreeTimeClaimedDate(GameBiz gameBiz, string accountId)
+    {
+        string? text = GetValue<string?>(null, $"cloud_game_free_time_claimed_date_{gameBiz}_{accountId}");
+        return DateOnly.TryParseExact(text, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateOnly date)
+            ? date
+            : null;
+    }
+
+
+    public static void SetCloudGameFreeTimeClaimedDate(GameBiz gameBiz, string accountId, DateOnly date)
+    {
+        SetValue(date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), $"cloud_game_free_time_claimed_date_{gameBiz}_{accountId}");
+    }
+
+
+    /// <summary>云游戏浮窗里当前选中的账号（<c>open_id</c>）。</summary>
+    public static string? GetCloudGameSelectedAccount(GameBiz gameBiz)
+    {
+        return GetValue<string?>(null, $"cloud_game_selected_account_{gameBiz}");
+    }
+
+
+    public static void SetCloudGameSelectedAccount(GameBiz gameBiz, string? accountId)
+    {
+        SetValue(accountId, $"cloud_game_selected_account_{gameBiz}");
+    }
+
+
+    /// <summary>
+    /// 云游戏账号的 <c>combo_token</c>，只从本机云游戏客户端读取并存在本地。
+    /// <para>等同于账号的登录凭据，任何日志、诊断、上传路径都不要带上它。</para>
+    /// </summary>
+    public static string? GetCloudGameComboToken(GameBiz gameBiz, string accountId)
+    {
+        return GetValue<string?>(null, $"cloud_game_combo_token_{gameBiz}_{accountId}");
+    }
+
+
+    public static void SetCloudGameComboToken(GameBiz gameBiz, string accountId, string? value)
+    {
+        SetValue(value, $"cloud_game_combo_token_{gameBiz}_{accountId}");
+    }
+
+
+    /// <summary>列出该游戏已经保存过凭据的云游戏账号，用于在客户端日志读不到时仍能显示历史账号。</summary>
+    public static List<string> GetCloudGameComboTokenAccountIds(GameBiz gameBiz)
+    {
+        List<string> list = new();
+        string prefix = $"cloud_game_combo_token_{gameBiz}_";
+        try
+        {
+            InitializeSettingProvider();
+            if (_settingCache is null)
+            {
+                return list;
+            }
+            foreach (string key in _settingCache.Keys)
+            {
+                if (key.StartsWith(prefix, StringComparison.Ordinal))
+                {
+                    string accountId = key[prefix.Length..];
+                    if (!string.IsNullOrWhiteSpace(accountId) && !list.Contains(accountId))
+                    {
+                        list.Add(accountId);
+                    }
+                }
+            }
+        }
+        catch { }
+        return list;
+    }
+
+
+    /// <summary>删除某个通行证账号关联的全部云游戏凭据与领取记录，用于账号被移除时一并清理。</summary>
+    public static void DeleteCloudGameAccountData(string accountId)
+    {
+        if (string.IsNullOrWhiteSpace(accountId))
+        {
+            return;
+        }
+        try
+        {
+            InitializeSettingProvider();
+            if (_settingCache is null)
+            {
+                return;
+            }
+            string suffix = $"_{accountId}";
+            foreach (string key in _settingCache.Keys.ToList())
+            {
+                if (key.EndsWith(suffix, StringComparison.Ordinal)
+                    && (key.StartsWith("cloud_game_combo_token_", StringComparison.Ordinal)
+                        || key.StartsWith("cloud_game_free_time_claimed_date_", StringComparison.Ordinal)))
+                {
+                    RemoveValue(key);
+                }
+            }
+        }
+        catch { }
+    }
+
+
+
+    #endregion
+
+
+
+    #region 每日签到
+
+
+
+    /// <summary>
+    /// 该游戏是否每日自动签到（启动后静默签一轮，常驻期间跨日再签）。默认关闭，要用户在签到浮窗里打开。
+    /// <para>国服与 B 服共用同一个键，读写前会先把 bilibili 区服归一化到国服。</para>
+    /// </summary>
+    public static bool GetAutoSignInEnabled(GameBiz gameBiz)
+    {
+        return GetValue(false, $"auto_sign_in_enabled_{gameBiz}");
+    }
+
+
+    public static void SetAutoSignInEnabled(GameBiz gameBiz, bool value)
+    {
+        SetValue(value, $"auto_sign_in_enabled_{gameBiz}");
+    }
+
 
 
     #endregion

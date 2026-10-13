@@ -6,6 +6,7 @@ using Starward.Core;
 using Starward.Core.HoYoPlay;
 using Starward.Features.GameLauncher;
 using Starward.Features.GamepadControl;
+using Starward.Features.Setting;
 using Starward.Features.UrlProtocol;
 using Starward.Features.ViewHost;
 using Starward.RPC;
@@ -76,6 +77,9 @@ public partial class App : Application
         }
 
         await AppConfig.CheckEnviromentAsync();
+
+        // 程序挪过目录之后，把仍启用的开机自启快捷方式指回当前 exe；用户已关掉自启则不动。
+        AutoStartService.RepairIfNeeded();
 
         if (args.Length > 0 && await HandleStartupAsync(args))
         {
