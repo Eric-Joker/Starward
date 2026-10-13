@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Buffers;
 using System.Diagnostics;
 using System.IO;
@@ -74,7 +74,27 @@ internal static class FileCache
     {
         try
         {
-            return await _fusionCache.GetOrSetAsync(url, token => GetFromCacheOrDownloadAsync(url, token), token: cancellationToken).ConfigureAwait(false);
+            // 磁盘缓存是所有 CachedImage 共享的写入，调用方的 token 只能用来取消「等待」，
+            // 不能让 ImageEx 切换 Source 时把共享的下载一起掐断：否则大图会留下永远下不完的
+            // 临时文件，并且每次显示都要重新下载。
+            //
+            // 另外两件事也只能在这里收口：
+            // 1) 失败要抛异常。GetFromCacheOrDownloadAsync 重试用尽后是 return null!，而 FusionCache
+            //    会把 null 当成「值」写进缓存（Duration = MaxValue），这个 URL 就永久变成取不到，
+            //    直到 DeleteCacheFile 或重启。
+            // 2) 超时后不要放弃仍在写 .tmp 的 factory。静态默认 AllowTimedOutFactoryBackgroundCompletion
+            //    是 false，FusionCache 在 FactoryHardTimeout（1 分钟）到点后会放掉按 key 的锁，第二个
+            //    调用就会再起一个 factory，两路撞上以 FileShare.None 打开的 .tmp → IOException。
+            //    打开此开关后，第二个调用会等第一次结束并拿到结果（实测 factory 只跑一次）。
+            return await _fusionCache.GetOrSetAsync(
+                url,
+                async _ =>
+                {
+                    string? file = await GetFromCacheOrDownloadAsync(url, CancellationToken.None).ConfigureAwait(false);
+                    return file ?? throw new HttpRequestException($"Failed to download {url}.");
+                },
+                options => options.AllowTimedOutFactoryBackgroundCompletion = true,
+                token: cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
