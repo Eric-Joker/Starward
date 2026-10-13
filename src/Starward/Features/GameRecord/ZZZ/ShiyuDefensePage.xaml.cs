@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml.Navigation;
 using Starward.Core;
 using Starward.Core.GameRecord;
 using Starward.Core.GameRecord.ZZZ.ShiyuDefense;
+using Starward.Features.GameRecord.Share;
 using Starward.Frameworks;
 using Starward.Helpers;
 using System;
@@ -117,7 +118,8 @@ public sealed partial class ShiyuDefensePage : PageBase
         catch (miHoYoApiException ex)
         {
             _logger.LogError(ex, "Refresh shiyu defense data ({gameBiz}, {uid}).", gameRole?.GameBiz, gameRole?.Uid);
-            GameRecordPage.HandleMiHoYoApiException(ex);
+            // 带上游戏：绝区零的 10041 可能是设备身份与该账号登记过的机器不符，处理里会补一句提示。
+            GameRecordPage.HandleMiHoYoApiException(ex, CurrentGameBiz);
         }
         catch (HttpRequestException ex)
         {
@@ -229,5 +231,39 @@ public sealed partial class ShiyuDefensePage : PageBase
             time = info.FourthLayerDetail.ChallengeTime;
         }
         return time.ToString("yyyy-MM-dd HH:mm:ss");
+    }
+
+
+
+    public bool IsSharingRecordImage { get; set => SetProperty(ref field, value); }
+
+
+
+    private async void Button_ShareRecordImage_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (CurrentShiyuDefenseV2 is { } dataV2)
+            {
+                await GameRecordShareHelper.ShareAsync(this, gameRole, _logger,
+                    busy => IsSharingRecordImage = busy,
+                    (bg, accent) => ShiyuDefenseShareRenderer.RenderAndSaveAsync(dataV2, gameRole.Uid, bg, accent));
+            }
+            else if (CurrentShiyuDefense is { } data)
+            {
+                await GameRecordShareHelper.ShareAsync(this, gameRole, _logger,
+                    busy => IsSharingRecordImage = busy,
+                    (bg, accent) => ShiyuDefenseShareRenderer.RenderAndSaveAsync(data, gameRole.Uid, bg, accent));
+            }
+            else
+            {
+                InAppToast.MainWindow?.Warning(Lang.HoyolabToolboxPage_NoData);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Share game record image");
+            InAppToast.MainWindow?.Error(Lang.Common_Error);
+        }
     }
 }

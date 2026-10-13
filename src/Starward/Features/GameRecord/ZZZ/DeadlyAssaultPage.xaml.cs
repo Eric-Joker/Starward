@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml.Navigation;
 using Starward.Core;
 using Starward.Core.GameRecord;
 using Starward.Core.GameRecord.ZZZ.DeadlyAssault;
+using Starward.Features.GameRecord.Share;
 using Starward.Frameworks;
 using Starward.Helpers;
 using System;
@@ -112,7 +113,8 @@ public sealed partial class DeadlyAssaultPage : PageBase
         catch (miHoYoApiException ex)
         {
             _logger.LogError(ex, "Refresh shiyu defense data ({gameBiz}, {uid}).", gameRole?.GameBiz, gameRole?.Uid);
-            GameRecordPage.HandleMiHoYoApiException(ex);
+            // 带上游戏：绝区零的 10041 可能是设备身份与该账号登记过的机器不符，处理里会补一句提示。
+            GameRecordPage.HandleMiHoYoApiException(ex, CurrentGameBiz);
         }
         catch (HttpRequestException ex)
         {
@@ -168,6 +170,32 @@ public sealed partial class DeadlyAssaultPage : PageBase
             _ => "ms-appx:///Assets/Image/rank-bg-5.cf630a83.png",
         };
         return new BitmapImage(new Uri(img));
+    }
+
+
+
+    public bool IsSharingRecordImage { get; set => SetProperty(ref field, value); }
+
+
+
+    private async void Button_ShareRecordImage_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (CurrentDeadlyAssault is not { } data)
+            {
+                InAppToast.MainWindow?.Warning(Lang.HoyolabToolboxPage_NoData);
+                return;
+            }
+            await GameRecordShareHelper.ShareAsync(this, gameRole, _logger,
+                busy => IsSharingRecordImage = busy,
+                (bg, accent) => DeadlyAssaultShareRenderer.RenderAndSaveAsync(data, gameRole.Uid, bg, accent));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Share game record image");
+            InAppToast.MainWindow?.Error(Lang.Common_Error);
+        }
     }
 
 

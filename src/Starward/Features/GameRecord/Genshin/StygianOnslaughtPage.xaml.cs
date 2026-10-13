@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Navigation;
 using Starward.Core;
 using Starward.Core.GameRecord;
 using Starward.Core.GameRecord.Genshin.StygianOnslaught;
+using Starward.Features.GameRecord.Share;
 using Starward.Frameworks;
 using Starward.Helpers;
 using System;
@@ -206,6 +207,32 @@ public sealed partial class StygianOnslaughtPage : PageBase
             >= 1 and <= 7 => $"ms-appx:///Assets/Image/UI_LeyLineChallenge_Medal_{difficulty}.png",
             _ => $"ms-appx:///Assets/Image/UI_LeyLineChallenge_Medal_0.png",
         };
+    }
+
+
+
+    public bool IsSharingRecordImage { get; set => SetProperty(ref field, value); }
+
+
+
+    private async void Button_ShareRecordImage_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (CurrentInfo is not { } info || CurrentSelectedBattle is not { HasData: true } battle)
+            {
+                InAppToast.MainWindow?.Warning(Lang.HoyolabToolboxPage_NoData);
+                return;
+            }
+            await GameRecordShareHelper.ShareAsync(this, gameRole, _logger,
+                busy => IsSharingRecordImage = busy,
+                (bg, accent) => StygianOnslaughtShareRenderer.RenderAndSaveAsync(info, battle, gameRole.Uid, bg, accent));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Share game record image");
+            InAppToast.MainWindow?.Error(Lang.Common_Error);
+        }
     }
 
 

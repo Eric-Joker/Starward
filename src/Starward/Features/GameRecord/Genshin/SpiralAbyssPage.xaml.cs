@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml.Navigation;
 using Starward.Core;
 using Starward.Core.GameRecord;
 using Starward.Core.GameRecord.Genshin.SpiralAbyss;
+using Starward.Features.GameRecord.Share;
 using Starward.Frameworks;
 using Starward.Helpers;
 using System;
@@ -180,6 +181,32 @@ public sealed partial class SpiralAbyssPage : PageBase
     public static string LevelX(int x)
     {
         return Lang.SpiralAbyssPage_ChamberX.Replace("{X}", x.ToString());
+    }
+
+
+
+    public bool IsSharingRecordImage { get; set => SetProperty(ref field, value); }
+
+
+
+    private async void Button_ShareRecordImage_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (CurrentAbyss is not { } data)
+            {
+                InAppToast.MainWindow?.Warning(Lang.HoyolabToolboxPage_NoData);
+                return;
+            }
+            await GameRecordShareHelper.ShareAsync(this, gameRole, _logger,
+                busy => IsSharingRecordImage = busy,
+                (bg, accent) => SpiralAbyssShareRenderer.RenderAndSaveAsync(data, gameRole.Uid, bg, accent));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Share game record image");
+            InAppToast.MainWindow?.Error(Lang.Common_Error);
+        }
     }
 
 
