@@ -49,10 +49,11 @@ public class ZZZGachaClient : GachaLogClient
         if (match.Success)
         {
             gachaUrl = match.Groups[1].Value;
-            gachaUrl = Regex.Replace(gachaUrl, @"&real_gacha_type=\d", "");
-            gachaUrl = Regex.Replace(gachaUrl, @"&page=\d", "");
-            gachaUrl = Regex.Replace(gachaUrl, @"&size=\d", "");
-            gachaUrl = Regex.Replace(gachaUrl, @"&end_id=\d", "");
+            // 清理分页与类型参数；\d+ 才能完整匹配多位数（如 real_gacha_type=102）
+            gachaUrl = Regex.Replace(gachaUrl, @"&real_gacha_type=\d+", "");
+            gachaUrl = Regex.Replace(gachaUrl, @"&page=\d+", "");
+            gachaUrl = Regex.Replace(gachaUrl, @"&size=\d+", "");
+            gachaUrl = Regex.Replace(gachaUrl, @"&end_id=\d+", "");
             if (!string.IsNullOrWhiteSpace(lang))
             {
                 gachaUrl = Regex.Replace(gachaUrl, @"&lang=[^&]+", $"&lang={LanguageUtil.FilterLanguage(lang)}");
@@ -99,7 +100,7 @@ public class ZZZGachaClient : GachaLogClient
         }
         else if (wrapper.Retcode != 0)
         {
-            throw new miHoYoApiException(wrapper.Retcode, wrapper.Message);
+            throw new GachaApiException(wrapper.Retcode, wrapper.Message);
         }
         else
         {
