@@ -91,6 +91,10 @@
         </Style>
     </UserControl.Resources>
 
+    <!--  MinWidth 保持原值 180：这是「开始游戏」这几个字的基线宽度，跟加预设名之前一致。
+          预设名（MaxWidth 200）是该格子的第二个孩子，会把格子撑宽、从而让按钮按内容自适应加宽
+          （产品方已批准），所以常见预设名不会再被截断；它变宽时同一行左边的预下载 / 游戏时间按钮
+          会被往左推，这是"自适应加宽"的预期代价。  -->
     <Grid x:Name="Grid_Root"
           Height="44"
           MinWidth="180"
@@ -133,12 +137,46 @@
                                   HorizontalAlignment="Left"
                                   IsHitTestVisible="False"
                                   Visibility="{x:Bind IsGameActionCommandRunning}" />
-                    <!--  按键文本： 开始游戏 / 游戏正在运行 / 安装游戏 / 更新游戏 / 更新插件 / 继续下载  -->
-                    <TextBlock x:Name="TextBlock_StartGame"
-                               Margin="41,5,53,6"
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center"
-                               Text="{x:Bind StartGameButtonText}" />
+                    <!--  按键文本 + 当前预设名： 开始游戏 / 游戏正在运行 / 安装游戏 / 更新游戏 / 更新插件 / 继续下载。
+                          主文案的 Margin / 居中 / 字号一个都没动。预设名是同一格里的第二个孩子，
+                          宽度上限 MaxWidth=200（约 18 个汉字，见下面的注释）：常见预设名完全不被截断，
+                          格子被它撑宽 → 按钮连同它所在的 Auto 列自适应加宽，所以名字能完整放下；
+                          位置由后台按实测宽度把它平移到「标题右缘 + 6px」，纵向按实测高度把它的
+                          下边缘对齐到标题的下边缘，于是名字贴在「开始游戏」右侧、和标题底边齐平。
+                          左边 41 让开转圈圈（14 + 20 = 34），右边 58 让开齿轮按钮（44）。  -->
+                    <Grid x:Name="Grid_StartGameCaption"
+                          Margin="41,5,58,6"
+                          HorizontalAlignment="Center"
+                          VerticalAlignment="Center"
+                          SizeChanged="Grid_StartGameCaption_SizeChanged">
+                        <TextBlock x:Name="TextBlock_StartGame"
+                                   HorizontalAlignment="Center"
+                                   SizeChanged="TextBlock_StartGame_SizeChanged"
+                                   Text="{x:Bind StartGameButtonText}" />
+                        <!--  当前启动预设名：小字，没有自己的背景和边框，不吃指针；
+                              颜色跟着主文案的 <see cref="ActionButtonForeground"/> 逐态切换：强调色底上用
+                              「强调色表面上的次要文字色」，禁用态（启动中 / 游戏运行中）用页面表面的
+                              禁用色，所以「开始游戏」暗下去时名字跟着一起暗，
+                              也不会出现"标题看得见、名字是白字压在浅底上"的情况；
+                              位置（水平贴标题右缘 +6px、垂直底边对齐标题底边）由后台按实测宽高算出来，
+                              见 UpdateLaunchProfileNameTransform —— 用 RenderTransform，不参与布局，
+                              所以它碰不到标题；MaxWidth=200 是"合理上限"：约 18 个汉字，
+                              比任何正常的启动预设名都宽，只有极端长名才会出现省略号；
+                              只有单预设（ProfileNameVisible=false）或安装态才由 Visibility 隐藏。  -->
+                        <TextBlock x:Name="TextBlock_LaunchProfileName"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   MaxWidth="200"
+                                   FontSize="11"
+                                   Foreground="{x:Bind LaunchProfileNameForeground}"
+                                   IsHitTestVisible="False"
+                                   IsTextScaleFactorEnabled="False"
+                                   SizeChanged="TextBlock_LaunchProfileName_SizeChanged"
+                                   Text="{x:Bind ProfileName, Mode=OneWay}"
+                                   TextTrimming="CharacterEllipsis"
+                                   TextWrapping="NoWrap"
+                                   Visibility="{x:Bind ProfileNameVisible, Mode=OneWay}" />
+                    </Grid>
                 </Grid>
 
                 <!--  安装中信息  -->

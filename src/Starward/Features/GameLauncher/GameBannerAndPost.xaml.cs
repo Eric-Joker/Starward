@@ -106,7 +106,7 @@ public sealed partial class GameBannerAndPost : UserControl
     private async void OnGameAnnouncementSettingChanged(object _, GameAnnouncementSettingChangedMessage message)
     {
         // 没有设置取消，网络不好时可能会造成状态异常，懒得写了
-        if (AppConfig.EnableBannerAndPost)
+        if (AppConfig.GetEnableBannerAndPost(CurrentGameId.GameBiz))
         {
             ShowBannerAndPost = true;
             await UpdateGameContentAsync();
@@ -172,7 +172,8 @@ public sealed partial class GameBannerAndPost : UserControl
         try
         {
             var content = await _hoYoPlayService.GetGameContentAsync(CurrentGameId);
-            if (content is null || !AppConfig.EnableBannerAndPost)
+            // 显示游戏公告属于启动预设：当前预设关掉时连公告内容都不取。
+            if (content is null || !AppConfig.GetEnableBannerAndPost(CurrentGameId.GameBiz))
             {
                 ShowBannerAndPost = false;
                 return;

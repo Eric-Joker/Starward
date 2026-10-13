@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<sf:WindowEx x:Class="Starward.Features.GameLauncher.GameLaunchProfileWindow"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:lang="using:Starward.Language"
+             xmlns:local="using:Starward.Features.GameLauncher"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:sf="using:Starward.Frameworks"
+             Title="{x:Bind lang:Lang.GameLauncherSettingDialog_LaunchProfile}"
+             x:DefaultBindMode="OneWay"
+             mc:Ignorable="d">
+
+    <!--  根元素不设 Background：亚克力画在窗口内容后面，根上铺一层画刷（哪怕是 Transparent）
+          就等于把系统背景挡掉。仓库里其他模糊窗口（ImageBatchConvertWindow、ImageViewWindow2）
+          的根元素同样不设 Background，内容全透明，模糊才透得过来。  -->
+    <Grid x:Name="RootGrid">
+
+        <Grid.Resources>
+            <!--  行高 40，和浮窗里的预设行同一个尺度；行与行之间隔 4  -->
+            <x:Double x:Key="RowHeight">40</x:Double>
+            <x:Double x:Key="RowLineHeight">16</x:Double>
+            <Thickness x:Key="RowBottomGap">0,0,0,4</Thickness>
+
+            <!--  预设行：整行的悬停高亮由 ListViewItem 自己画，行内只有名字和右侧动作按钮。
+                  这里和仓库里两个可拖动列表（GameSelector.xaml 的游戏图标列表、
+                  AccountCenterPanel.xaml 的账号列表）一样**不换 ListViewItem 的模板**：
+                  换模板会让拖动排序之后行里的内容不跟着数据重画，行里留着的还是拖动前的名字，
+                  看起来就是「拖了但元素没动」。  -->
+            <Style x:Key="ProfileRowStyle" BasedOn="{StaticResource DefaultListViewItemStyle}" TargetType="ListViewItem">
+                <Setter Property="MinHeight" Value="{StaticResource RowHeight}" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="Margin" Value="{StaticResource RowBottomGap}" />
+                <Setter Property="CornerRadius" Value="4" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+                <Setter Property="MinWidth" Value="0" />
+                <Setter Property="UseSystemFocusVisuals" Value="False" />
+            </Style>
+
+            <!--  行内的小动作按钮：和浮窗里原来的改名按钮同一个样式和尺寸  -->
+            <Style x:Key="RowActionButtonStyle"
+                   BasedOn="{StaticResource DateTimePickerFlyoutButtonStyle}"
+                   TargetType="Button">
+                <Setter Property="Width" Value="28" />
+                <Setter Property="Height" Value="28" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+            </Style>
+        </Grid.Resources>
+
+        <Grid.RowDefinitions>
+            <!--  自绘标题栏：和仓库里其他窗口一样是 32 高的第一条  -->
+            <RowDefinition Height="32" />
+            <!--  预设列表吃掉中间剩下的全部高度：行多了就在这块里滚动，行少了下面的按钮也不会浮上来  -->
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!--  标题栏：只留标题，最小化 / 最大化已经在 InitializeWindow 里关掉。
+              右边那一截留给系统自己画的关闭按钮，不放任何东西，拖动区域也避开它（见 SetDragRectangles）  -->
+        <TextBlock x:Name="TextBlock_Title"
+                   Margin="12,0,0,0"
+                   VerticalAlignment="Center"
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                   IsTextScaleFactorEnabled="False"
+                   Text="{x:Bind lang:Lang.GameLauncherSettingDialog_LaunchProfile}" />
+
+        <!--  预设列表：拖动排序由 ListView 的 CanReorderItems 完成，顺序在拖动结束后立即持久化。
+              ItemsSource 显式写 OneWay：改名 / 新增 / 删除，以及拖动排序之后，代码都会换成
+              按存储排好的新集合，列表要重新接住新实例才会把每一行重画一遍
+              （见 GameLaunchProfileWindow.ReloadProfiles）。
+              名字属于预设本身（创建时分配的序号），重排只换行的先后、不改任何名字。  -->
+        <ListView x:Name="ListView_Profiles"
+                  Grid.Row="1"
+                  Margin="12,4,12,0"
+                  Padding="0"
+                  AllowDrop="True"
+                  CanDragItems="True"
+                  CanReorderItems="True"
+                  DragItemsCompleted="ListView_Profiles_DragItemsCompleted"
+                  DragItemsStarting="ListView_Profiles_DragItemsStarting"
+                  FontSize="14"
+                  IsItemClickEnabled="False"
+                  IsTabStop="False"
+                  ItemContainerStyle="{StaticResource ProfileRowStyle}"
+                  ItemsSource="{x:Bind Profiles, Mode=OneWay}"
+                  SelectionMode="None">
+            <ListView.ItemTemplate>
+                <DataTemplate x:DataType="local:GameLaunchProfile">
+                    <Grid ColumnSpacing="4">
+                        <Grid.ColumnDefinitions>
+                            <!--  拖动排序手柄：只是提示可以拖，ListView 自己管手势，所以不吃指针  -->
+                            <ColumnDefinition Width="32" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <FontIcon Grid.Column="0"
+                                  HorizontalAlignment="Center"
+                                  VerticalAlignment="Center"
+                                  FontSize="12"
+                                  Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                  Glyph="&#xE700;"
+                                  IsHitTestVisible="False"
+                                  IsTextScaleFactorEnabled="False"
+                                  ToolTipService.ToolTip="{x:Bind lang:Lang.Common_Sort, Mode=OneTime}" />
+
+                        <!--  预设名：只在本列里省略，不会钻到右边的按钮下面。
+                              DisplayName = 自定义名，没有就用创建时分配的默认名「预设 N」，**与位置无关**：
+                              拖动排序只换行的先后，名字跟着各自的预设走，所以两行互换后各自显示对方原来的名字。
+                              这里用**经典绑定**：运行时绑定引擎在 DataContext（就是这一项的 GameLaunchProfile）上
+                              订阅 PropertyChanged，DisplayName 一发通知这一行就重读。
+                              拖动结束后代码还会按 Tag（或名字）直接写一次 Text，见 WriteProfileRowTexts：
+                              只认 Tag="ProfileName"，不去"找第一个 TextBlock"——行首手柄是 FontIcon，
+                              它的控件模板里也是用 TextBlock 画图标字形，按"第一个"取会写坏图标。  -->
+                        <TextBlock x:Name="TextBlock_ProfileName"
+                                   Grid.Column="1"
+                                   VerticalAlignment="Center"
+                                   AutomationProperties.Name="{Binding DisplayName, Mode=OneWay}"
+                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                   LineHeight="{StaticResource RowLineHeight}"
+                                   LineStackingStrategy="BlockLineHeight"
+                                   Tag="ProfileName"
+                                   Text="{Binding DisplayName, Mode=OneWay}"
+                                   TextTrimming="CharacterEllipsis"
+                                   TextWrapping="NoWrap" />
+
+                        <!--  改名：自己吃掉按下事件，避免按下去顺带把这一行拖起来  -->
+                        <Button Grid.Column="2"
+                                Click="Button_RenameProfile_Click"
+                                PointerPressed="Button_RowAction_PointerPressed"
+                                Style="{StaticResource RowActionButtonStyle}"
+                                ToolTipService.ToolTip="{x:Bind lang:Lang.GameLauncherSettingDialog_ProfileName, Mode=OneTime}">
+                            <FontIcon FontSize="12"
+                                      Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                      Glyph="&#xE70F;"
+                                      IsTextScaleFactorEnabled="False" />
+                        </Button>
+
+                        <!--  删除：只剩一个预设时按钮置灰，存储那边也会拒绝  -->
+                        <Button Grid.Column="3"
+                                Click="Button_DeleteProfile_Click"
+                                IsEnabled="{x:Bind CanDelete, Mode=OneWay}"
+                                PointerPressed="Button_RowAction_PointerPressed"
+                                Style="{StaticResource RowActionButtonStyle}"
+                                ToolTipService.ToolTip="{x:Bind lang:Lang.Common_Delete, Mode=OneTime}">
+                            <FontIcon FontSize="12"
+                                      Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                      Glyph="&#xE74D;"
+                                      IsTextScaleFactorEnabled="False" />
+                        </Button>
+                    </Grid>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>
+
+        <!--  新增 + 完成。完成即应用：改名 / 删除 / 排序都是立刻写存储的，关闭即为确认  -->
+        <Grid Grid.Row="2"
+              Margin="12,8,12,12"
+              ColumnSpacing="8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <Button x:Name="Button_AddProfile"
+                    Grid.Column="0"
+                    MinWidth="120"
+                    Click="Button_AddProfile_Click">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon VerticalAlignment="Center"
+                              FontSize="12"
+                              Glyph="&#xE710;"
+                              IsTextScaleFactorEnabled="False" />
+                    <TextBlock VerticalAlignment="Center"
+                               IsTextScaleFactorEnabled="False"
+                               Text="{x:Bind lang:Lang.GameLauncherSettingDialog_NewProfile}" />
+                </StackPanel>
+            </Button>
+
+            <Button x:Name="Button_Close"
+                    Grid.Column="2"
+                    MinWidth="88"
+                    Click="Button_Close_Click"
+                    Content="{x:Bind lang:Lang.Common_Confirm}" />
+        </Grid>
+
+    </Grid>
+
+</sf:WindowEx>

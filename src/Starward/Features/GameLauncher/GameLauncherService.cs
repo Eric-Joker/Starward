@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Starward.Core;
 using Starward.Core.HoYoPlay;
+using Starward.Features.Account;
 using Starward.Features.GameSetting;
 using Starward.Features.HoYoPlay;
 using Starward.Features.PlayTime;
@@ -30,13 +31,58 @@ internal partial class GameLauncherService
 
     private readonly GameAuthLoginService _gameAuthLoginService;
 
+    private readonly PassportAccountService _accountService;
 
-    public GameLauncherService(ILogger<GameLauncherService> logger, HoYoPlayService hoYoPlayService, PlayTimeRecordService playTimeRecorderService, GameAuthLoginService gameAuthLoginService)
+
+    public GameLauncherService(ILogger<GameLauncherService> logger, HoYoPlayService hoYoPlayService, PlayTimeRecordService playTimeRecorderService, GameAuthLoginService gameAuthLoginService, PassportAccountService accountService)
     {
         _logger = logger;
         _hoYoPlayService = hoYoPlayService;
         _playTimeRecorderService = playTimeRecorderService;
         _gameAuthLoginService = gameAuthLoginService;
+        _accountService = accountService;
+    }
+
+
+
+
+    /// <summary>
+    /// 应用预设里指定的米游社账号：把它设成该区服当前账号并立刻生效（换号 + 同步工具箱），
+    /// 这样后面的授权票据申请 / 工具箱写入用的都是这个账号。
+    /// <list type="bullet">
+    /// <item>预设没指定账号：什么都不做，跟随账号选择器里当前选中的账号。</item>
+    /// <item>指定的账号还在：切到它。</item>
+    /// <item>指定的账号已经不在了（被删掉 / 换过设备）：自动回退到账号选择器里当前选中的账号，
+    /// 并把预设里那个失效的 key 清掉，不会一直带着一个不存在的账号。</item>
+    /// <item>启用「基于注册表的游戏账号切换」：整项不生效，也不动预设里的记录。</item>
+    /// </list>
+    /// 换号失败不拦住启动游戏。
+    /// </summary>
+    private async Task ApplyProfileAccountAsync(GameLaunchProfile profile, GameBiz gameBiz)
+    {
+        try
+        {
+            if (AppConfig.EnableRegistryGameAccountSwitcher)
+            {
+                return;
+            }
+            string? key = profile.AccountKey;
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                return;
+            }
+            // 账号还在就切过去；已经不存在就自动回退到账号选择器当前选中的账号，并清掉失效记录。
+            if (!await _accountService.TryApplyProfileAccountAsync(gameBiz, key))
+            {
+                profile.AccountKey = null;
+                GameLaunchProfileStore.Save(gameBiz);
+                _logger.LogInformation("Launch profile account not found, fall back to the selected account ({biz}).", gameBiz);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Apply launch profile account ({biz})", gameBiz);
+        }
     }
 
 
@@ -332,8 +378,12 @@ internal partial class GameLauncherService
                     exe = e;
                 }
             }
+            // 自定义启动程序、启动参数、自动登录和 DX12 都属于启动预设，先取出该区服当前选中的预设。
+            GameLaunchProfile profile = GameLaunchProfileStore.GetCurrentProfile(gameId.GameBiz);
+            // 预设里指定的米游社账号：在申请授权票据之前先换好号（账号已不存在会自动回退）。
+            await ApplyProfileAccountAsync(profile, gameId.GameBiz);
             bool thirdPartyTool = false;
-            if (string.IsNullOrWhiteSpace(exe) && AppConfig.GetEnableThirdPartyTool(gameId.GameBiz))
+            if (string.IsNullOrWhiteSpace(exe) && profile.EnableThirdPartyTool)
             {
                 exe = GetThirdPartyToolPath(gameId);
                 if (File.Exists(exe))
@@ -360,8 +410,8 @@ internal partial class GameLauncherService
                     throw new FileNotFoundException("Game exe not found", name);
                 }
             }
-            arg = AppConfig.GetStartArgument(gameId.GameBiz)?.Trim();
-            if (AppConfig.GetEnableAuthTicketLogin(gameId.GameBiz))
+            arg = profile.Argument?.Trim();
+            if (profile.EnableAuthTicketLogin)
             {
                 string? ticket = await _gameAuthLoginService.CreateAuthTicketByGameBiz(gameId);
                 if (!string.IsNullOrWhiteSpace(ticket))
@@ -373,7 +423,7 @@ internal partial class GameLauncherService
             {
                 arg += " -popupwindow";
             }
-            if (AppConfig.GetEnableDX12(gameId.GameBiz))
+            if (profile.EnableDX12)
             {
                 arg += " -use-d3d12";
             }

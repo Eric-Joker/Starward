@@ -402,6 +402,12 @@
                 <FlipViewItem>
                     <StackPanel Spacing="12">
 
+                        <!--  这些设置属于当前预设，标出预设名避免和别的预设混淆  -->
+                        <TextBlock FontSize="12"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   IsTextScaleFactorEnabled="False"
+                                   Text="{x:Bind CurrentLaunchProfileName}" />
+
                         <!--  游戏启动后  -->
                         <TextBlock Text="{x:Bind lang:Lang.ExperienceSettingPage_AfterStartingGame}" />
                         <ComboBox Name="ComboBox_AfterStartGameAction"
