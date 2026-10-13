@@ -56,6 +56,12 @@ internal partial class GameFeatureConfig
     public bool SupportDailyNote { get; init; }
 
 
+    /// <summary>
+    /// 支持好感壁纸（从米游社百科取绝区零的好感/满影画壁纸）
+    /// </summary>
+    public bool SupportFavorWallpaper { get; init; }
+
+
 
     public static GameFeatureConfig FromGameId(GameId? gameId)
     {
@@ -251,6 +257,7 @@ internal partial class GameFeatureConfig
         SupportGameAccountSwitcher = true,
         SupportDailyNote = true,
         SupportCloudGame = true,
+        SupportFavorWallpaper = true,
     };
 
 
@@ -269,6 +276,7 @@ internal partial class GameFeatureConfig
         SupportHardLink = true,
         SupportGameAccountSwitcher = true,
         SupportDailyNote = true,
+        SupportFavorWallpaper = true,
     };
 
 
@@ -286,6 +294,7 @@ internal partial class GameFeatureConfig
         InGameNoticesWindow = true,
         SupportHardLink = true,
         SupportDailyNote = true,
+        SupportFavorWallpaper = true,
     };
 
 

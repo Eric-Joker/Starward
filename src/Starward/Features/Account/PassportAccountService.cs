@@ -1060,11 +1060,13 @@ internal class PassportAccountService
                 return;
             }
             var user = _gameRecordService.GetRecordUser(tokenSet.Aid, false);
+            // 还需要补角色行的两种情况：账号行不存在（首次同步），或账号行已存在但这次是**全新库**、
+            // 一行角色都还没有。后者以前会被下面的分支跳过，于是既不写角色、也不发角色变化消息，
+            // 登录后右上角的便笺 / 签到入口就一直停在 Collapsed，要手动切一下游戏才出现。
+            bool needRoleSync = user is null || !HasAnyGameRecordRole(tokenSet.Aid);
             if (user is null)
             {
                 user = await _gameRecordService.AddRecordUserAsync(cookie, cancellationToken);
-                await _gameRecordService.AddGameRolesAsync(cookie, cancellationToken);
-                WeakReferenceMessenger.Default.Send(new GameRecordRoleChangedMessage(null));
                 _logger.LogInformation("Passport account synced to miyoushe toolbox (new user).");
             }
             else if (!string.Equals(user.Cookie, cookie, StringComparison.Ordinal))
@@ -1072,6 +1074,13 @@ internal class PassportAccountService
                 // Cookie 变化时只更新数据库，不额外请求接口。
                 _gameRecordService.UpdateRecordUserCookie(tokenSet.Aid, false, cookie);
                 _logger.LogInformation("Passport account cookie updated in miyoushe toolbox.");
+            }
+            if (needRoleSync)
+            {
+                // 角色行写完之后再发消息：订阅方收到后会重新读取角色并重算入口可见性。
+                await _gameRecordService.AddGameRolesAsync(cookie, cancellationToken);
+                WeakReferenceMessenger.Default.Send(new GameRecordRoleChangedMessage(null));
+                _logger.LogInformation("Passport account roles synced to miyoushe toolbox.");
             }
             // 米游社昵称随工具箱账号信息一起获得，用于界面展示，不额外请求接口。
             if (!string.IsNullOrWhiteSpace(user.Nickname) && tokenSet.Nickname != user.Nickname)
@@ -1084,6 +1093,31 @@ internal class PassportAccountService
         {
             _logger.LogError(ex, "Sync passport account to miyoushe toolbox");
         }
+    }
+
+
+
+
+    /// <summary>
+    /// 该账号是否已经有任何一行工具箱角色（<c>GameRecordRole</c>）。
+    /// <para>
+    /// 用来判断登录后要不要补写角色并发一次 <see cref="GameRecordRoleChangedMessage"/>：
+    /// 全新库里账号行可能存在但一行角色都没有，此时右上角的便笺 / 签到入口不会出现。
+    /// 只读数据库，不发请求。
+    /// </para>
+    /// </summary>
+    /// <param name="aid">通行证账号 ID。</param>
+    /// <returns>已有任意角色行时返回 true。</returns>
+    private bool HasAnyGameRecordRole(long aid)
+    {
+        if (aid <= 0)
+        {
+            return false;
+        }
+        using var dapper = DatabaseService.CreateConnection();
+        var cookies = dapper.Query<string>("SELECT Cookie FROM GameRecordRole WHERE Cookie IS NOT NULL AND Cookie <> '';");
+        // 用项目自带的账号 ID 解析（认得 ltuid / account_id / stuid 等写法），比字符串匹配可靠。
+        return cookies.Any(cookie => GameRecordService.GetCookieAccountId(cookie) == aid);
     }
 
 

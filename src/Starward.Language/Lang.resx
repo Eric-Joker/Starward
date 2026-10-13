@@ -401,6 +401,9 @@ closing the program during decompression will cause game file corruption.</value
   <data name="Common_Delete" xml:space="preserve">
     <value>Delete</value>
   </data>
+  <data name="Common_Download" xml:space="preserve">
+    <value>Download</value>
+  </data>
   <data name="GachaLogPage_DeletedGachaRecordsOfUid" xml:space="preserve">
     <value>Deleted {0} gacha record(s) of UID {1}.</value>
     <comment>{0} = {count} ,  {1} = {uid}</comment>
@@ -839,6 +842,12 @@ closing the program during decompression will cause game file corruption.</value
   </data>
   <data name="HoyolabToolboxPage_InputCookie" xml:space="preserve">
     <value>Input Cookie</value>
+  </data>
+  <data name="HoyolabToolboxPage_DeviceIdentityHint" xml:space="preserve">
+    <value>The device fingerprint this app uses has not been registered by the account yet. The record API rejects an unregistered fingerprint with 10041. Signing in once with this account on the miHoYo website or in the miYoShe app lets the service register one; alternatively paste the Cookie (or the full request headers) copied from the browser you play with into the Cookie box below.</value>
+  </data>
+  <data name="HoyolabToolboxPage_DeviceIdentityErrorHint" xml:space="preserve">
+    <value>This device fingerprint has not been registered by this account, which is why the record API answers 10041 (account at risk). Sign in once with this account on the miHoYo website or in the miYoShe app, or paste the Cookie (or the full request headers) copied from the browser you play with into "Input Cookie" in this toolbox: it carries the fingerprint the account is bound to, and this app will use it in preference to the one it requested itself.</value>
   </data>
   <data name="HoyolabToolboxPage_RefreshInfo" xml:space="preserve">
     <value>Refresh Info</value>
@@ -1416,12 +1425,6 @@ Do you accept the risk and continue to use it?</value>
   <data name="GachaLogPage_ShowChronicledWish" xml:space="preserve">
     <value>Show Chronicled Wish</value>
   </data>
-  <data name="HoyolabToolboxPage_UpdateDeviceFingerprint" xml:space="preserve">
-    <value>Update fingerprint</value>
-  </data>
-  <data name="HoyolabToolboxPage_TheDeviceFingerprintIsAlreadyUpdated" xml:space="preserve">
-    <value>The device fingerprint is already updated.</value>
-  </data>
   <data name="BBSWebBridge_ImageCopiedToClipboard" xml:space="preserve">
     <value>Image copied to clipboard</value>
   </data>
@@ -1699,6 +1702,24 @@ Do you accept the risk and continue to use it?</value>
   <data name="GameLauncherSettingDialog_UseVersionPoster" xml:space="preserve">
     <value>Use Version Poster</value>
   </data>
+  <data name="GameLauncherSettingDialog_LaunchProfile" xml:space="preserve">
+    <value>Launch Profile</value>
+  </data>
+  <data name="GameLauncherSettingDialog_NewProfile" xml:space="preserve">
+    <value>New Profile</value>
+  </data>
+  <data name="GameLauncherSettingDialog_EditProfile" xml:space="preserve">
+    <value>Manage profiles</value>
+  </data>
+  <data name="GameLauncherSettingDialog_ProfileName" xml:space="preserve">
+    <value>Profile Name</value>
+  </data>
+  <data name="GameLauncherSettingDialog_DefaultProfileName" xml:space="preserve">
+    <value>Default</value>
+  </data>
+  <data name="GameLauncherSettingDialog_ProfileNameFormat" xml:space="preserve">
+    <value>Profile {0}</value>
+  </data>
   <data name="GameSelector_ActualSizeOfInstalledGames" xml:space="preserve">
     <value>Actual Size of Installed Games</value>
   </data>
@@ -1863,11 +1884,68 @@ Do you accept the risk and continue to use it?</value>
   <data name="CloudGameButton_CloudGame" xml:space="preserve">
     <value>Cloud Game</value>
   </data>
+  <data name="CloudGameButton_FreeTime" xml:space="preserve">
+    <value>Free Time</value>
+  </data>
+  <data name="CloudGameButton_YuanPointsTime" xml:space="preserve">
+    <value>Yuan Points Time</value>
+  </data>
+  <data name="CloudGameButton_BangbooPointsTime" xml:space="preserve">
+    <value>Bangboo Points Time</value>
+  </data>
+  <data name="CloudGameButton_AutoClaimFreeTime" xml:space="preserve">
+    <value>Auto-claim free time</value>
+  </data>
+  <data name="CloudGameButton_PlayCard" xml:space="preserve">
+    <value>Play Card</value>
+  </data>
+  <data name="CloudGameButton_PlayCardInactive" xml:space="preserve">
+    <value>Not activated</value>
+  </data>
+  <data name="CloudGameButton_Days" xml:space="preserve">
+    <value>{0} d</value>
+  </data>
+  <data name="CloudGameButton_DaysHours" xml:space="preserve">
+    <value>{0} d {1} h</value>
+  </data>
+  <data name="CloudGameButton_Minutes" xml:space="preserve">
+    <value>{0} min</value>
+  </data>
+  <data name="CloudGameButton_Hours" xml:space="preserve">
+    <value>{0} h</value>
+  </data>
+  <data name="CloudGameButton_HoursMinutes" xml:space="preserve">
+    <value>{0} h {1} min</value>
+  </data>
+  <data name="CloudGameButton_CredentialFromClient" xml:space="preserve">
+    <value>The sign-in credential can only be read after you sign in to the cloud game client.</value>
+  </data>
+  <data name="CloudGameButton_CredentialExpired" xml:space="preserve">
+    <value>The cloud game credential has expired, please sign in to the cloud game client again.</value>
+  </data>
   <data name="GameAccountSwitcher_TheCurrentlyLoggedInAccountIsNotSaved" xml:space="preserve">
     <value>The currently logged-in account is not saved.</value>
   </data>
   <data name="SettingPage_RegistryBasedGameAccountSwitchingFeature" xml:space="preserve">
     <value>Registry-based Game Account Switching Feature</value>
+  </data>
+  <data name="SettingPage_StartAtLogin" xml:space="preserve">
+    <value>Start at login</value>
+  </data>
+  <data name="SettingPage_StartAtLoginSwitch" xml:space="preserve">
+    <value>Start at login</value>
+  </data>
+  <data name="SettingPage_StartAtLoginDesc" xml:space="preserve">
+    <value>Start Starward in the system tray when you sign in to Windows. You can also turn this off in Windows Settings &gt; Apps &gt; Startup.</value>
+  </data>
+  <data name="SettingPage_StartAtLoginRemovableHint" xml:space="preserve">
+    <value>Not available when running from removable storage.</value>
+  </data>
+  <data name="SettingPage_StartAtLoginFailed" xml:space="preserve">
+    <value>Failed to update the start-at-login setting</value>
+  </data>
+  <data name="SettingPage_StartAtLoginWindowsSettings" xml:space="preserve">
+    <value>Windows Startup apps</value>
   </data>
   <data name="ToolboxSetting_ZZZGachaItemImages" xml:space="preserve">
     <value>ZZZ Gacha Item Images</value>
@@ -2696,6 +2774,102 @@ You are welcome to submit the exported data to the following repository:</value>
   <data name="AppBackground_VideoDecodingFailedPleaseInstallTheVP9VideoExtensions" xml:space="preserve">
     <value>Video decoding failed. Please install the VP9 Video Extensions.</value>
   </data>
+  <data name="SignInButton_Title" xml:space="preserve">
+    <value>Daily Check-in</value>
+  </data>
+  <data name="SignInButton_SignIn" xml:space="preserve">
+    <value>Check In</value>
+  </data>
+  <data name="SignInButton_ReSign" xml:space="preserve">
+    <value>Resign</value>
+  </data>
+  <data name="SignInButton_SignedToday" xml:space="preserve">
+    <value>Signed in today</value>
+  </data>
+  <data name="SignInButton_NotSignedToday" xml:space="preserve">
+    <value>Not signed in</value>
+  </data>
+  <data name="SignInButton_SignedInForDays" xml:space="preserve">
+    <value>Signed in for {0} day(s) this month</value>
+  </data>
+  <data name="SignInButton_AutoSignIn" xml:space="preserve">
+    <value>Auto check-in</value>
+  </data>
+  <data name="SignInButton_AutoSignInHint" xml:space="preserve">
+    <value>Auto check-in is independent for each game. Starward checks in shortly after launch, and again after the daily reset while it stays running</value>
+  </data>
+  <data name="SignInButton_SignInSucceeded" xml:space="preserve">
+    <value>Reward claimed successfully</value>
+  </data>
+  <data name="SignInButton_AlreadySignedToday" xml:space="preserve">
+    <value>You have already checked in today</value>
+  </data>
+  <data name="SignInButton_LoginExpired" xml:space="preserve">
+    <value>Login expired, please sign in again</value>
+  </data>
+  <data name="SignInButton_RiskControl" xml:space="preserve">
+    <value>Verification required, please check in via the app or website</value>
+  </data>
+  <data name="SignInButton_NotEnoughCoin" xml:space="preserve">
+    <value>Not enough coins to resign</value>
+  </data>
+  <data name="SignInButton_ResignQuotaUsedUp" xml:space="preserve">
+    <value>Resign quota has been used up</value>
+  </data>
+  <data name="SignInButton_NoResignDate" xml:space="preserve">
+    <value>No missed day available to resign</value>
+  </data>
+  <data name="SignInButton_PleaseSignInFirst" xml:space="preserve">
+    <value>Please complete today's check-in first</value>
+  </data>
+  <data name="SignInButton_SignInFailed" xml:space="preserve">
+    <value>Check-in failed</value>
+  </data>
+  <data name="SignInButton_ReSignConfirmContent" xml:space="preserve">
+    <value>Resigning will cost {0} coin(s). You currently have {1}. Continue?</value>
+  </data>
+  <data name="FavorWallpaper_Title" xml:space="preserve">
+    <value>Trust Wallpapers</value>
+  </data>
+  <data name="FavorWallpaper_MindscapeTitle" xml:space="preserve">
+    <value>Mindscape Wallpapers</value>
+  </data>
+  <data name="FavorWallpaper_InUse" xml:space="preserve">
+    <value>In Use</value>
+  </data>
+  <data name="FavorWallpaper_ShuffleMode" xml:space="preserve">
+    <value>Shuffle mode</value>
+  </data>
+  <data name="FavorWallpaper_ShuffleNeedDownload" xml:space="preserve">
+    <value>Download some wallpapers first, then turn on shuffle mode.</value>
+  </data>
+  <data name="FavorWallpaper_LoadingProgress" xml:space="preserve">
+    <value>Loading {0}/{1}</value>
+  </data>
+  <data name="FavorWallpaper_LoadFailed" xml:space="preserve">
+    <value>Failed to load trust wallpapers</value>
+  </data>
+  <data name="FavorWallpaper_DownloadCompleted" xml:space="preserve">
+    <value>Download completed</value>
+  </data>
+  <data name="FavorWallpaper_DownloadFailed" xml:space="preserve">
+    <value>Download failed</value>
+  </data>
+  <data name="FavorWallpaper_SetSuccess" xml:space="preserve">
+    <value>Background updated</value>
+  </data>
+  <data name="FavorWallpaper_Deleted" xml:space="preserve">
+    <value>Removed from device</value>
+  </data>
+  <data name="FavorWallpaper_DeleteFailed" xml:space="preserve">
+    <value>Failed to delete</value>
+  </data>
+  <data name="FavorWallpaper_Loading" xml:space="preserve">
+    <value>Loading wallpapers...</value>
+  </data>
+  <data name="FavorWallpaper_UseAsBackground" xml:space="preserve">
+    <value>Use as Background</value>
+  </data>
   <data name="GachaLogPage_SyncFromHoYoLAB" xml:space="preserve">
     <value>Sync from HoYoLAB (Experimental)</value>
   </data>
@@ -2752,6 +2926,12 @@ You are welcome to submit the exported data to the following repository:</value>
   </data>
   <data name="DeadlyAssaultPage_AdversityMode" xml:space="preserve">
     <value>Adversity Mode</value>
+  </data>
+  <data name="DeadlyAssaultPage_HardMode" xml:space="preserve">
+    <value>Desperate</value>
+  </data>
+  <data name="DeadlyAssaultPage_NormalMode" xml:space="preserve">
+    <value>Normal</value>
   </data>
   <data name="PlayTimeStatsDialog_PlaytimeStatistics" xml:space="preserve">
     <value>Playtime Statistics</value>
@@ -2882,6 +3062,27 @@ You are welcome to submit the exported data to the following repository:</value>
   <data name="PassportLogin_Mid" xml:space="preserve">
     <value>MiHoYo ID (mid)</value>
   </data>
+  <data name="PassportLogin_DeviceId" xml:space="preserve">
+    <value>Device id (x-rpc-device_id)</value>
+  </data>
+  <data name="PassportLogin_DeviceIdHintPrefix" xml:space="preserve">
+    <value>Recommended: the device id of a long-term login in the miHoYo app. You can get it by capturing requests, or from the </value>
+  </data>
+  <data name="PassportLogin_GetToken" xml:space="preserve">
+    <value>GetToken</value>
+  </data>
+  <data name="PassportLogin_DeviceIdHintSuffix" xml:space="preserve">
+    <value> project.</value>
+  </data>
+  <data name="PassportLogin_DeviceIdRecognized" xml:space="preserve">
+    <value>A device id was recognized in the pasted text; you can import it now.</value>
+  </data>
+  <data name="PassportLogin_RefreshInfo" xml:space="preserve">
+    <value>Refresh info</value>
+  </data>
+  <data name="PassportLogin_DeviceIdInvalid" xml:space="preserve">
+    <value>The device id must look like d5c54418-09ce-3b92-bd97-47729d496077 (a GUID). Nothing was saved.</value>
+  </data>
   <data name="PassportLogin_DeviceFp" xml:space="preserve">
     <value>Device fingerprint</value>
   </data>
@@ -2913,7 +3114,19 @@ You are welcome to submit the exported data to the following repository:</value>
     <value>Import</value>
   </data>
   <data name="PassportLogin_ImportCookieNotFound" xml:space="preserve">
-    <value>No stoken was found in the pasted text. Paste the full Cookie, or fill in the SToken and mid separately.</value>
+    <value>No usable credential (cookie_token or ltoken) was found in the pasted text. Copy the whole Cookie from a signed-in browser session, or fill in the SToken and MiHoYo ID separately.</value>
+  </data>
+  <data name="PassportLogin_ImportNoAccountId" xml:space="preserve">
+    <value>The pasted text carries a credential but no account ID (account_id or ltuid), so the account cannot be located. Copy the whole Cookie rather than a single value.</value>
+  </data>
+  <data name="PassportLogin_ImportRecordOnlySucceeded" xml:space="preserve">
+    <value>The toolbox records are ready ({0} account row(s), {1} role row(s)) and the pasted device fingerprint is in use. Note: the browser Cookie has no SToken, so the account center cannot renew this session automatically — the records keep working until the Cookie itself expires, and you can re-import a fresh Cookie at any time.</value>
+  </data>
+  <data name="PassportLogin_ImportAccountRowFailed" xml:space="preserve">
+    <value>The toolbox account could not be created: the account info API did not accept this Cookie. Copy the whole Cookie again (make sure no part was cut off) and re-import; if it still fails, the browser session has probably expired, so sign in on the miHoYo website again and copy a fresh Cookie.</value>
+  </data>
+  <data name="PassportLogin_ImportRecordOnlyRoleFailed" xml:space="preserve">
+    <value>The toolbox account row was written, but the game role list could not be fetched (the role lookup failed, or the account has no roles the API can see). Refresh later in the game account area of the toolbox, or re-import the Cookie.</value>
   </data>
   <data name="PassportLogin_ImportNeedStuid" xml:space="preserve">
     <value>An SToken (V1) needs the matching stuid. Paste the full Cookie instead.</value>

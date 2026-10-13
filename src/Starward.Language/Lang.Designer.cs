@@ -196,6 +196,132 @@ namespace Starward.Language {
         }
         
         /// <summary>
+        ///   查找类似 Trust Wallpapers 的本地化字符串。
+        /// </summary>
+        public static string FavorWallpaper_Title {
+            get {
+                return ResourceManager.GetString("FavorWallpaper_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Mindscape Wallpapers 的本地化字符串。
+        /// </summary>
+        public static string FavorWallpaper_MindscapeTitle {
+            get {
+                return ResourceManager.GetString("FavorWallpaper_MindscapeTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 In Use 的本地化字符串。
+        /// </summary>
+        public static string FavorWallpaper_InUse {
+            get {
+                return ResourceManager.GetString("FavorWallpaper_InUse", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Shuffle mode 的本地化字符串。
+        /// </summary>
+        public static string FavorWallpaper_ShuffleMode {
+            get {
+                return ResourceManager.GetString("FavorWallpaper_ShuffleMode", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Download some wallpapers first, then turn on shuffle mode. 的本地化字符串。
+        /// </summary>
+        public static string FavorWallpaper_ShuffleNeedDownload {
+            get {
+                return ResourceManager.GetString("FavorWallpaper_ShuffleNeedDownload", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Loading {0}/{1} 的本地化字符串。
+        /// </summary>
+        public static string FavorWallpaper_LoadingProgress {
+            get {
+                return ResourceManager.GetString("FavorWallpaper_LoadingProgress", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Failed to load trust wallpapers 的本地化字符串。
+        /// </summary>
+        public static string FavorWallpaper_LoadFailed {
+            get {
+                return ResourceManager.GetString("FavorWallpaper_LoadFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Download completed 的本地化字符串。
+        /// </summary>
+        public static string FavorWallpaper_DownloadCompleted {
+            get {
+                return ResourceManager.GetString("FavorWallpaper_DownloadCompleted", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Download failed 的本地化字符串。
+        /// </summary>
+        public static string FavorWallpaper_DownloadFailed {
+            get {
+                return ResourceManager.GetString("FavorWallpaper_DownloadFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Background updated 的本地化字符串。
+        /// </summary>
+        public static string FavorWallpaper_SetSuccess {
+            get {
+                return ResourceManager.GetString("FavorWallpaper_SetSuccess", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Removed from device 的本地化字符串。
+        /// </summary>
+        public static string FavorWallpaper_Deleted {
+            get {
+                return ResourceManager.GetString("FavorWallpaper_Deleted", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Failed to delete 的本地化字符串。
+        /// </summary>
+        public static string FavorWallpaper_DeleteFailed {
+            get {
+                return ResourceManager.GetString("FavorWallpaper_DeleteFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Loading wallpapers... 的本地化字符串。
+        /// </summary>
+        public static string FavorWallpaper_Loading {
+            get {
+                return ResourceManager.GetString("FavorWallpaper_Loading", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Use as Background 的本地化字符串。
+        /// </summary>
+        public static string FavorWallpaper_UseAsBackground {
+            get {
+                return ResourceManager.GetString("FavorWallpaper_UseAsBackground", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   查找类似 An unknown issue occurred during initialization. 的本地化字符串。
         /// </summary>
         public static string AppConfig_AnUnknownIssueOccurredDuringInitialization {
@@ -394,6 +520,123 @@ namespace Starward.Language {
         }
         
         /// <summary>
+        ///   查找类似 Free Time 的本地化字符串。
+        /// </summary>
+        public static string CloudGameButton_FreeTime {
+            get {
+                return ResourceManager.GetString("CloudGameButton_FreeTime", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Yuan Points Time 的本地化字符串。
+        /// </summary>
+        public static string CloudGameButton_YuanPointsTime {
+            get {
+                return ResourceManager.GetString("CloudGameButton_YuanPointsTime", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Bangboo Points Time 的本地化字符串。
+        /// </summary>
+        public static string CloudGameButton_BangbooPointsTime {
+            get {
+                return ResourceManager.GetString("CloudGameButton_BangbooPointsTime", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Auto-claim free time 的本地化字符串。
+        /// </summary>
+        public static string CloudGameButton_AutoClaimFreeTime {
+            get {
+                return ResourceManager.GetString("CloudGameButton_AutoClaimFreeTime", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Play Card 的本地化字符串。
+        /// </summary>
+        public static string CloudGameButton_PlayCard {
+            get {
+                return ResourceManager.GetString("CloudGameButton_PlayCard", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Not activated 的本地化字符串。
+        /// </summary>
+        public static string CloudGameButton_PlayCardInactive {
+            get {
+                return ResourceManager.GetString("CloudGameButton_PlayCardInactive", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 {0} d 的本地化字符串。
+        /// </summary>
+        public static string CloudGameButton_Days {
+            get {
+                return ResourceManager.GetString("CloudGameButton_Days", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 {0} d {1} h 的本地化字符串。
+        /// </summary>
+        public static string CloudGameButton_DaysHours {
+            get {
+                return ResourceManager.GetString("CloudGameButton_DaysHours", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 {0} min 的本地化字符串。
+        /// </summary>
+        public static string CloudGameButton_Minutes {
+            get {
+                return ResourceManager.GetString("CloudGameButton_Minutes", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 {0} h 的本地化字符串。
+        /// </summary>
+        public static string CloudGameButton_Hours {
+            get {
+                return ResourceManager.GetString("CloudGameButton_Hours", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 {0} h {1} min 的本地化字符串。
+        /// </summary>
+        public static string CloudGameButton_HoursMinutes {
+            get {
+                return ResourceManager.GetString("CloudGameButton_HoursMinutes", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 The sign-in credential can only be read after you sign in to the cloud game client. 的本地化字符串。
+        /// </summary>
+        public static string CloudGameButton_CredentialFromClient {
+            get {
+                return ResourceManager.GetString("CloudGameButton_CredentialFromClient", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 The cloud game credential has expired, please sign in to the cloud game client again. 的本地化字符串。
+        /// </summary>
+        public static string CloudGameButton_CredentialExpired {
+            get {
+                return ResourceManager.GetString("CloudGameButton_CredentialExpired", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   查找类似 Open the gacha records page in game, and then click the button on the right. 的本地化字符串。
         /// </summary>
         public static string CloudGameGachaWindow_OpenTheGachaRecordsPageInGameAndThenClickTheButtonOnTheRight {
@@ -526,6 +769,15 @@ namespace Starward.Language {
         public static string Common_Delete {
             get {
                 return ResourceManager.GetString("Common_Delete", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Download 的本地化字符串。
+        /// </summary>
+        public static string Common_Download {
+            get {
+                return ResourceManager.GetString("Common_Download", resourceCulture);
             }
         }
         
@@ -1165,6 +1417,24 @@ namespace Starward.Language {
         public static string DeadlyAssaultPage_TrialMode {
             get {
                 return ResourceManager.GetString("DeadlyAssaultPage_TrialMode", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Desperate 的本地化字符串。
+        /// </summary>
+        public static string DeadlyAssaultPage_HardMode {
+            get {
+                return ResourceManager.GetString("DeadlyAssaultPage_HardMode", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Normal 的本地化字符串。
+        /// </summary>
+        public static string DeadlyAssaultPage_NormalMode {
+            get {
+                return ResourceManager.GetString("DeadlyAssaultPage_NormalMode", resourceCulture);
             }
         }
         
@@ -2763,11 +3033,29 @@ namespace Starward.Language {
         }
         
         /// <summary>
+        ///   查找类似 Default 的本地化字符串。
+        /// </summary>
+        public static string GameLauncherSettingDialog_DefaultProfileName {
+            get {
+                return ResourceManager.GetString("GameLauncherSettingDialog_DefaultProfileName", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   查找类似 Drag and drop image / video files. 的本地化字符串。
         /// </summary>
         public static string GameLauncherSettingDialog_DragAndDropImageOrVideoFiles {
             get {
                 return ResourceManager.GetString("GameLauncherSettingDialog_DragAndDropImageOrVideoFiles", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Edit Profile 的本地化字符串。
+        /// </summary>
+        public static string GameLauncherSettingDialog_EditProfile {
+            get {
+                return ResourceManager.GetString("GameLauncherSettingDialog_EditProfile", resourceCulture);
             }
         }
         
@@ -2786,6 +3074,42 @@ namespace Starward.Language {
         public static string GameLauncherSettingDialog_LaunchGameUsingCMD {
             get {
                 return ResourceManager.GetString("GameLauncherSettingDialog_LaunchGameUsingCMD", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Launch Profile 的本地化字符串。
+        /// </summary>
+        public static string GameLauncherSettingDialog_LaunchProfile {
+            get {
+                return ResourceManager.GetString("GameLauncherSettingDialog_LaunchProfile", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 New Profile 的本地化字符串。
+        /// </summary>
+        public static string GameLauncherSettingDialog_NewProfile {
+            get {
+                return ResourceManager.GetString("GameLauncherSettingDialog_NewProfile", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Profile Name 的本地化字符串。
+        /// </summary>
+        public static string GameLauncherSettingDialog_ProfileName {
+            get {
+                return ResourceManager.GetString("GameLauncherSettingDialog_ProfileName", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Profile {0} 的本地化字符串。
+        /// </summary>
+        public static string GameLauncherSettingDialog_ProfileNameFormat {
+            get {
+                return ResourceManager.GetString("GameLauncherSettingDialog_ProfileNameFormat", resourceCulture);
             }
         }
         
@@ -3803,6 +4127,24 @@ namespace Starward.Language {
         }
         
         /// <summary>
+        ///   查找类似 The device identity is still the built-in default. 的本地化字符串。
+        /// </summary>
+        public static string HoyolabToolboxPage_DeviceIdentityHint {
+            get {
+                return ResourceManager.GetString("HoyolabToolboxPage_DeviceIdentityHint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 The device identity is still the built-in default, which does not match this account. 的本地化字符串。
+        /// </summary>
+        public static string HoyolabToolboxPage_DeviceIdentityErrorHint {
+            get {
+                return ResourceManager.GetString("HoyolabToolboxPage_DeviceIdentityErrorHint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   查找类似 Input Cookie 的本地化字符串。
         /// </summary>
         public static string HoyolabToolboxPage_InputCookie {
@@ -3893,15 +4235,6 @@ namespace Starward.Language {
         }
         
         /// <summary>
-        ///   查找类似 The device fingerprint is already updated. 的本地化字符串。
-        /// </summary>
-        public static string HoyolabToolboxPage_TheDeviceFingerprintIsAlreadyUpdated {
-            get {
-                return ResourceManager.GetString("HoyolabToolboxPage_TheDeviceFingerprintIsAlreadyUpdated", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   查找类似 Trailblaze Monthly Calendar 的本地化字符串。
         /// </summary>
         public static string HoyolabToolboxPage_TrailblazeMonthlyCalendar {
@@ -3916,15 +4249,6 @@ namespace Starward.Language {
         public static string HoyolabToolboxPage_TravelersDiary {
             get {
                 return ResourceManager.GetString("HoyolabToolboxPage_TravelersDiary", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   查找类似 Update Device Fingerprint 的本地化字符串。
-        /// </summary>
-        public static string HoyolabToolboxPage_UpdateDeviceFingerprint {
-            get {
-                return ResourceManager.GetString("HoyolabToolboxPage_UpdateDeviceFingerprint", resourceCulture);
             }
         }
         
@@ -6586,6 +6910,60 @@ namespace Starward.Language {
         }
         
         /// <summary>
+        ///   查找类似 Start at login 的本地化字符串。
+        /// </summary>
+        public static string SettingPage_StartAtLogin {
+            get {
+                return ResourceManager.GetString("SettingPage_StartAtLogin", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Start at login 的本地化字符串。
+        /// </summary>
+        public static string SettingPage_StartAtLoginSwitch {
+            get {
+                return ResourceManager.GetString("SettingPage_StartAtLoginSwitch", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Start Starward in the system tray when you sign in to Windows. You can also turn this off in Windows Settings &gt; Apps &gt; Startup. 的本地化字符串。
+        /// </summary>
+        public static string SettingPage_StartAtLoginDesc {
+            get {
+                return ResourceManager.GetString("SettingPage_StartAtLoginDesc", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Not available when running from removable storage. 的本地化字符串。
+        /// </summary>
+        public static string SettingPage_StartAtLoginRemovableHint {
+            get {
+                return ResourceManager.GetString("SettingPage_StartAtLoginRemovableHint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Failed to update the start-at-login setting 的本地化字符串。
+        /// </summary>
+        public static string SettingPage_StartAtLoginFailed {
+            get {
+                return ResourceManager.GetString("SettingPage_StartAtLoginFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Windows Startup apps 的本地化字符串。
+        /// </summary>
+        public static string SettingPage_StartAtLoginWindowsSettings {
+            get {
+                return ResourceManager.GetString("SettingPage_StartAtLoginWindowsSettings", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   查找类似 Release History 的本地化字符串。
         /// </summary>
         public static string SettingPage_ReleaseHistroy {
@@ -6924,6 +7302,168 @@ namespace Starward.Language {
         public static string ShiyuDefensePage_Weakness {
             get {
                 return ResourceManager.GetString("ShiyuDefensePage_Weakness", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Daily Check-in 的本地化字符串。
+        /// </summary>
+        public static string SignInButton_Title {
+            get {
+                return ResourceManager.GetString("SignInButton_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Check In 的本地化字符串。
+        /// </summary>
+        public static string SignInButton_SignIn {
+            get {
+                return ResourceManager.GetString("SignInButton_SignIn", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Resign 的本地化字符串。
+        /// </summary>
+        public static string SignInButton_ReSign {
+            get {
+                return ResourceManager.GetString("SignInButton_ReSign", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Signed in today 的本地化字符串。
+        /// </summary>
+        public static string SignInButton_SignedToday {
+            get {
+                return ResourceManager.GetString("SignInButton_SignedToday", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Not signed in 的本地化字符串。
+        /// </summary>
+        public static string SignInButton_NotSignedToday {
+            get {
+                return ResourceManager.GetString("SignInButton_NotSignedToday", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Signed in for {0} day(s) this month 的本地化字符串。
+        /// </summary>
+        public static string SignInButton_SignedInForDays {
+            get {
+                return ResourceManager.GetString("SignInButton_SignedInForDays", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Auto check-in 的本地化字符串。
+        /// </summary>
+        public static string SignInButton_AutoSignIn {
+            get {
+                return ResourceManager.GetString("SignInButton_AutoSignIn", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Auto check-in is independent for each game. Starward checks in shortly after launch, and again after the daily reset while it stays running 的本地化字符串。
+        /// </summary>
+        public static string SignInButton_AutoSignInHint {
+            get {
+                return ResourceManager.GetString("SignInButton_AutoSignInHint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Reward claimed successfully 的本地化字符串。
+        /// </summary>
+        public static string SignInButton_SignInSucceeded {
+            get {
+                return ResourceManager.GetString("SignInButton_SignInSucceeded", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 You have already checked in today 的本地化字符串。
+        /// </summary>
+        public static string SignInButton_AlreadySignedToday {
+            get {
+                return ResourceManager.GetString("SignInButton_AlreadySignedToday", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Login expired, please sign in again 的本地化字符串。
+        /// </summary>
+        public static string SignInButton_LoginExpired {
+            get {
+                return ResourceManager.GetString("SignInButton_LoginExpired", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Verification required, please check in via the app or website 的本地化字符串。
+        /// </summary>
+        public static string SignInButton_RiskControl {
+            get {
+                return ResourceManager.GetString("SignInButton_RiskControl", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Not enough coins to resign 的本地化字符串。
+        /// </summary>
+        public static string SignInButton_NotEnoughCoin {
+            get {
+                return ResourceManager.GetString("SignInButton_NotEnoughCoin", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Resign quota has been used up 的本地化字符串。
+        /// </summary>
+        public static string SignInButton_ResignQuotaUsedUp {
+            get {
+                return ResourceManager.GetString("SignInButton_ResignQuotaUsedUp", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 No missed day available to resign 的本地化字符串。
+        /// </summary>
+        public static string SignInButton_NoResignDate {
+            get {
+                return ResourceManager.GetString("SignInButton_NoResignDate", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Please complete today's check-in first 的本地化字符串。
+        /// </summary>
+        public static string SignInButton_PleaseSignInFirst {
+            get {
+                return ResourceManager.GetString("SignInButton_PleaseSignInFirst", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Check-in failed 的本地化字符串。
+        /// </summary>
+        public static string SignInButton_SignInFailed {
+            get {
+                return ResourceManager.GetString("SignInButton_SignInFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Resigning will cost {0} coin(s). You currently have {1}. Continue? 的本地化字符串。
+        /// </summary>
+        public static string SignInButton_ReSignConfirmContent {
+            get {
+                return ResourceManager.GetString("SignInButton_ReSignConfirmContent", resourceCulture);
             }
         }
         
@@ -8256,6 +8796,69 @@ namespace Starward.Language {
         }
 
         /// <summary>
+        ///   查找类似 Device id (x-rpc-device_id) 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_DeviceId {
+            get {
+                return ResourceManager.GetString("PassportLogin_DeviceId", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Recommended: the device id of a long-term login in the miHoYo app. You can get it by capturing requests, or from the  的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_DeviceIdHintPrefix {
+            get {
+                return ResourceManager.GetString("PassportLogin_DeviceIdHintPrefix", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 The device id must look like a GUID (d5c54418-09ce-3b92-bd97-47729d496077). Nothing was saved. 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_DeviceIdInvalid {
+            get {
+                return ResourceManager.GetString("PassportLogin_DeviceIdInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 A device id was recognized in the pasted text; you can import it now. 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_DeviceIdRecognized {
+            get {
+                return ResourceManager.GetString("PassportLogin_DeviceIdRecognized", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 GetToken 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_GetToken {
+            get {
+                return ResourceManager.GetString("PassportLogin_GetToken", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似  project. 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_DeviceIdHintSuffix {
+            get {
+                return ResourceManager.GetString("PassportLogin_DeviceIdHintSuffix", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Refresh info 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_RefreshInfo {
+            get {
+                return ResourceManager.GetString("PassportLogin_RefreshInfo", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   查找类似 Device fingerprint 的本地化字符串。
         /// </summary>
         public static string PassportLogin_DeviceFp {
@@ -8346,7 +8949,7 @@ namespace Starward.Language {
         }
 
         /// <summary>
-        ///   查找类似 No stoken was found in the pasted text. Paste the full Cookie, or fill in the SToken and mid separately. 的本地化字符串。
+        ///   查找类似 No usable credential (cookie_token or ltoken) was found in the pasted text. 的本地化字符串。
         /// </summary>
         public static string PassportLogin_ImportCookieNotFound {
             get {
@@ -8360,6 +8963,42 @@ namespace Starward.Language {
         public static string PassportLogin_ImportNeedStuid {
             get {
                 return ResourceManager.GetString("PassportLogin_ImportNeedStuid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 The pasted text carries a credential but no account ID 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_ImportNoAccountId {
+            get {
+                return ResourceManager.GetString("PassportLogin_ImportNoAccountId", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 The toolbox records are ready 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_ImportRecordOnlySucceeded {
+            get {
+                return ResourceManager.GetString("PassportLogin_ImportRecordOnlySucceeded", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 The toolbox account could not be created 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_ImportAccountRowFailed {
+            get {
+                return ResourceManager.GetString("PassportLogin_ImportAccountRowFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 The toolbox account row was written, but the game role list could not be fetched 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_ImportRecordOnlyRoleFailed {
+            get {
+                return ResourceManager.GetString("PassportLogin_ImportRecordOnlyRoleFailed", resourceCulture);
             }
         }
 
@@ -8526,110 +9165,11 @@ namespace Starward.Language {
         }
 
         /// <summary>
-        ///   查找类似 Auto sign-in 的本地化字符串。
-        /// </summary>
-        public static string GameAuthLogin_Title {
-            get {
-                return ResourceManager.GetString("GameAuthLogin_Title", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   查找类似 Sign in to let the game sign in automatically. 的本地化字符串。
-        /// </summary>
-        public static string GameAuthLogin_NotSignedIn {
-            get {
-                return ResourceManager.GetString("GameAuthLogin_NotSignedIn", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   查找类似 Sign in 的本地化字符串。
-        /// </summary>
-        public static string GameAuthLogin_SignIn {
-            get {
-                return ResourceManager.GetString("GameAuthLogin_SignIn", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   查找类似 Auto sign-in enabled 的本地化字符串。
-        /// </summary>
-        public static string GameAuthLogin_Enabled {
-            get {
-                return ResourceManager.GetString("GameAuthLogin_Enabled", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   查找类似 Auto sign-in disabled 的本地化字符串。
-        /// </summary>
-        public static string GameAuthLogin_Disabled {
-            get {
-                return ResourceManager.GetString("GameAuthLogin_Disabled", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   查找类似 Refresh 的本地化字符串。
-        /// </summary>
-        public static string GameAuthLogin_Refresh {
-            get {
-                return ResourceManager.GetString("GameAuthLogin_Refresh", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   查找类似 Account 的本地化字符串。
-        /// </summary>
-        public static string GameAuthLogin_Manage {
-            get {
-                return ResourceManager.GetString("GameAuthLogin_Manage", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   查找类似 Signed in as {0} (ID: {1}) 的本地化字符串。
-        /// </summary>
-        public static string GameAuthLogin_Account {
-            get {
-                return ResourceManager.GetString("GameAuthLogin_Account", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   查找类似 The sign-in has expired. Please sign in again. 的本地化字符串。
-        /// </summary>
-        public static string GameAuthLogin_TokenExpired {
-            get {
-                return ResourceManager.GetString("GameAuthLogin_TokenExpired", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   查找类似 Provided by this app, not affiliated with miHoYo. 的本地化字符串。
-        /// </summary>
-        public static string GameAuthLogin_Disclaimer {
-            get {
-                return ResourceManager.GetString("GameAuthLogin_Disclaimer", resourceCulture);
-            }
-        }
-
-        /// <summary>
         ///   查找类似 Too many sign-in attempts in a short time. Complete the human verification to continue. 的本地化字符串。
         /// </summary>
         public static string PassportLogin_CaptchaRequired {
             get {
                 return ResourceManager.GetString("PassportLogin_CaptchaRequired", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   查找类似 Account sign-in 的本地化字符串。
-        /// </summary>
-        public static string HoyolabToolboxPage_PassportLogin {
-            get {
-                return ResourceManager.GetString("HoyolabToolboxPage_PassportLogin", resourceCulture);
             }
         }
 
