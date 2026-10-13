@@ -32,6 +32,13 @@ public class GithubAsset
     [JsonPropertyName("size")]
     public int Size { get; set; }
 
+    /// <summary>
+    /// 资产内容的散列，形如 <c>sha256:...</c>。GitHub 对通过 API 上传的资产会给出这个字段，
+    /// 老资产或网页上传的资产可能为 null。
+    /// </summary>
+    [JsonPropertyName("digest")]
+    public string? Digest { get; set; }
+
     [JsonPropertyName("download_count")]
     public int DownloadCount { get; set; }
 
