@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<UserControl x:Class="Starward.Features.Background.FavorWallpaperCard"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:lang="using:Starward.Language"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:sc="using:Starward.Controls"
+             xmlns:sh="using:Starward.Helpers"
+             xmlns:ui="using:CommunityToolkit.WinUI"
+             x:DefaultBindMode="OneWay"
+             mc:Ignorable="d">
+
+    <!--
+        事件一律由 code-behind 成对订阅 / 退订（HookHandlers / UnhookHandlers），
+        不要在此写 Click= / PointerEntered= 等声明式处理器：声明式订阅没有退订入口，
+        实测会让整张卡片连同 MediaPlayerElement 在关闭对话框后仍被本机侧留住。
+    -->
+    <Grid x:Name="RootVisual"
+          Margin="4"
+          Background="#CC1A1A1A"
+          CornerRadius="8"
+          sh:PointerCursor.CursorShape="Hand"
+          ui:UIElementExtensions.ClipToBounds="True">
+
+        <sc:CachedImage x:Name="Image_Cover"
+                        HorizontalAlignment="Stretch"
+                        VerticalAlignment="Stretch"
+                        Source="{x:Bind View.CoverUrl, Mode=OneWay}"
+                        Stretch="{x:Bind View.CoverStretch, Mode=OneWay}" />
+
+        <!--  MediaPlayerElement 构造开销大且仅悬停预览时才用到，延迟到第一次预览再实例化  -->
+        <MediaPlayerElement x:Name="Player_Preview"
+                            x:Load="False"
+                            HorizontalAlignment="Stretch"
+                            VerticalAlignment="Stretch"
+                            AreTransportControlsEnabled="False"
+                            AutoPlay="False"
+                            IsHitTestVisible="False"
+                            Stretch="UniformToFill"
+                            Visibility="Collapsed" />
+
+        <Border Height="36"
+                VerticalAlignment="Bottom"
+                IsHitTestVisible="False">
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                    <GradientStop Offset="0" Color="#00000000" />
+                    <GradientStop Offset="1" Color="#99000000" />
+                </LinearGradientBrush>
+            </Border.Background>
+        </Border>
+
+        <!--  「使用中」徽标与强调色边框：整页只有一张卡命中，且几乎不翻转，延迟创建是纯赚  -->
+        <Border x:Name="Border_InUseBadge"
+                Margin="0,8,8,0"
+                Padding="6,2"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Top"
+                x:Load="{x:Bind View.IsInUse, Mode=OneWay}"
+                Background="{ThemeResource SystemAccentColor}"
+                CornerRadius="4"
+                IsHitTestVisible="False"
+                Visibility="{x:Bind View.IsInUse, Mode=OneWay}">
+            <TextBlock FontSize="11"
+                       Foreground="White"
+                       Text="{x:Bind lang:Lang.FavorWallpaper_InUse, Mode=OneTime}" />
+        </Border>
+
+        <Button x:Name="Button_Action"
+                Width="40"
+                Height="40"
+                Margin="2"
+                Padding="0"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Bottom"
+                CornerRadius="8"
+                Style="{ThemeResource DateTimePickerFlyoutButtonStyle}"
+                ToolTipService.ToolTip="{x:Bind View.ActionTooltip, Mode=OneWay}"
+                Visibility="{x:Bind View.ShowActionButton, Mode=OneWay}">
+            <Grid Width="40" Height="40">
+                <!--  两个图标任一时刻只显示一个，仍按条件延迟创建  -->
+                <FontIcon x:Name="Icon_Download"
+                          FontSize="16"
+                          Foreground="White"
+                          Glyph="&#xE896;"
+                          IsTextScaleFactorEnabled="False"
+                          x:Load="{x:Bind View.ShowDownloadButton, Mode=OneWay}"
+                          Visibility="{x:Bind View.ShowDownloadButton, Mode=OneWay}" />
+                <FontIcon x:Name="Icon_Delete"
+                          FontSize="16"
+                          Foreground="White"
+                          Glyph="&#xE74D;"
+                          IsTextScaleFactorEnabled="False"
+                          x:Load="{x:Bind View.ShowLocalActions, Mode=OneWay}"
+                          Visibility="{x:Bind View.ShowLocalActions, Mode=OneWay}" />
+            </Grid>
+        </Button>
+
+        <Border x:Name="Border_InUseOutline"
+                x:Load="{x:Bind View.IsInUse, Mode=OneWay}"
+                BorderBrush="{ThemeResource SystemAccentColor}"
+                BorderThickness="2"
+                CornerRadius="8"
+                IsHitTestVisible="False"
+                Visibility="{x:Bind View.IsInUse, Mode=OneWay}" />
+
+        <!--  只有正在下载的那张卡才需要进度条，其余卡不必付出模板与视觉状态的构造开销  -->
+        <ProgressBar x:Name="ProgressBar_Download"
+                     VerticalAlignment="Bottom"
+                     x:Load="{x:Bind View.IsDownloading, Mode=OneWay}"
+                     Maximum="100"
+                     ShowError="False"
+                     ShowPaused="False"
+                     Value="{x:Bind View.DownloadProgress, Mode=OneWay}"
+                     Visibility="{x:Bind View.IsDownloading, Mode=OneWay}" />
+    </Grid>
+</UserControl>
