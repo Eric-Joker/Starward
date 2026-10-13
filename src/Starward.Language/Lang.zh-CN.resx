@@ -2238,6 +2238,12 @@
   <data name="MainView_CheckSystemProxy_SystemProxyIsEnabled" xml:space="preserve">
     <value>系统代理已启用</value>
   </data>
+  <data name="MapTool_BigMap" xml:space="preserve">
+    <value>大地图</value>
+  </data>
+  <data name="MapTool_Map" xml:space="preserve">
+    <value>地图</value>
+  </data>
   <data name="GameSettingPage_TheCurrentMonitorDoesNotSupportHDR" xml:space="preserve">
     <value>当前显示器不支持 HDR</value>
   </data>
@@ -2774,6 +2780,72 @@
   <data name="AppBackground_VideoDecodingFailedPleaseInstallTheVP9VideoExtensions" xml:space="preserve">
     <value>视频解码失败，需要安装 VP9 视频扩展。</value>
   </data>
+  <data name="AutoRecordRefresh_DayOfMonthFormat" xml:space="preserve">
+    <value>{0} 号</value>
+  </data>
+  <data name="AutoRecordRefresh_Days" xml:space="preserve">
+    <value>天数</value>
+  </data>
+  <data name="AutoRecordRefresh_Enable" xml:space="preserve">
+    <value>启用自动更新</value>
+  </data>
+  <data name="AutoRecordRefresh_EnableCurrentMonth" xml:space="preserve">
+    <value>更新当月</value>
+  </data>
+  <data name="AutoRecordRefresh_EnablePreviousMonth" xml:space="preserve">
+    <value>更新上月</value>
+  </data>
+  <data name="AutoRecordRefresh_Errors" xml:space="preserve">
+    <value>异常记录</value>
+  </data>
+  <data name="AutoRecordRefresh_ErrorsDescription" xml:space="preserve">
+    <value>自动更新时被跳过的账号与数据板块。返回码与提示为米游社原文。</value>
+  </data>
+  <data name="AutoRecordRefresh_Frequency" xml:space="preserve">
+    <value>更新频率</value>
+  </data>
+  <data name="AutoRecordRefresh_LastUpdate" xml:space="preserve">
+    <value>上次更新</value>
+  </data>
+  <data name="AutoRecordRefresh_ModeEveryDays" xml:space="preserve">
+    <value>每隔几天</value>
+  </data>
+  <data name="AutoRecordRefresh_ModeMonthly" xml:space="preserve">
+    <value>每月</value>
+  </data>
+  <data name="AutoRecordRefresh_ModeWeekly" xml:space="preserve">
+    <value>每周</value>
+  </data>
+  <data name="AutoRecordRefresh_MonthCurrent" xml:space="preserve">
+    <value>当月</value>
+  </data>
+  <data name="AutoRecordRefresh_MonthPrevious" xml:space="preserve">
+    <value>上月</value>
+  </data>
+  <data name="AutoRecordRefresh_MonthTarget" xml:space="preserve">
+    <value>月份</value>
+  </data>
+  <data name="AutoRecordRefresh_NeverUpdated" xml:space="preserve">
+    <value>从未更新</value>
+  </data>
+  <data name="AutoRecordRefresh_NextUpdate" xml:space="preserve">
+    <value>下次更新</value>
+  </data>
+  <data name="AutoRecordRefresh_NoErrors" xml:space="preserve">
+    <value>暂无异常</value>
+  </data>
+  <data name="AutoRecordRefresh_Title" xml:space="preserve">
+    <value>自动更新</value>
+  </data>
+  <data name="TimeNode_Section_CurrentEventWarp" xml:space="preserve">
+    <value>当前跃迁</value>
+  </data>
+  <data name="TimeNode_Section_CurrentLimitedWish" xml:space="preserve">
+    <value>当前祈愿</value>
+  </data>
+  <data name="TimeNode_Section_CurrentSignalSearch" xml:space="preserve">
+    <value>当前调频</value>
+  </data>
   <data name="SignInButton_Title" xml:space="preserve">
     <value>每日签到</value>
   </data>
@@ -2893,6 +2965,27 @@
   </data>
   <data name="GachaLogPage_DeleteCacheFolder" xml:space="preserve">
     <value>删除缓存文件夹</value>
+  </data>
+  <data name="GachaLogPage_CacheFolderDeleted" xml:space="preserve">
+    <value>已删除缓存文件夹。请重启游戏，打开抽卡记录页后再更新。</value>
+  </data>
+  <data name="GachaLogPage_CacheFolderNotFound" xml:space="preserve">
+    <value>未找到缓存文件夹。</value>
+  </data>
+  <data name="GachaLogPage_CannotDeleteCacheWhileGameIsRunning" xml:space="preserve">
+    <value>游戏正在运行，无法删除缓存。请先退出游戏。</value>
+  </data>
+  <data name="GachaLogPage_DeleteCacheFolderConfirmContent" xml:space="preserve">
+    <value>将删除游戏用于抽卡链接 authkey 的 webCaches 文件夹。删除后请重启游戏并打开游戏内抽卡记录页，再点更新记录。删除前须先退出游戏。</value>
+  </data>
+  <data name="GachaLogPage_DeleteCacheFolderConfirmTitle" xml:space="preserve">
+    <value>删除游戏 webCaches？</value>
+  </data>
+  <data name="GachaLogPage_OpenCacheFolder" xml:space="preserve">
+    <value>打开文件夹</value>
+  </data>
+  <data name="GachaLogPage_ValidatingGachaUrl" xml:space="preserve">
+    <value>正在校验抽卡链接…</value>
   </data>
   <data name="GameLauncherPage_GraphicsQualityEnhancement" xml:space="preserve">
     <value>画质增强</value>
