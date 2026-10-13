@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using Starward.Core.GameRecord.BH3.DailyNote;
 using Starward.Core.GameRecord.Genshin.DailyNote;
@@ -49,6 +50,12 @@ public class HyperionClient : GameRecordClient
     /// 与 <see cref="UAContent"/> 里的 Android 13、<see cref="DefaultDeviceName"/> 同属一套公开机型标识。
     /// </summary>
     public const string DefaultWebViewVersion = "118.0.0.0";
+
+
+    /// <summary>
+    /// <c>binding/api/genAuthKey</c> 的 Gen1 DS 盐，与战绩接口的 <see cref="ApiSalt"/> 不同。
+    /// </summary>
+    private const string GenAuthKeyApiSalt = "d9200c846b10886e8c874fc33c8f308b";
 
 
 
@@ -565,6 +572,52 @@ public class HyperionClient : GameRecordClient
         _ => 36,
     };
 
+
+
+
+
+    /// <summary>
+    /// 用米游社 stoken 换取抽卡 authkey（Auth Key B）。
+    /// <para>
+    /// 与社区实现一致：只带 <c>stoken</c> + <c>mid</c> 两个 cookie 键，避免无关键干扰；
+    /// 该接口的 Gen1 DS 盐与战绩接口不同，须单独传入；<c>auth_appid</c> 固定
+    /// <c>webview_gacha</c>（游戏内抽卡记录）。
+    /// </para>
+    /// </summary>
+    /// <param name="role">游戏角色，提供 game_biz / region / uid。</param>
+    /// <param name="stoken">米游社 SToken（V2）。</param>
+    /// <param name="mid">与 SToken V2 搭配的 mid。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>含 authkey / authkey_ver / sign_type 的结果。</returns>
+    /// <exception cref="ArgumentException">stoken / mid 为空，或角色缺少 GameBiz / Region。</exception>
+    public override async Task<GameAuthKey> GenAuthKeyAsync(GameRecordRole role, string stoken, string mid, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(role);
+        if (string.IsNullOrWhiteSpace(stoken) || string.IsNullOrWhiteSpace(mid))
+        {
+            throw new ArgumentException("stoken and mid are required.", nameof(stoken));
+        }
+        if (string.IsNullOrWhiteSpace(role.GameBiz) || string.IsNullOrWhiteSpace(role.Region))
+        {
+            throw new ArgumentException("GameBiz and Region are required.", nameof(role));
+        }
+
+        var body = new GenAuthKeyPostBody("webview_gacha", role.GameBiz, role.Uid, role.Region);
+        string json = JsonSerializer.Serialize(body, typeof(GenAuthKeyPostBody), GameRecordJsonContext.Default);
+        const string url = "https://api-takumi.mihoyo.com/binding/api/genAuthKey";
+        var request = new HttpRequestMessage(HttpMethod.Post, url)
+        {
+            Content = new StringContent(json, Encoding.UTF8, Application_Json),
+        };
+        request.Headers.Add(Cookie, $"stoken={stoken};mid={mid}");
+        request.Headers.Add(Referer, "https://app.mihoyo.com");
+        request.Headers.Add(DS, CreateSecret(GenAuthKeyApiSalt));
+        request.Headers.Add(x_rpc_app_version, AppVersion);
+        request.Headers.Add(x_rpc_client_type, "5");
+        request.Headers.Add(x_rpc_device_id, DeviceId);
+        request.Headers.Add(x_rpc_device_fp, DeviceFp);
+        return await CommonSendAsync<GameAuthKey>(request, cancellationToken);
+    }
 
 
 
