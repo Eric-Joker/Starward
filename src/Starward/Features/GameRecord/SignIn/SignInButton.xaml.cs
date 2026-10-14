@@ -9,6 +9,7 @@ using Starward.Core.GameRecord;
 using Starward.Core.GameRecord.SignIn;
 using Starward.Core.HoYoPlay;
 using Starward.Features.Setting;
+using Starward.Features.ViewHost;
 using Starward.Helpers;
 using System;
 using System.Collections.ObjectModel;
@@ -41,6 +42,12 @@ public sealed partial class SignInButton : UserControl
 
     /// <summary>最近一次拉取的累计签到天数，语言切换时用于重算 <see cref="TotalSignDaysHint"/>。</summary>
     private int _totalSignDay;
+
+
+    /// <summary>
+    /// 问号提示文案：末尾补一行跳转说明，因为本分支的提示气泡没有「右下角动作区」可承载入口。
+    /// </summary>
+    public string AutoSignInHintTooltip => $"{Lang.SignInButton_AutoSignInHint}\n\n→ {Lang.SettingPage_StartAtLoginSwitch}";
 
 
     /// <summary>初始化控件，默认隐藏，待解析到有效角色后再显示。</summary>
@@ -243,6 +250,24 @@ public sealed partial class SignInButton : UserControl
         if (!_statusLoaded)
         {
             RefreshSignInStatusCommand.Execute(null);
+        }
+    }
+
+
+
+    /// <summary>
+    /// 关闭签到卡片并跳到设置「常规」页的开机自启一节（自动签到想常驻得先开机自启）。
+    /// </summary>
+    private void Button_AutoSignInHint_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            Flyout_SignIn.Hide();
+            WeakReferenceMessenger.Default.Send(new MainViewNavigateMessage(typeof(SettingPage), SettingPage.StartAtLoginSection));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Navigate to start at login setting");
         }
     }
 

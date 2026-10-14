@@ -28,6 +28,58 @@ public sealed partial class GeneralSetting : PageBase
     {
         InitializeLanguageSelector();
         InitializeCloseWindowOption();
+        if (_pendingScrollToStartAtLogin)
+        {
+            _pendingScrollToStartAtLogin = false;
+            BringStartAtLoginIntoView();
+        }
+    }
+
+
+
+    /// <summary>深链要求滚动到「开机自启」一节，但页面还没 Loaded：留到 OnLoaded 再滚。</summary>
+    private bool _pendingScrollToStartAtLogin;
+
+
+    /// <summary>
+    /// 把「开机自启」一节滚入可视区并聚焦开关，供 <see cref="SettingPage.StartAtLoginSection"/> 深链调用。
+    /// 页面尚未 Loaded 时等 Loaded 之后再滚。
+    /// </summary>
+    public void ScrollToStartAtLogin()
+    {
+        if (IsLoaded)
+        {
+            BringStartAtLoginIntoView();
+        }
+        else
+        {
+            _pendingScrollToStartAtLogin = true;
+        }
+    }
+
+
+
+    /// <summary>
+    /// 等布局量完再 BringIntoView，避免刚导航过来时滚动无效；不做动画，静默定位。
+    /// </summary>
+    private void BringStartAtLoginIntoView()
+    {
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+        {
+            try
+            {
+                ToggleSwitch_StartAtLogin.StartBringIntoView(new BringIntoViewOptions
+                {
+                    AnimationDesired = false,
+                    VerticalAlignmentRatio = 0.22,
+                });
+                ToggleSwitch_StartAtLogin.Focus(FocusState.Programmatic);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Scroll to start at login");
+            }
+        });
     }
 
 
