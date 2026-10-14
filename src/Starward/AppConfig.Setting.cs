@@ -519,6 +519,17 @@ public static partial class AppConfig
         set => SetValue(value);
     }
 
+    /// <summary>
+    /// GameBar 引导键当前是否被本程序接管（即注册表里的 <c>UseNexusForGameBarEnabled=0</c> 是我们写的）。
+    /// 退出与下次启动据此判断该不该还原，避免把用户自己在 GameBar 里关掉的引导键又打开；
+    /// 进程被强杀或崩溃会让它和那个 0 一起残留，由启动时的自愈还原。
+    /// </summary>
+    public static bool GamepadGuideButtonTakenOver
+    {
+        get => GetValue<bool>();
+        set => SetValue(value);
+    }
+
     public static string? GamepadShareButtonMapKeys
     {
         get => GetValue<string>();

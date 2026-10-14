@@ -86,6 +86,11 @@ public partial class App : Application
             return;
         }
 
+        // 手柄引导键自愈：上次进程被强杀或崩溃可能把 GameBar 引导键停在「已接管」状态，
+        // 当前配置并非「总是接管」时先还原，避免注册表残留导致引导键永久按不出 GameBar。
+        // 只在本实例（即将成为常驻主实例）执行，rpc/playtime 等子进程已在上面提前返回。
+        GamepadController.RestoreGamepadGuideButtonIfNotAlwaysTakenOver();
+
         instance = AppInstance.GetCurrent();
         instance.Activated += AppInstance_Activated;
 
@@ -197,7 +202,8 @@ public partial class App : Application
 
     public new void Exit()
     {
-        GamepadController.RestoreGamepadGuideButtonForGameBar();
+        // 仅当这个被置为 0 的引导键确实是我们接管时才还原，否则会把用户自己在 GameBar 里关掉的引导键又打开。
+        GamepadController.RestoreGamepadGuideButtonOnExit();
         m_MainWindow?.Close();
         m_SystemTrayWindow?.Close();
         Application.Current.Exit();
