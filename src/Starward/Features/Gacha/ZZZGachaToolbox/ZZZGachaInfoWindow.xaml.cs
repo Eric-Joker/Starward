@@ -43,10 +43,15 @@ public sealed partial class ZZZGachaInfoWindow : WindowEx
     private const string Source_global = "https://act.hoyolab.com/zzz/gt/character-builder-h/index.html";
 
 
+    /// <summary>本窗口已关闭。await 期间窗口被关掉时用它补一次 WebView2 的 Close，避免留下 msedgewebview2.exe。</summary>
+    private bool _webviewClosed;
+
+
     public ZZZGachaInfoWindow()
     {
         this.InitializeComponent();
         InitializeWindow();
+        Closed += (_, _) => CloseWebView();
     }
 
 
@@ -67,8 +72,13 @@ public sealed partial class ZZZGachaInfoWindow : WindowEx
         try
         {
             await webview2.EnsureCoreWebView2Async();
+            if (WebView2Helper.CloseIfRequested(webview2, _webviewClosed))
+            {
+                return;
+            }
             coreWebView2 = webview2.CoreWebView2;
             coreWebView2.Profile.PreferredColorScheme = CoreWebView2PreferredColorScheme.Dark;
+            coreWebView2.WebResourceResponseReceived -= CoreWebView2_WebResourceResponseReceived;
             coreWebView2.WebResourceResponseReceived += CoreWebView2_WebResourceResponseReceived;
         }
         catch (Exception ex)
@@ -83,10 +93,7 @@ public sealed partial class ZZZGachaInfoWindow : WindowEx
         RootGrid.Loaded -= RootGrid_Loaded;
         RootGrid.Unloaded -= RootGrid_Unloaded;
         GridView_Languages.SelectionChanged -= GridView_Languages_SelectionChanged;
-        if (coreWebView2 is not null)
-        {
-            coreWebView2.WebResourceResponseReceived -= CoreWebView2_WebResourceResponseReceived;
-        }
+        CloseWebView();
         cts.Cancel();
         GachaInfoResult.Clear();
         GachaInfoResult = null!;
@@ -94,6 +101,26 @@ public sealed partial class ZZZGachaInfoWindow : WindowEx
         iconInfoDict = null!;
         itemListDict = null!;
         headers = null!;
+    }
+
+
+
+    /// <summary>
+    /// 关闭内嵌 WebView2 并摘掉它的事件，可重复进入。
+    /// </summary>
+    private void CloseWebView()
+    {
+        _webviewClosed = true;
+        if (coreWebView2 is not null)
+        {
+            try
+            {
+                coreWebView2.WebResourceResponseReceived -= CoreWebView2_WebResourceResponseReceived;
+            }
+            catch { }
+            coreWebView2 = null!;
+        }
+        WebView2Helper.Close(webview2);
     }
 
 

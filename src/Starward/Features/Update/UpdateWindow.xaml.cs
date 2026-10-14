@@ -10,6 +10,7 @@ using NuGet.Versioning;
 using Starward.Features.RPC;
 using Starward.Features.Setting;
 using Starward.Frameworks;
+using Starward.Helpers;
 using Starward.Setup.Core;
 using Starward.Setup.Core.Github;
 using System;
@@ -44,6 +45,10 @@ public sealed partial class UpdateWindow : WindowEx
 
 
     private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _timer;
+
+
+    /// <summary>本窗口已关闭。await 期间窗口被关掉时用它补一次 WebView2 的 Close，避免留下 msedgewebview2.exe。</summary>
+    private bool _webviewClosed;
 
 
 
@@ -148,6 +153,8 @@ public sealed partial class UpdateWindow : WindowEx
         _updateService.StopUpdate();
         WeakReferenceMessenger.Default.UnregisterAll(this);
         this.Closed -= UpdateWindow_Closed;
+        _webviewClosed = true;
+        WebView2Helper.Close(webview);
     }
 
 
@@ -498,6 +505,10 @@ public sealed partial class UpdateWindow : WindowEx
             StackPanel_Error.Visibility = Visibility.Collapsed;
 
             await webview.EnsureCoreWebView2Async();
+            if (WebView2Helper.CloseIfRequested(webview, _webviewClosed))
+            {
+                return;
+            }
             string ua = webview.CoreWebView2.Settings.UserAgent;
             if (!ua.Contains("Starward"))
             {
@@ -510,7 +521,15 @@ public sealed partial class UpdateWindow : WindowEx
             webview.CoreWebView2.NewWindowRequested += CoreWebView2_NewWindowRequested;
 
             string markdown = await GetReleaseContentMarkdownAsync();
+            if (WebView2Helper.CloseIfRequested(webview, _webviewClosed))
+            {
+                return;
+            }
             string html = await RenderMarkdownAsync(markdown);
+            if (WebView2Helper.CloseIfRequested(webview, _webviewClosed))
+            {
+                return;
+            }
             webview.NavigateToString(html);
             AppConfig.LastAppVersion = AppConfig.AppVersion;
         }

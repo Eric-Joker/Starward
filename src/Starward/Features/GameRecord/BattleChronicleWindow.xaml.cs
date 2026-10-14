@@ -20,6 +20,8 @@ public sealed partial class BattleChronicleWindow : WindowEx
         InitializeWindow();
         // 网页里的登录按钮点了没反应：桥收下消息后没有回话，这里往上抛给工具箱页处理。
         bbsWebBridge.LoginRequested += (_, _) => LoginRequested?.Invoke(this, EventArgs.Empty);
+        // UserControl.Unloaded 在窗口关闭时不一定触发，Closed 里显式关掉内嵌 WebView2
+        Closed += (_, _) => bbsWebBridge.CloseWebView();
     }
 
 
