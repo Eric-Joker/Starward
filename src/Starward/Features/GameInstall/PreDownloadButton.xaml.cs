@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Starward.Helpers;
 using Starward.RPC.GameInstall;
 using System;
 using System.Windows.Input;
@@ -43,6 +44,19 @@ public sealed partial class PreDownloadButton : UserControl
 
 
     public bool IsButtonEnabled => !(IsPredownloadFinished || State is GameInstallState.Finish);
+
+
+    /// <summary>
+    /// 预下载是否已就绪：下载跑完（<see cref="GameInstallState.Finish"/>）或已检测到资源完整。
+    /// </summary>
+    private bool IsResourceReady => IsPredownloadFinished || State is GameInstallState.Finish;
+
+
+    /// <summary>
+    /// 上一次见到的「已就绪」状态。<see langword="null"/> 表示还没求过值：
+    /// 首次只记录不提示，启动时资源就已就绪（上次会话下完的）不该再弹一次。
+    /// </summary>
+    private bool? _lastResourceReady;
 
 
     public string ButtonIcon => GetButtonIcon();
@@ -172,6 +186,24 @@ public sealed partial class PreDownloadButton : UserControl
         OnPropertyChanged(nameof(ButtonIcon));
         OnPropertyChanged(nameof(ButtonText));
         OnPropertyChanged(nameof(InstallStateText));
+        NotifyResourceReady();
+    }
+
+
+
+    /// <summary>
+    /// 预下载由「未就绪」翻到「已就绪」时提示一次「资源已就绪」：此前只有悬浮按钮才能看到进度框。
+    /// 进度轮询会反复走 <see cref="UpdateButtonState"/>，因此只在状态真的翻转时提示。
+    /// </summary>
+    private void NotifyResourceReady()
+    {
+        bool ready = IsResourceReady;
+        bool? last = _lastResourceReady;
+        _lastResourceReady = ready;
+        if (last is false && ready)
+        {
+            InAppToast.MainWindow?.Success(null, Lang.PreDownloadButton_PreInstallFinished);
+        }
     }
 
 
