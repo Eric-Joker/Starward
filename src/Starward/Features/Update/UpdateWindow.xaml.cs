@@ -68,46 +68,51 @@ public sealed partial class UpdateWindow : WindowEx
         SystemBackdrop = new DesktopAcrylicBackdrop();
         AdaptTitleBarButtonColorToActuallTheme();
         SetIcon();
+        if (AppWindow.Presenter is OverlappedPresenter presenter)
+        {
+            presenter.IsMaximizable = false;
+        }
     }
 
 
 
+    /// <summary>
+    /// 把更新窗口放到当前工作区居中，并限制为明显小于主窗口的默认尺寸。
+    /// 小屏 / 高 DPI 时按原比例缩小到工作区宽 80% / 高 90% 以内，避免铺满屏幕或把横窗翻成竖窗。
+    /// </summary>
     private void CenterInScreen()
     {
         RectInt32 workArea = DisplayArea.GetFromWindowId(MainWindowId, DisplayAreaFallback.Nearest).WorkArea;
+        int widthDip;
+        int heightDip;
         if (NewVersion is null)
         {
             Grid_Update.Visibility = Visibility.Collapsed;
-            int h = (int)(workArea.Height * 0.95);
-            int w = (int)(h / 4.0 * 3.0);
-            if (w > workArea.Width)
-            {
-                w = (int)(workArea.Width * 0.95);
-                h = (int)(w * 4.0 / 3.0);
-            }
-            int x = workArea.X + (workArea.Width - w) / 2;
-            int y = workArea.Y + (workArea.Height - h) / 2;
-            AppWindow.MoveAndResize(new RectInt32(x, y, w, h));
+            widthDip = 800;
+            heightDip = 700;
         }
         else
         {
             Button_RemindLatter.Visibility = Visibility.Collapsed;
-            int w = (int)(1000 * UIScale);
-            int h = (int)(w / 4.0 * 3.0);
-            if (w > workArea.Width || h > workArea.Height)
-            {
-                h = (int)(workArea.Height * 0.9);
-                w = (int)(h / 4.0 * 3.0);
-                if (w > workArea.Width)
-                {
-                    w = (int)(workArea.Width * 0.9);
-                    h = (int)(w * 4.0 / 3.0);
-                }
-            }
-            int x = workArea.X + (workArea.Width - w) / 2;
-            int y = workArea.Y + (workArea.Height - h) / 2;
-            AppWindow.MoveAndResize(new RectInt32(x, y, w, h));
+            widthDip = 880;
+            heightDip = 600;
         }
+
+        double scale = UIScale;
+        int w = (int)(widthDip * scale);
+        int h = (int)(heightDip * scale);
+        int maxW = (int)(workArea.Width * 0.8);
+        int maxH = (int)(workArea.Height * 0.9);
+        if (w > maxW || h > maxH)
+        {
+            double fit = Math.Min((double)maxW / w, (double)maxH / h);
+            w = Math.Max(1, (int)(w * fit));
+            h = Math.Max(1, (int)(h * fit));
+        }
+
+        int x = workArea.X + (workArea.Width - w) / 2;
+        int y = workArea.Y + (workArea.Height - h) / 2;
+        AppWindow.MoveAndResize(new RectInt32(x, y, w, h));
     }
 
 
@@ -519,11 +524,17 @@ public sealed partial class UpdateWindow : WindowEx
         catch (Exception ex) when (ex is HttpRequestException or SocketException or IOException)
         {
             _logger.LogError(ex, "Load recent update content");
+            // 内嵌 GitHub 发行页带搜索 / 登录框，会激活 Chromium 的 TSF（输入法）通道，改为外开浏览器
             string tag = NewVersion?.Version ?? AppConfig.AppVersion;
-            webview.Source = new Uri($"https://github.com/Eric-Joker/Starward/releases/tag/{tag}");
-            webview.Visibility = Visibility.Visible;
+            try
+            {
+                _ = Launcher.LaunchUriAsync(new Uri($"https://github.com/Eric-Joker/Starward/releases/tag/{tag}"));
+            }
+            catch { }
+            TextBlock_Error.Text = Lang.Common_NetworkError;
+            webview.Visibility = Visibility.Collapsed;
             StackPanel_Loading.Visibility = Visibility.Collapsed;
-            StackPanel_Error.Visibility = Visibility.Collapsed;
+            StackPanel_Error.Visibility = Visibility.Visible;
             AppConfig.LastAppVersion = AppConfig.AppVersion;
         }
         catch (Exception ex)
@@ -711,7 +722,7 @@ public sealed partial class UpdateWindow : WindowEx
 
     private void CoreWebView2_DOMContentLoaded(CoreWebView2 sender, CoreWebView2DOMContentLoadedEventArgs args)
     {
-        webview.Focus(FocusState.Programmatic);
+        // 只读 markdown，不抢焦点，避免把微信输入法推进 Chromium 的 TSF（输入法）通道
         webview.Visibility = Visibility.Visible;
         StackPanel_Loading.Visibility = Visibility.Collapsed;
         StackPanel_Error.Visibility = Visibility.Collapsed;
