@@ -6,9 +6,11 @@ using Starward.Core.HoYoPlay;
 using Starward.Features.Database;
 using Starward.Features.GameLauncher;
 using Starward.Features.HoYoPlay;
+using Starward.Helpers;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Threading.Tasks;
 
 namespace Starward.Features.PlayTime;
@@ -182,12 +184,62 @@ internal class PlayTimeRecordService
     /// </summary>
     /// <param name="gameId"></param>
     /// <returns></returns>
-    public async Task<Process?> StartProcessToLogAsync(GameId gameId)
+    public Task<Process?> StartProcessToLogAsync(GameId gameId)
+    {
+        return StartProcessToLogAsync(gameId, null, null);
+    }
+
+
+
+    /// <summary>
+    /// 启动进程记录游戏时间，返回游戏进程
+    /// </summary>
+    /// <param name="gameId"></param>
+    /// <param name="launcherProcess">
+    /// 拉起游戏的自定义启动程序进程。不为 <see langword="null"/> 时先在它（或它转交给的同一程序已运行实例，见 <paramref name="launcherImagePath"/>）
+    /// 存活期间持续查找游戏进程，都退出后仍未找到再按固定时长查找。
+    /// </param>
+    /// <param name="launcherImagePath">
+    /// 启动程序的 exe 完整路径。<paramref name="launcherProcess"/> 退出后，只要还有同一路径的进程在运行就继续等；
+    /// 为 <see langword="null"/> 时只等 <paramref name="launcherProcess"/> 本身。
+    /// </param>
+    /// <returns></returns>
+    public async Task<Process?> StartProcessToLogAsync(GameId gameId, Process? launcherProcess, string? launcherImagePath)
     {
         try
         {
             var biz = gameId.GameBiz;
             string name = await GetGameExeNameWithoutExtensionAsync(gameId);
+            if (launcherProcess is not null)
+            {
+                // 工具何时拉起游戏不确定（如胡桃工具箱要用户在工具里手动点启动），固定时长常常不够，工具还在就一直等
+                int? launcherPid = TryGetProcessId(launcherProcess);
+                _logger.LogInformation("Wait for game process ({biz}) while launcher process ({launcherPid}) is running, path: {path}", biz, launcherPid, launcherImagePath);
+                bool following = false;
+                while (true)
+                {
+                    if (!IsProcessRunning(launcherProcess))
+                    {
+                        // 单实例工具（如常驻托盘的胡桃工具箱）已在运行时，新实例把请求转交给已有实例后马上退出，游戏由已有实例拉起，
+                        // 改为跟随同一路径的实例；每轮重新查找，转交多次或工具重启都能跟上
+                        if (FindRunningInstance(launcherImagePath) is not int instancePid)
+                        {
+                            break;
+                        }
+                        if (!following)
+                        {
+                            following = true;
+                            _logger.LogInformation("Launcher process ({launcherPid}) exited, wait for game process ({biz}) while running instance ({instancePid}) of the same program is running", launcherPid, biz, instancePid);
+                        }
+                    }
+                    await Task.Delay(2000).ConfigureAwait(false);
+                    if (TryStartProcessToLog(biz, Process.GetProcessesByName(name)) is Process process)
+                    {
+                        return process;
+                    }
+                }
+                _logger.LogInformation("Launcher process ({launcherPid}) exited before game process ({biz}) was found", launcherPid, biz);
+            }
             for (int i = 0; i < 15; i++)
             {
                 await Task.Delay(2000);
@@ -201,28 +253,8 @@ internal class PlayTimeRecordService
                     // 未找到游戏进程
                     return null;
                 }
-                foreach (var process in processes)
+                if (TryStartProcessToLog(biz, processes) is Process process)
                 {
-                    var instance = App.FindInstanceForKey($"playtime_{process.Id}");
-                    if (instance != null)
-                    {
-                        // 已经有进程在记录该游戏
-                        _logger.LogInformation("Game process ({biz}, {gamePid}) has been recorded by process ({playtimePid})", biz, process.Id, instance.ProcessId);
-                        continue;
-                    }
-                    if (process.SessionId != Process.GetCurrentProcess().SessionId)
-                    {
-                        // 游戏进程不在当前会话
-                        _logger.LogWarning("Game process ({biz}, {gamePid}) is not in the current session", biz, process.Id);
-                        continue;
-                    }
-                    _logger.LogInformation("Start to log playtime ({biz}, {pid})", biz, process.Id);
-                    Process.Start(new ProcessStartInfo
-                    {
-                        FileName = AppConfig.StarwardExecutePath,
-                        Arguments = $"playtime --biz {biz} --pid {process.Id}",
-                        CreateNoWindow = true,
-                    });
                     return process;
                 }
             }
@@ -232,6 +264,122 @@ internal class PlayTimeRecordService
             _logger.LogError(ex, "Start process to log play time");
         }
         return null;
+    }
+
+
+
+    /// <summary>
+    /// 从按进程名找到的候选进程中取当前会话的游戏进程，尚未被记录时启动子进程记录游戏时间。
+    /// </summary>
+    /// <param name="biz">游戏区服。</param>
+    /// <param name="processes">按游戏进程名找到的候选进程。</param>
+    /// <returns>当前会话的游戏进程（已被其他进程记录的也返回）；没有则返回 <see langword="null"/>。</returns>
+    private Process? TryStartProcessToLog(GameBiz biz, Process[] processes)
+    {
+        int sessionId = Process.GetCurrentProcess().SessionId;
+        foreach (var process in processes)
+        {
+            if (process.SessionId != sessionId)
+            {
+                // 游戏进程不在当前会话
+                _logger.LogWarning("Game process ({biz}, {gamePid}) is not in the current session", biz, process.Id);
+                continue;
+            }
+            var instance = App.FindInstanceForKey($"playtime_{process.Id}");
+            if (instance != null)
+            {
+                // 已经有进程在记录该游戏（如首页与快捷方式先后启动、各自在等），不重复记录；
+                // 但游戏确实已启动，照常返回，否则等待中的一方会一直等到启动程序退出
+                _logger.LogInformation("Game process ({biz}, {gamePid}) has been recorded by process ({playtimePid})", biz, process.Id, instance.ProcessId);
+                return process;
+            }
+            _logger.LogInformation("Start to log playtime ({biz}, {pid})", biz, process.Id);
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = AppConfig.StarwardExecutePath,
+                Arguments = $"playtime --biz {biz} --pid {process.Id}",
+                CreateNoWindow = true,
+            });
+            return process;
+        }
+        return null;
+    }
+
+
+
+    /// <summary>
+    /// 在当前会话中查找指定 exe 路径正在运行的进程。
+    /// </summary>
+    /// <param name="imagePath">exe 完整路径；为 <see langword="null"/> 时不查找。</param>
+    /// <returns>任意一个匹配进程的 PID；没有时返回 <see langword="null"/>。</returns>
+    private static int? FindRunningInstance(string? imagePath)
+    {
+        if (string.IsNullOrWhiteSpace(imagePath))
+        {
+            return null;
+        }
+        Process[] processes = [];
+        try
+        {
+            int sessionId = Process.GetCurrentProcess().SessionId;
+            processes = Process.GetProcessesByName(Path.GetFileNameWithoutExtension(imagePath));
+            foreach (var process in processes)
+            {
+                // 只按进程名会把同名的其他程序也算上，须比对完整路径
+                if (process.SessionId == sessionId
+                    && string.Equals(ProcessHelper.TryGetProcessImagePath(process), imagePath, StringComparison.OrdinalIgnoreCase))
+                {
+                    return process.Id;
+                }
+            }
+        }
+        catch { }
+        finally
+        {
+            foreach (var process in processes)
+            {
+                process.Dispose();
+            }
+        }
+        return null;
+    }
+
+
+
+    /// <summary>
+    /// 进程是否仍在运行。
+    /// </summary>
+    /// <param name="process">要检查的进程。</param>
+    /// <returns>仍在运行返回 <see langword="true"/>；已退出或无法查询（如句柄无权限）返回 <see langword="false"/>，调用方随即改按固定时长查找。</returns>
+    private static bool IsProcessRunning(Process process)
+    {
+        try
+        {
+            return !process.HasExited;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+
+
+    /// <summary>
+    /// 进程 ID，只用于记录日志。
+    /// </summary>
+    /// <param name="process">进程。</param>
+    /// <returns>进程 ID；进程已退出等原因取不到时返回 <see langword="null"/>。</returns>
+    private static int? TryGetProcessId(Process process)
+    {
+        try
+        {
+            return process.Id;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
 

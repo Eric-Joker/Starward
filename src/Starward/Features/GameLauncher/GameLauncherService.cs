@@ -451,7 +451,15 @@ internal partial class GameLauncherService
             {
                 if (thirdPartyTool || AppConfig.StartGameWithCMD)
                 {
-                    return await _playTimeRecorderService.StartProcessToLogAsync(gameId);
+                    // 能跟随启动程序时把它的进程和 exe 路径一并交给记时逻辑：工具还活着就一直等它拉起游戏
+                    Process? launcherProcess = null;
+                    string? launcherImagePath = null;
+                    if (thirdPartyTool && IsThirdPartyToolFollowable(exe))
+                    {
+                        launcherProcess = process;
+                        launcherImagePath = GetThirdPartyToolImagePath(exe, process);
+                    }
+                    return await _playTimeRecorderService.StartProcessToLogAsync(gameId, launcherProcess, launcherImagePath);
                 }
                 else
                 {
@@ -481,6 +489,59 @@ internal partial class GameLauncherService
             return arguments;
         }
         return Regex.Replace(arguments, @"(login_auth_ticket=)[^\s""]+", "$1<masked>");
+    }
+
+
+
+
+    /// <summary>
+    /// 自定义启动程序是否能按进程跟随。
+    /// </summary>
+    /// <param name="exe">启动时打开的文件。</param>
+    /// <returns>
+    /// 可执行文件与批处理返回 <see langword="true"/>（批处理的中转 cmd.exe 只跟随进程）；
+    /// <c>.url</c>、<c>.lnk</c> 等由系统转交给浏览器或资源管理器的返回 <see langword="false"/>，跟随它们会一直等下去。
+    /// </returns>
+    private static bool IsThirdPartyToolFollowable(string? exe)
+    {
+        string? extension = Path.GetExtension(exe);
+        return string.Equals(extension, ".exe", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(extension, ".bat", StringComparison.OrdinalIgnoreCase);
+    }
+
+
+
+
+    /// <summary>
+    /// 取刚启动的自定义启动程序的 exe 完整路径。单实例程序（如常驻托盘的胡桃工具箱）已在运行时，
+    /// 新实例把请求转交给已有实例后马上退出，之后要按此路径找到已有实例继续等它拉起游戏。
+    /// </summary>
+    /// <param name="exe">启动时打开的文件。</param>
+    /// <param name="process">打开后拿到的进程，可为 <see langword="null"/>。</param>
+    /// <returns>exe 完整路径；拿不到，或拿到的不是启动程序本身时返回 <see langword="null"/>。</returns>
+    private static string? GetThirdPartyToolImagePath(string? exe, Process? process)
+    {
+        try
+        {
+            string? path = null;
+            if (!string.IsNullOrWhiteSpace(exe) && string.Equals(Path.GetExtension(exe), ".exe", StringComparison.OrdinalIgnoreCase))
+            {
+                // 进程一退出就读不到路径（实测 QueryFullProcessImageName 返回错误 31），只能趁刚启动时读
+                path = process is null ? null : ProcessHelper.TryGetProcessImagePath(process);
+                path ??= Path.GetFullPath(exe);
+            }
+            // Windows 目录下的程序（如批处理转交的 cmd.exe）不代表启动程序本身，随时可能有无关实例在运行，按路径跟随会一直等下去
+            string windows = Path.TrimEndingDirectorySeparator(Environment.GetFolderPath(Environment.SpecialFolder.Windows)) + Path.DirectorySeparatorChar;
+            if (path is not null && path.StartsWith(windows, StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+            return path;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
 
