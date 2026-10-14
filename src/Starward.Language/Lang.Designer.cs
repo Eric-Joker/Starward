@@ -1286,6 +1286,42 @@ namespace Starward.Language {
         }
         
         /// <summary>
+        ///   查找类似 Stored Encounter Points 的本地化字符串。
+        /// </summary>
+        public static string DailyNoteButton_Genshin_StoredEncounterPoints {
+            get {
+                return ResourceManager.GetString("DailyNoteButton_Genshin_StoredEncounterPoints", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Weekly Bosses Remaining 的本地化字符串。
+        /// </summary>
+        public static string DailyNoteButton_Genshin_WeeklyBossRemaining {
+            get {
+                return ResourceManager.GetString("DailyNoteButton_Genshin_WeeklyBossRemaining", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Parametric Transformer 的本地化字符串。
+        /// </summary>
+        public static string DailyNoteButton_Genshin_ParametricTransformer {
+            get {
+                return ResourceManager.GetString("DailyNoteButton_Genshin_ParametricTransformer", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Ready 的本地化字符串。
+        /// </summary>
+        public static string DailyNoteButton_Genshin_TransformerReady {
+            get {
+                return ResourceManager.GetString("DailyNoteButton_Genshin_TransformerReady", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   查找类似 Realm Currency 的本地化字符串。
         /// </summary>
         public static string DailyNoteButton_Genshin_RealmCurrency {
@@ -8211,6 +8247,33 @@ namespace Starward.Language {
         public static string TimeNode_Section_CurrentSignalSearch {
             get {
                 return ResourceManager.GetString("TimeNode_Section_CurrentSignalSearch", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 {0}d remaining 的本地化字符串。
+        /// </summary>
+        public static string TimeNode_RemainingDays {
+            get {
+                return ResourceManager.GetString("TimeNode_RemainingDays", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 {0}h remaining 的本地化字符串。
+        /// </summary>
+        public static string TimeNode_RemainingHours {
+            get {
+                return ResourceManager.GetString("TimeNode_RemainingHours", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 {0}m remaining 的本地化字符串。
+        /// </summary>
+        public static string TimeNode_RemainingMinutes {
+            get {
+                return ResourceManager.GetString("TimeNode_RemainingMinutes", resourceCulture);
             }
         }
         
