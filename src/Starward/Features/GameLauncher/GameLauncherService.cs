@@ -34,6 +34,12 @@ internal partial class GameLauncherService
     private readonly PassportAccountService _accountService;
 
 
+    /// <summary>
+    /// 同一个游戏的全部区服，用来找出需要与游戏进程所在目录区分的其他区服。
+    /// </summary>
+    private static readonly string[] GameServers = ["cn", "bilibili", "global"];
+
+
     public GameLauncherService(ILogger<GameLauncherService> logger, HoYoPlayService hoYoPlayService, PlayTimeRecordService playTimeRecorderService, GameAuthLoginService gameAuthLoginService, PassportAccountService accountService)
     {
         _logger = logger;
@@ -319,7 +325,101 @@ internal partial class GameLauncherService
     {
         int currentSessionId = Process.GetCurrentProcess().SessionId;
         var name = (await GetGameExeNameAsync(gameId)).Replace(".exe", "");
-        return Process.GetProcessesByName(name).Where(x => x.SessionId == currentSessionId && !IsProcessPending(x)).FirstOrDefault();
+        // 同一个游戏的区服可能用同一个进程名（hk4e 的国服与 B 服都是 YuanShen.exe），只按进程名会把另一个区服在运行
+        // 也算成本区服在运行，所以本区服安装目录里的进程优先，在别的区服安装目录里的直接排除；
+        // 其余进程（装在别处、记录里没有安装目录）仍按进程名认，否则游戏明明在运行却会被当成没运行
+        Process? fallback = null;
+        foreach (var process in Process.GetProcessesByName(name))
+        {
+            try
+            {
+                if (process.SessionId != currentSessionId || IsProcessPending(process))
+                {
+                    continue;
+                }
+                string? imagePath = ProcessHelper.TryGetProcessImagePath(process);
+                if (IsProcessInRecordedInstallPath(gameId.GameBiz, imagePath))
+                {
+                    return process;
+                }
+                if (IsProcessInOtherServerInstallPath(gameId, imagePath))
+                {
+                    // 在别的区服的安装目录里，不是本区服在运行
+                    _logger.LogInformation("Game process ({gamePid}, {imagePath}) is in the install path of another server, ignore it ({biz})", process.Id, imagePath, gameId.GameBiz);
+                    continue;
+                }
+                fallback ??= process;
+            }
+            catch { }
+        }
+        return fallback;
+    }
+
+
+
+    /// <summary>
+    /// 进程是否运行在该区服记录的安装目录里。
+    /// </summary>
+    /// <param name="gameBiz">区服。</param>
+    /// <param name="imagePath">进程的 exe 完整路径。</param>
+    /// <returns>记录的安装目录对不上（含没有记录、取不到进程路径）时返回 <see langword="false"/>。</returns>
+    private static bool IsProcessInRecordedInstallPath(GameBiz gameBiz, string? imagePath)
+    {
+        string? directory = imagePath is null ? null : Path.GetDirectoryName(imagePath);
+        if (string.IsNullOrWhiteSpace(directory))
+        {
+            return false;
+        }
+        return string.Equals(Path.TrimEndingDirectorySeparator(directory), GetRecordedInstallPath(gameBiz), StringComparison.OrdinalIgnoreCase);
+    }
+
+
+
+    /// <summary>
+    /// 进程是否运行在同一个游戏的其他区服的安装目录里。
+    /// </summary>
+    /// <param name="gameId">当前区服。</param>
+    /// <param name="imagePath">进程的 exe 完整路径。</param>
+    /// <returns>在别的区服安装目录里时返回 <see langword="true"/>。</returns>
+    private static bool IsProcessInOtherServerInstallPath(GameId gameId, string? imagePath)
+    {
+        if (string.IsNullOrWhiteSpace(imagePath))
+        {
+            return false;
+        }
+        foreach (string server in GameServers)
+        {
+            string biz = $"{gameId.GameBiz.Game}_{server}";
+            if (biz != gameId.GameBiz && IsProcessInRecordedInstallPath(biz, imagePath))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+
+
+    /// <summary>
+    /// 区服记录的安装目录，已展开成完整路径并去掉结尾的目录分隔符。
+    /// </summary>
+    /// <param name="gameBiz">区服。</param>
+    /// <returns>没有记录时返回 <see langword="null"/>。目录不存在时不清掉记录，只按记录比较。</returns>
+    private static string? GetRecordedInstallPath(GameBiz gameBiz)
+    {
+        try
+        {
+            string? path = AppConfig.GetGameInstallPath(gameBiz);
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return null;
+            }
+            return Path.TrimEndingDirectorySeparator(GetFullPathIfRelativePath(path));
+        }
+        catch
+        {
+            return null;
+        }
     }
 
 
