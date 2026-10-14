@@ -2040,6 +2040,18 @@
   <data name="DailyNoteButton_Genshin_Expedition" xml:space="preserve">
     <value>探索派遣</value>
   </data>
+  <data name="DailyNoteButton_Genshin_StoredEncounterPoints" xml:space="preserve">
+    <value>长效历练点</value>
+  </data>
+  <data name="DailyNoteButton_Genshin_WeeklyBossRemaining" xml:space="preserve">
+    <value>周本剩余次数</value>
+  </data>
+  <data name="DailyNoteButton_Genshin_ParametricTransformer" xml:space="preserve">
+    <value>参量质变仪</value>
+  </data>
+  <data name="DailyNoteButton_Genshin_TransformerReady" xml:space="preserve">
+    <value>可使用</value>
+  </data>
   <data name="DailyNoteButton_StarRail_FullTime" xml:space="preserve">
     <value>回满时间</value>
   </data>
@@ -2839,6 +2851,15 @@
   </data>
   <data name="TimeNode_Section_CurrentSignalSearch" xml:space="preserve">
     <value>当前调频</value>
+  </data>
+  <data name="TimeNode_RemainingDays" xml:space="preserve">
+    <value>还剩{0}天</value>
+  </data>
+  <data name="TimeNode_RemainingHours" xml:space="preserve">
+    <value>还剩{0}小时</value>
+  </data>
+  <data name="TimeNode_RemainingMinutes" xml:space="preserve">
+    <value>还剩{0}分钟</value>
   </data>
   <data name="SignInButton_Title" xml:space="preserve">
     <value>每日签到</value>
