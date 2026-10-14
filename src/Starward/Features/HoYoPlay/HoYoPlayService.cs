@@ -265,11 +265,13 @@ public class HoYoPlayService
 
     public async Task<GameSophonChunkBuild?> GetGameSophonChunkBuildAsync(GameBranch gameBranch, GameBranchPackage gameBranchPackage, CancellationToken cancellationToken = default)
     {
-        if (!_memoryCache.TryGetValue($"{nameof(GameSophonChunkBuild)}_{gameBranchPackage.PackageId}", out GameSophonChunkBuild? build))
+        // 缓存键要带上 branch（main / predownload），否则正式版本与预下载的清单会互相覆盖
+        string key = $"{nameof(GameSophonChunkBuild)}_{gameBranchPackage.PackageId}_{gameBranchPackage.Branch}";
+        if (!_memoryCache.TryGetValue(key, out GameSophonChunkBuild? build))
         {
             string lang = CultureInfo.CurrentUICulture.Name;
             build = await _client.GetGameSophonChunkBuildAsync(gameBranch, gameBranchPackage, gameBranchPackage.Tag, cancellationToken);
-            _memoryCache.Set($"{nameof(GameSophonChunkBuild)}_{gameBranchPackage.PackageId}", build, TimeSpan.FromMinutes(1));
+            _memoryCache.Set(key, build, TimeSpan.FromMinutes(1));
         }
         return build;
     }
@@ -279,11 +281,13 @@ public class HoYoPlayService
 
     public async Task<GameSophonPatchBuild?> GetGameSophonPatchBuildAsync(GameBranch gameBranch, GameBranchPackage gameBranchPackage, CancellationToken cancellationToken = default)
     {
-        if (!_memoryCache.TryGetValue($"{nameof(GameSophonPatchBuild)}_{gameBranchPackage.PackageId}", out GameSophonPatchBuild? build))
+        // 同上：预下载补丁清单和正式版本不能共用同一个缓存键
+        string key = $"{nameof(GameSophonPatchBuild)}_{gameBranchPackage.PackageId}_{gameBranchPackage.Branch}";
+        if (!_memoryCache.TryGetValue(key, out GameSophonPatchBuild? build))
         {
             string lang = CultureInfo.CurrentUICulture.Name;
             build = await _client.GetGameSophonPatchBuildAsync(gameBranch, gameBranchPackage, cancellationToken);
-            _memoryCache.Set($"{nameof(GameSophonPatchBuild)}_{gameBranchPackage.PackageId}", build, TimeSpan.FromMinutes(1));
+            _memoryCache.Set(key, build, TimeSpan.FromMinutes(1));
         }
         return build;
     }
