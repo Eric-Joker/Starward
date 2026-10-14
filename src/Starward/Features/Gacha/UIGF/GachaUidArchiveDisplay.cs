@@ -36,6 +36,12 @@ public class GachaUidArchiveDisplay : ObservableObject
 
     public long Uid { get; set; }
 
+    /// <summary>
+    /// 图标悬停说明：游戏名；千星奇域归档显示「千星奇域颂愿」
+    /// （千星奇域复用 hk4e 的 <see cref="GameBiz"/>，只能按 <see cref="IsGenshinBeyond"/> 区分）
+    /// </summary>
+    public string GameName => IsGenshinBeyond ? Lang.GenshinBeyondGachaPage_MiliastraWonderlandOde : Game.ToGameName();
+
     public int Count { get; set; }
 
     public string LastItemGachaType { get; set; }
