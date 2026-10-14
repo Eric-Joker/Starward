@@ -1,9 +1,11 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Dapper;
 using Microsoft.Extensions.Logging;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Starward.Core;
+using Starward.Features.Database;
 using Starward.Helpers;
 using System;
 using System.Collections.Generic;
@@ -34,6 +36,10 @@ public sealed partial class DeleteGachaLogDialog : ContentDialog
     private GachaLogService _gachaLogService;
 
 
+    /// <summary>千星奇域（<see cref="CurrentGameBiz"/> 的 Game 为 hk4eugc）记录不在 <see cref="GachaLogService"/> 体系内，单独走该服务。</summary>
+    private GenshinBeyondGachaService? _beyondGachaService;
+
+
     public DeleteGachaLogDialog()
     {
         this.InitializeComponent();
@@ -58,7 +64,8 @@ public sealed partial class DeleteGachaLogDialog : ContentDialog
     }
 
 
-    private List<GachaLogItemEx> gachalogs;
+    /// <summary>当前 UID 全部记录的抽取时间，用于统计所选时间段内的条数。</summary>
+    private List<DateTime> gachaLogTimes;
 
 
     private void ContentDialog_Loaded(object sender, RoutedEventArgs e)
@@ -77,10 +84,15 @@ public sealed partial class DeleteGachaLogDialog : ContentDialog
             {
                 _gachaLogService = AppConfig.GetService<ZZZGachaService>();
             }
-
-            if (_gachaLogService is not null)
+            if (CurrentGameBiz.Game is "hk4eugc")
             {
-                UidList = new(_gachaLogService.GetUids());
+                _beyondGachaService = AppConfig.GetService<GenshinBeyondGachaService>();
+            }
+
+            List<long>? uids = _beyondGachaService?.GetUids() ?? _gachaLogService?.GetUids();
+            if (uids is not null)
+            {
+                UidList = new(uids);
                 if (DefaultUid.HasValue && UidList.Contains(DefaultUid.Value))
                 {
                     SelectUid = DefaultUid;
@@ -99,9 +111,9 @@ public sealed partial class DeleteGachaLogDialog : ContentDialog
     {
         try
         {
-            gachalogs = _gachaLogService.GetGachaLogItemEx(uid);
+            gachaLogTimes = GetGachaLogTimes(uid);
             TextBlock_GachaLogNumber.Visibility = Visibility.Visible;
-            TextBlock_GachaLogNumber.Text = string.Format(Lang.DeleteGachaLogDialog_ThisAccountHas0GachaRecordS, gachalogs.Count);
+            TextBlock_GachaLogNumber.Text = string.Format(Lang.DeleteGachaLogDialog_ThisAccountHas0GachaRecordS, gachaLogTimes.Count);
             CalendarDatePicker_BeginTime.Date = null;
             CalendarDatePicker_EndTime.Date = null;
             TimePicker_BeginTime.SelectedTime = null;
@@ -114,6 +126,26 @@ public sealed partial class DeleteGachaLogDialog : ContentDialog
         {
             _logger.LogError(ex, "Delete gacha log dialog load gacha log.");
         }
+    }
+
+
+
+
+    /// <summary>
+    /// 当前 UID 全部记录的抽取时间。
+    /// </summary>
+    /// <remarks>
+    /// 千星奇域记录不在 <see cref="GachaLogService"/> 体系内，<see cref="GenshinBeyondGachaService"/> 也没有提供按 UID 取全部抽取时间的接口，
+    /// 这里只读同一张数据表的时间列；若后续在 <see cref="GenshinBeyondGachaService"/> 补上取时间的方法，应改为调用该方法。
+    /// </remarks>
+    private List<DateTime> GetGachaLogTimes(long uid)
+    {
+        if (_beyondGachaService is null)
+        {
+            return _gachaLogService.GetGachaLogItemEx(uid).Select(x => x.Time).ToList();
+        }
+        using var dapper = DatabaseService.CreateConnection();
+        return dapper.Query<DateTime>("SELECT Time FROM GenshinBeyondGachaItem WHERE Uid = @uid;", new { uid }).ToList();
     }
 
 
@@ -156,7 +188,7 @@ public sealed partial class DeleteGachaLogDialog : ContentDialog
                 var end = endDate + endTime;
                 if (begin <= end)
                 {
-                    var count = gachalogs.Count(x => x.Time >= begin && x.Time <= end);
+                    var count = gachaLogTimes.Count(x => x >= begin && x <= end);
                     TextBlock_SelectedCount.Visibility = Visibility.Visible;
                     TextBlock_SelectedCount.Text = string.Format(Lang.DeleteGachaLogDialog_TheSelectedTimePeriodIncludes0GachaRecords, count);
                     Button_Delete.IsEnabled = count > 0;
@@ -193,11 +225,18 @@ public sealed partial class DeleteGachaLogDialog : ContentDialog
                 var end = endDate + endTime;
                 if (begin <= end)
                 {
-                    var count = gachalogs.Count(x => x.Time >= begin && x.Time <= end);
+                    var count = gachaLogTimes.Count(x => x >= begin && x <= end);
                     if (count > 0)
                     {
                         _logger.LogInformation("Deleting {count} gachalogs from {begin} to {end} of {uid} ({biz}).", count, begin, end, SelectUid, CurrentGameBiz);
-                        _gachaLogService.DeleteGachaLogByTime(SelectUid.Value, begin.Value.LocalDateTime, end.Value.LocalDateTime);
+                        if (_beyondGachaService is not null)
+                        {
+                            _beyondGachaService.DeleteGachaLogByTime(SelectUid.Value, begin.Value.LocalDateTime, end.Value.LocalDateTime);
+                        }
+                        else
+                        {
+                            _gachaLogService.DeleteGachaLogByTime(SelectUid.Value, begin.Value.LocalDateTime, end.Value.LocalDateTime);
+                        }
                         InAppToast.MainWindow?.Success(string.Format(Lang.GachaLogPage_DeletedGachaRecordsOfUid, count, SelectUid));
                         Deleted = true;
                         this.Hide();

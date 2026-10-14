@@ -15,6 +15,13 @@
     <Grid x:Name="RootGrid"
           Loaded="RootGrid_Loaded"
           Unloaded="RootGrid_Unloaded">
+        <Grid.Resources>
+            <!--  千星奇域图标（透明底道具图）的底块：固定深色，不随主题变，与其他游戏的方形图标观感一致。  -->
+            <LinearGradientBrush x:Key="GenshinBeyondIconBackground" StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Offset="0" Color="#FF3B4192" />
+                <GradientStop Offset="1" Color="#FF171A40" />
+            </LinearGradientBrush>
+        </Grid.Resources>
         <Grid.RowDefinitions>
             <RowDefinition Height="32" />
             <RowDefinition />
@@ -97,10 +104,16 @@
                         <ListView.ItemTemplate>
                             <DataTemplate x:DataType="local:GachaUidArchiveDisplay">
                                 <StackPanel Orientation="Horizontal" Spacing="12">
-                                    <cc:CachedImage Width="36"
-                                                    Height="36"
-                                                    CornerRadius="8"
-                                                    Source="{x:Bind GameIcon}" />
+                                    <!--  千星奇域图标是透明底道具图，垫一层深色底块，与同 UID 的原神归档区分；悬停显示游戏名（Background=Transparent 让整块图标都可悬停）  -->
+                                    <Grid Width="36"
+                                          Height="36"
+                                          Background="Transparent"
+                                          ToolTipService.ToolTip="{x:Bind GameName}">
+                                        <Border Background="{StaticResource GenshinBeyondIconBackground}"
+                                                CornerRadius="8"
+                                                Visibility="{x:Bind IsGenshinBeyond}" />
+                                        <cc:CachedImage CornerRadius="8" Source="{x:Bind GameIcon}" />
+                                    </Grid>
                                     <TextBlock Width="100"
                                                VerticalAlignment="Center"
                                                Text="{x:Bind Uid}" />
@@ -211,11 +224,17 @@
                                         <ColumnDefinition Width="160" />
                                         <ColumnDefinition />
                                     </Grid.ColumnDefinitions>
-                                    <cc:CachedImage Grid.Column="0"
-                                                    Width="36"
-                                                    Height="36"
-                                                    CornerRadius="8"
-                                                    Source="{x:Bind GameIcon}" />
+                                    <!--  千星奇域图标是透明底道具图，垫一层深色底块，与同 UID 的原神归档区分；悬停显示游戏名（Background=Transparent 让整块图标都可悬停）  -->
+                                    <Grid Grid.Column="0"
+                                          Width="36"
+                                          Height="36"
+                                          Background="Transparent"
+                                          ToolTipService.ToolTip="{x:Bind GameName}">
+                                        <Border Background="{StaticResource GenshinBeyondIconBackground}"
+                                                CornerRadius="8"
+                                                Visibility="{x:Bind IsGenshinBeyond}" />
+                                        <cc:CachedImage CornerRadius="8" Source="{x:Bind GameIcon}" />
+                                    </Grid>
                                     <TextBlock Grid.Column="1"
                                                Width="100"
                                                VerticalAlignment="Center"
