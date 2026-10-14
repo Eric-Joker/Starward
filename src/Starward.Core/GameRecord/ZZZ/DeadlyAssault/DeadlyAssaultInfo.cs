@@ -102,6 +102,15 @@ public class DeadlyAssaultInfo
     public int HardTotalStar { get; set; }
 
 
+    /// <summary>
+    /// 该份危局强袭战数据（含全服排名）的获取时间。
+    /// <para>官方接口不返回该时间，由 GameRecordService 刷新成功后写入，并随 Value 一起序列化到数据表，
+    /// 因此只有从 Value 反序列化的记录（GetDeadlyAssaultInfo）才有值；只读数据表列的旧记录（GetDeadlyAssaultInfoList）为默认值。</para>
+    /// </summary>
+    [JsonPropertyName("rank_fetch_time")]
+    public DateTimeOffset RankFetchTime { get; set; }
+
+
     [JsonExtensionData]
     public Dictionary<string, object>? ExtensionData { get; set; }
 

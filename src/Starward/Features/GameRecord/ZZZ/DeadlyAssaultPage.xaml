@@ -210,6 +210,7 @@
                                            FontWeight="Bold"
                                            Text="{x:Bind CurrentDeadlyAssault.HardTotalScore}" />
                                 <Grid Margin="0,0,0,6"
+                                      ToolTipService.ToolTip="{x:Bind local:DeadlyAssaultPage.RankFetchTimeToolTip(CurrentDeadlyAssault.RankFetchTime)}"
                                       VerticalAlignment="Bottom">
                                     <Image Height="20"
                                            Stretch="Uniform"
@@ -520,6 +521,7 @@
                                            FontWeight="Bold"
                                            Text="{x:Bind CurrentDeadlyAssault.TotalScore}" />
                                 <Grid Margin="0,0,0,6"
+                                      ToolTipService.ToolTip="{x:Bind local:DeadlyAssaultPage.RankFetchTimeToolTip(CurrentDeadlyAssault.RankFetchTime)}"
                                       VerticalAlignment="Bottom">
                                     <Image Height="20"
                                            Stretch="Uniform"

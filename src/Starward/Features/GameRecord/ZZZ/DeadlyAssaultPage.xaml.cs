@@ -175,6 +175,19 @@ public sealed partial class DeadlyAssaultPage : PageBase
     }
 
 
+    /// <summary>
+    /// 全服排名数据获取时间的悬停提示。
+    /// </summary>
+    /// <param name="rankFetchTime">排名数据获取时间；旧的、只从数据表列读取的记录没有该时间。</param>
+    /// <returns>格式化后的提示文案；没有获取时间时返回 <see langword="null"/>，此时不显示悬停提示。</returns>
+    public static string? RankFetchTimeToolTip(DateTimeOffset rankFetchTime)
+    {
+        return rankFetchTime == default
+            ? null
+            : string.Format(Lang.DeadlyAssaultPage_RankFetchTime, rankFetchTime.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss"));
+    }
+
+
 
     public bool IsSharingRecordImage { get; set => SetProperty(ref field, value); }
 
