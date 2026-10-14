@@ -2160,6 +2160,9 @@ You are welcome to submit the exported data to the following repository:</value>
   <data name="ShiyuDefensePage_Weakness" xml:space="preserve">
     <value>Weakness</value>
   </data>
+  <data name="ShiyuDefensePage_RankFetchTime" xml:space="preserve">
+    <value>Rank data fetched at {0}</value>
+  </data>
   <data name="ShiyuDefensePage_Resistance" xml:space="preserve">
     <value>Resistance</value>
   </data>
@@ -3040,6 +3043,9 @@ You are welcome to submit the exported data to the following repository:</value>
   </data>
   <data name="DeadlyAssaultPage_NormalMode" xml:space="preserve">
     <value>Normal</value>
+  </data>
+  <data name="DeadlyAssaultPage_RankFetchTime" xml:space="preserve">
+    <value>Rank data fetched at {0}</value>
   </data>
   <data name="PlayTimeStatsDialog_PlaytimeStatistics" xml:space="preserve">
     <value>Playtime Statistics</value>

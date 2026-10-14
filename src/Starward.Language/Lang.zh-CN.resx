@@ -2160,6 +2160,9 @@
   <data name="ShiyuDefensePage_Weakness" xml:space="preserve">
     <value>弱点</value>
   </data>
+  <data name="ShiyuDefensePage_RankFetchTime" xml:space="preserve">
+    <value>排名数据获取时间：{0}</value>
+  </data>
   <data name="ShiyuDefensePage_Resistance" xml:space="preserve">
     <value>抗性</value>
   </data>
@@ -3040,6 +3043,9 @@
   </data>
   <data name="DeadlyAssaultPage_NormalMode" xml:space="preserve">
     <value>常规</value>
+  </data>
+  <data name="DeadlyAssaultPage_RankFetchTime" xml:space="preserve">
+    <value>排名数据获取时间：{0}</value>
   </data>
   <data name="PlayTimeStatsDialog_PlaytimeStatistics" xml:space="preserve">
     <value>游戏时长统计</value>
