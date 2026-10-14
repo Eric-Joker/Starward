@@ -110,6 +110,20 @@ public sealed partial class InterKnotMonthlyReportPage : PageBase
 
 
 
+    /// <summary>
+    /// 绳网月报区服标识与 UTC 偏移量的映射：明细返回的时间戳需换算到区服本地时间后再归日。
+    /// </summary>
+    private static readonly Dictionary<string, TimeSpan> interKnotServerOffsetMap = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["prod_gf_cn"] = TimeSpan.FromHours(8),
+        ["prod_gf_jp"] = TimeSpan.FromHours(8),
+        ["prod_gf_sg"] = TimeSpan.FromHours(8),
+        ["prod_gf_eu"] = TimeSpan.FromHours(1),
+        ["prod_gf_usa"] = TimeSpan.FromHours(-5),
+    };
+
+
+
     [RelayCommand]
     private async Task InitializeDataAsync()
     {
@@ -272,37 +286,19 @@ public sealed partial class InterKnotMonthlyReportPage : PageBase
             var items_poly = _gameRecordService.GetInterKnotReportDetailItems(data.Uid, data.DataMonth, InterKnotReportDataType.PolychromesData);
             var items_tape = _gameRecordService.GetInterKnotReportDetailItems(data.Uid, data.DataMonth, InterKnotReportDataType.MatserTapeData);
             var items_boopon = _gameRecordService.GetInterKnotReportDetailItems(data.Uid, data.DataMonth, InterKnotReportDataType.BooponsData);
-            int days = DateTime.DaysInMonth(int.Parse(data.DataMonth[..4]), int.Parse(data.DataMonth[4..]));
+            int year = int.Parse(data.DataMonth[..4], CultureInfo.InvariantCulture);
+            int month = int.Parse(data.DataMonth[4..], CultureInfo.InvariantCulture);
+            int days = DateTime.DaysInMonth(year, month);
+            TimeSpan serverOffset = GetInterKnotReportServerOffset(data.Region);
 
             var stats_poly = new int[days];
-            foreach (var item in items_poly)
-            {
-                var day = item.Time.LocalDateTime.Day;
-                if (day <= days)
-                {
-                    stats_poly[day - 1] += item.Number;
-                }
-            }
+            AggregateDailyStats(stats_poly, items_poly, year, month, serverOffset);
 
             var stats_tape = new int[days];
-            foreach (var item in items_tape)
-            {
-                var day = item.Time.LocalDateTime.Day;
-                if (day <= days)
-                {
-                    stats_tape[day - 1] += item.Number;
-                }
-            }
+            AggregateDailyStats(stats_tape, items_tape, year, month, serverOffset);
 
             var stats_boopon = new int[days];
-            foreach (var item in items_boopon)
-            {
-                var day = item.Time.LocalDateTime.Day;
-                if (day <= days)
-                {
-                    stats_boopon[day - 1] += item.Number;
-                }
-            }
+            AggregateDailyStats(stats_boopon, items_boopon, year, month, serverOffset);
 
             double max_poly = stats_poly.Max();
             double max_tape = stats_tape.Max();
@@ -329,6 +325,63 @@ public sealed partial class InterKnotMonthlyReportPage : PageBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Refresh daily data plot");
+        }
+    }
+
+
+
+
+    /// <summary>
+    /// 根据区服标识解析绳网月报的 UTC 偏移量；未知或为空时回退到国服（UTC+8）。
+    /// </summary>
+    /// <param name="region">区服标识，如 prod_gf_cn / prod_gf_usa。</param>
+    /// <returns>该区服的 UTC 偏移量。</returns>
+    private static TimeSpan GetInterKnotReportServerOffset(string? region)
+    {
+        if (string.IsNullOrWhiteSpace(region))
+        {
+            return TimeSpan.FromHours(8);
+        }
+        if (interKnotServerOffsetMap.TryGetValue(region, out var offset))
+        {
+            return offset;
+        }
+        if (region.Contains("usa", StringComparison.OrdinalIgnoreCase))
+        {
+            return TimeSpan.FromHours(-5);
+        }
+        if (region.Contains("eu", StringComparison.OrdinalIgnoreCase))
+        {
+            return TimeSpan.FromHours(1);
+        }
+        return TimeSpan.FromHours(8);
+    }
+
+
+
+
+    /// <summary>
+    /// 把明细记录按区服本地自然日累加到统计数组：先换算到区服时区，非本月或越界的记录直接忽略。
+    /// </summary>
+    /// <param name="target">长度为当月天数的统计数组。</param>
+    /// <param name="source">某一类别的明细记录。</param>
+    /// <param name="year">所选年份。</param>
+    /// <param name="month">所选月份。</param>
+    /// <param name="serverOffset">区服 UTC 偏移量。</param>
+    private static void AggregateDailyStats(int[] target, IEnumerable<InterKnotReportDetailItem> source, int year, int month, TimeSpan serverOffset)
+    {
+        foreach (var item in source)
+        {
+            var serverTime = item.Time.ToOffset(serverOffset);
+            if (serverTime.Year != year || serverTime.Month != month)
+            {
+                continue;
+            }
+            int day = serverTime.Day;
+            if ((uint)(day - 1) < (uint)target.Length)
+            {
+                target[day - 1] += item.Number;
+            }
         }
     }
 
