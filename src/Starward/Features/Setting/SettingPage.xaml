@@ -16,7 +16,8 @@
 
     <Grid>
 
-        <NavigationView IsBackButtonVisible="Collapsed"
+        <NavigationView x:Name="NavView"
+                        IsBackButtonVisible="Collapsed"
                         IsPaneToggleButtonVisible="False"
                         IsSettingsVisible="False"
                         ItemInvoked="NavigationView_ItemInvoked"

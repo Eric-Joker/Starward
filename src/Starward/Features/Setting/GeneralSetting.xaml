@@ -58,7 +58,8 @@
                           OffContent="{x:Bind lang:Lang.SettingPage_RegistryBasedGameAccountSwitchingFeature}"
                           OnContent="{x:Bind lang:Lang.SettingPage_RegistryBasedGameAccountSwitchingFeature}" />
 
-            <ToggleSwitch Margin="0,12,0,0"
+            <ToggleSwitch x:Name="ToggleSwitch_StartAtLogin"
+                          Margin="0,12,0,0"
                           IsEnabled="{x:Bind StartAtLoginAvailable}"
                           IsOn="{x:Bind StartAtLogin, Mode=TwoWay}"
                           OffContent="{x:Bind lang:Lang.SettingPage_StartAtLoginSwitch}"

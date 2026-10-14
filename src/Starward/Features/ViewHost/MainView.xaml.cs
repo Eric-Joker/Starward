@@ -308,7 +308,7 @@ public sealed partial class MainView : UserControl
 
     private void OnMainViewNavigateMessageReceived(object _, MainViewNavigateMessage message)
     {
-        NavigateTo(message.Page);
+        NavigateTo(message.Page, message.Parameter);
     }
 
 

@@ -206,11 +206,19 @@
                                 Orientation="Horizontal"
                                 Spacing="8">
                         <StackPanel Orientation="Horizontal" Spacing="4">
-                            <FontIcon VerticalAlignment="Center"
-                                      FontSize="12"
-                                      Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                      Glyph="&#xE9CE;"
-                                      ToolTipService.ToolTip="{x:Bind lang:Lang.SignInButton_AutoSignInHint, Mode=OneTime}" />
+                            <!--  问号提示：本分支的提示气泡没有右下角动作区，改为点它直接跳到开机自启设置  -->
+                            <Button x:Name="Button_AutoSignInHint"
+                                    Padding="2"
+                                    VerticalAlignment="Center"
+                                    BorderThickness="0"
+                                    Click="Button_AutoSignInHint_Click"
+                                    CornerRadius="4"
+                                    Style="{ThemeResource DateTimePickerFlyoutButtonStyle}"
+                                    ToolTipService.ToolTip="{x:Bind AutoSignInHintTooltip, Mode=OneTime}">
+                                <FontIcon FontSize="12"
+                                          Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                          Glyph="&#xE9CE;" />
+                            </Button>
                             <TextBlock VerticalAlignment="Center"
                                        FontSize="13"
                                        Text="{x:Bind lang:Lang.SignInButton_AutoSignIn, Mode=OneTime}" />
