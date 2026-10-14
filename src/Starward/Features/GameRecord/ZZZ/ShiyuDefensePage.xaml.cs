@@ -199,6 +199,19 @@ public sealed partial class ShiyuDefensePage : PageBase
 
 
     /// <summary>
+    /// 全服排名数据获取时间的悬停提示。
+    /// </summary>
+    /// <param name="rankFetchTime">排名数据获取时间；旧的、只从数据表列读取的记录没有该时间。</param>
+    /// <returns>格式化后的提示文案；没有获取时间时返回 <see langword="null"/>，此时不显示悬停提示。</returns>
+    public static string? RankFetchTimeToolTip(DateTimeOffset rankFetchTime)
+    {
+        return rankFetchTime == default
+            ? null
+            : string.Format(Lang.ShiyuDefensePage_RankFetchTime, rankFetchTime.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss"));
+    }
+
+
+    /// <summary>
     /// 排名百分比背景图片，value 为以 0.01% 为单位的排名
     /// </summary>
     public static BitmapImage RankBackground(int value)

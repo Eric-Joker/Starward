@@ -944,6 +944,7 @@
                                            FontWeight="Bold"
                                            Text="{x:Bind CurrentShiyuDefenseV2.Brief.Score}" />
                                 <Grid Margin="0,0,0,6"
+                                      ToolTipService.ToolTip="{x:Bind local:ShiyuDefensePage.RankFetchTimeToolTip(CurrentShiyuDefenseV2.RankFetchTime)}"
                                       VerticalAlignment="Bottom">
                                     <Image Height="20"
                                            Stretch="Uniform"

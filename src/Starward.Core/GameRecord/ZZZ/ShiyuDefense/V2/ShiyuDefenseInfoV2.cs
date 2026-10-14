@@ -39,6 +39,14 @@ public class ShiyuDefenseInfoV2 : ShiyuDefenseInfoBase, IJsonOnDeserialized
     public ShiyuDefenseV2Brief Brief { get; set; }
 
     /// <summary>
+    /// 全服排名数据获取时间。
+    /// <para>官方接口不返回该时间，由 GameRecordService 刷新成功后写入，并随 Value 一起序列化到数据表，
+    /// 因此只有从 Value 反序列化的记录（GetShiyuDefenseInfo）才有值；只读数据表列的旧记录（GetShiyuDefenseInfoList）为默认值。</para>
+    /// </summary>
+    [JsonPropertyName("rank_fetch_time")]
+    public DateTimeOffset RankFetchTime { get; set; }
+
+    /// <summary>
     /// 第五层战斗信息
     /// </summary>
     [JsonPropertyName("fitfh_layer_detail")]

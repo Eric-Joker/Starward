@@ -1646,6 +1646,15 @@ namespace Starward.Language {
         }
         
         /// <summary>
+        ///   查找类似 Rank data fetched at {0} 的本地化字符串。
+        /// </summary>
+        public static string DeadlyAssaultPage_RankFetchTime {
+            get {
+                return ResourceManager.GetString("DeadlyAssaultPage_RankFetchTime", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   查找类似 Warning: The selected time period includes gacha records from more than 6 months ago, which cannot be retrieved after deleting. 的本地化字符串。
         /// </summary>
         public static string DeleteGachaLogDialog_6MonthsDeletingWarning {
@@ -7554,6 +7563,15 @@ namespace Starward.Language {
         public static string ShiyuDefensePage_HighestStageCleared {
             get {
                 return ResourceManager.GetString("ShiyuDefensePage_HighestStageCleared", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Rank data fetched at {0} 的本地化字符串。
+        /// </summary>
+        public static string ShiyuDefensePage_RankFetchTime {
+            get {
+                return ResourceManager.GetString("ShiyuDefensePage_RankFetchTime", resourceCulture);
             }
         }
         
