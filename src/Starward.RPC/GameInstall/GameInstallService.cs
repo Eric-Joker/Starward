@@ -725,6 +725,11 @@ internal class GameInstallService
                 file.IsFinished = true;
             });
         }
+        long relinked = Interlocked.Read(ref context._sharedInstallRelinkedFileCount);
+        if (relinked > 0)
+        {
+            _logger.LogInformation("GameInstallTask ({GameBiz}): Relinked {count} files of other hard-linked installs to repaired files", context.GameId.GameBiz, relinked);
+        }
 
         // todo celar useless audio
         await DownloadWPFPackageAsync(context, cancellationToken);
