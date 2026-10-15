@@ -422,52 +422,7 @@ internal partial class GamePackageService
             else if (context.GameSophonChunkBuild is not null)
             {
                 context.DownloadMode = GameInstallDownloadMode.Chunk;
-                List<SophonChunkFile> chunks = new();
-                List<SophonChunkFile> localChunks = new();
-                List<string> ignoreMatchingFields = GetIgnoreMatchingFields(context);
-                List<GameSophonChunkManifest> manifests = GetAvailableGameSophonChunkManifests(context.GameSophonChunkBuild, context.AudioLanguage, ignoreMatchingFields);
-                foreach (GameSophonChunkManifest manifest in manifests)
-                {
-                    List<SophonChunkFile> items = await GetSophonChunkFilesAsync(manifest, cancellationToken);
-                    List<SophonChunkFile>? localItems = null;
-                    if (context.LocalVersionSophonChunkBuild?.Manifests.FirstOrDefault(x => x.MatchingField == manifest.MatchingField) is GameSophonChunkManifest localManifest)
-                    {
-                        localItems = await GetSophonChunkFilesAsync(localManifest);
-                    }
-                    if (context.BaseExcludedMatchingFields.Contains(manifest.MatchingField)
-                        && !ScenarioPackageFiles.AnyFileExists(context.InstallPath, items, localItems))
-                    {
-                        // 基础资源：本地没有的完整资源分类不处理，否则更新、修复会补成完整资源；游戏内另行下载过的分类照常处理
-                        continue;
-                    }
-                    chunks.AddRange(items);
-                    if (localItems is not null)
-                    {
-                        localChunks.AddRange(localItems);
-                    }
-                    Dictionary<string, SophonChunkFile> dict;
-                    if (localItems is not null)
-                    {
-                        dict = localItems.ToDictionary(x => x.File);
-                    }
-                    else
-                    {
-                        dict = new();
-                    }
-                    foreach (SophonChunkFile item in items)
-                    {
-                        if (!item.IsFolder)
-                        {
-                            dict.TryGetValue(item.File, out SophonChunkFile? localFile);
-                            taskFiles.Add(GameInstallFile.FromSophonChunkFile(item, localFile, context.InstallPath, manifest.ChunkDownload.UrlPrefix));
-                        }
-                    }
-                }
-                context.SophonChunkFiles = chunks;
-                if (localChunks.Count > 0)
-                {
-                    context.LocalVersionSophonChunkFiles = localChunks;
-                }
+                taskFiles.AddRange(await PrepareSophonChunkFilesWithLocalVersionAsync(context, cancellationToken));
             }
             else if (context.GamePackage is not null)
             {
@@ -583,52 +538,7 @@ internal partial class GamePackageService
             if (context.GameSophonChunkBuild is not null)
             {
                 context.DownloadMode = GameInstallDownloadMode.Chunk;
-                List<SophonChunkFile> chunks = new();
-                List<SophonChunkFile> localChunks = new();
-                List<string> ignoreMatchingFields = GetIgnoreMatchingFields(context);
-                List<GameSophonChunkManifest> manifests = GetAvailableGameSophonChunkManifests(context.GameSophonChunkBuild, context.AudioLanguage, ignoreMatchingFields);
-                foreach (GameSophonChunkManifest manifest in manifests)
-                {
-                    List<SophonChunkFile> items = await GetSophonChunkFilesAsync(manifest, cancellationToken);
-                    List<SophonChunkFile>? localItems = null;
-                    if (context.LocalVersionSophonChunkBuild?.Manifests.FirstOrDefault(x => x.MatchingField == manifest.MatchingField) is GameSophonChunkManifest localManifest)
-                    {
-                        localItems = await GetSophonChunkFilesAsync(localManifest);
-                    }
-                    if (context.BaseExcludedMatchingFields.Contains(manifest.MatchingField)
-                        && !ScenarioPackageFiles.AnyFileExists(context.InstallPath, items, localItems))
-                    {
-                        // 基础资源：本地没有的完整资源分类不处理，否则更新、修复会补成完整资源；游戏内另行下载过的分类照常处理
-                        continue;
-                    }
-                    chunks.AddRange(items);
-                    if (localItems is not null)
-                    {
-                        localChunks.AddRange(localItems);
-                    }
-                    Dictionary<string, SophonChunkFile> dict;
-                    if (localItems is not null)
-                    {
-                        dict = localItems.ToDictionary(x => x.File);
-                    }
-                    else
-                    {
-                        dict = new();
-                    }
-                    foreach (SophonChunkFile item in items)
-                    {
-                        if (!item.IsFolder)
-                        {
-                            dict.TryGetValue(item.File, out SophonChunkFile? localFile);
-                            taskFiles.Add(GameInstallFile.FromSophonChunkFile(item, localFile, context.InstallPath, manifest.ChunkDownload.UrlPrefix));
-                        }
-                    }
-                }
-                context.SophonChunkFiles = chunks;
-                if (localChunks.Count > 0)
-                {
-                    context.LocalVersionSophonChunkFiles = localChunks;
-                }
+                taskFiles.AddRange(await PrepareSophonChunkFilesWithLocalVersionAsync(context, cancellationToken));
             }
             else if (context.GamePackage is not null)
             {
@@ -767,6 +677,94 @@ internal partial class GamePackageService
         }
 
         context.TaskFiles = taskFiles;
+    }
+
+
+
+
+    /// <summary>
+    /// 准备 Chunk 模式下有本地旧版本时（更新、预下载、修复）的任务文件。
+    /// 块优先从旧版本同路径文件复用，其次从新版本已移除的旧文件复用；已移除的文件记入
+    /// <see cref="GameInstallContext.SophonChunkDeleteFiles"/>，等全部文件写完后再删除。
+    /// 基础资源安装时，本地没有的完整资源分类不处理（与 main 原有逻辑一致，TZ 基线没有这段，
+    /// 搬运时必须保留，否则被跳过的分类会被当成「新版本已移除」而删掉本地文件）。
+    /// </summary>
+    /// <param name="context"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns>任务文件，不含文件夹</returns>
+    private async Task<List<GameInstallFile>> PrepareSophonChunkFilesWithLocalVersionAsync(GameInstallContext context, CancellationToken cancellationToken = default)
+    {
+        List<string> ignoreMatchingFields = GetIgnoreMatchingFields(context);
+        List<GameSophonChunkManifest> manifests = GetAvailableGameSophonChunkManifests(context.GameSophonChunkBuild!, context.AudioLanguage, ignoreMatchingFields);
+        List<(GameSophonChunkManifest Manifest, List<SophonChunkFile> Files)> newManifests = new();
+        List<SophonChunkFile> chunks = new();
+        List<SophonChunkFile> localChunks = new();
+        foreach (GameSophonChunkManifest manifest in manifests)
+        {
+            List<SophonChunkFile> items = await GetSophonChunkFilesAsync(manifest, cancellationToken);
+            List<SophonChunkFile>? localItems = null;
+            if (context.LocalVersionSophonChunkBuild?.Manifests.FirstOrDefault(x => x.MatchingField == manifest.MatchingField) is GameSophonChunkManifest localManifest)
+            {
+                localItems = await GetSophonChunkFilesAsync(localManifest, cancellationToken);
+            }
+            if (context.BaseExcludedMatchingFields.Contains(manifest.MatchingField)
+                && !ScenarioPackageFiles.AnyFileExists(context.InstallPath, items, localItems))
+            {
+                // 基础资源：本地没有的完整资源分类不处理，否则更新、修复会补成完整资源；游戏内另行下载过的分类照常处理
+                continue;
+            }
+            newManifests.Add((manifest, items));
+            chunks.AddRange(items);
+            if (localItems is not null)
+            {
+                localChunks.AddRange(localItems);
+            }
+        }
+
+        // Windows 路径不区分大小写：只改了大小写的文件仍是同一个文件，不能算作已移除，否则更新完会把新文件删掉
+        Dictionary<string, SophonChunkFile> localFiles = new(StringComparer.OrdinalIgnoreCase);
+        foreach (SophonChunkFile item in localChunks)
+        {
+            if (!item.IsFolder)
+            {
+                localFiles.TryAdd(item.File, item);
+            }
+        }
+        HashSet<string> newFiles = chunks.Where(x => !x.IsFolder).Select(x => x.File).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, (SophonChunkFile File, SophonChunk Chunk)> removedFileChunks = new();
+        List<string> deleteFiles = new();
+        foreach (SophonChunkFile item in localFiles.Values)
+        {
+            if (!newFiles.Contains(item.File))
+            {
+                deleteFiles.Add(item.File);
+                foreach (SophonChunk chunk in item.Chunks)
+                {
+                    removedFileChunks.TryAdd(chunk.UncompressedMd5, (item, chunk));
+                }
+            }
+        }
+
+        List<GameInstallFile> taskFiles = new();
+        foreach ((GameSophonChunkManifest manifest, List<SophonChunkFile> items) in newManifests)
+        {
+            foreach (SophonChunkFile item in items)
+            {
+                if (!item.IsFolder)
+                {
+                    localFiles.TryGetValue(item.File, out SophonChunkFile? localFile);
+                    taskFiles.Add(GameInstallFile.FromSophonChunkFile(item, localFile, context.InstallPath, manifest.ChunkDownload.UrlPrefix, removedFileChunks));
+                }
+            }
+        }
+        context.SophonChunkFiles = chunks;
+        if (localChunks.Count > 0)
+        {
+            context.LocalVersionSophonChunkFiles = localChunks;
+        }
+        context.SophonChunkDeleteFiles = deleteFiles;
+        _logger.LogInformation("Prepare sophon chunk files ({GameBiz}): {Count} files, {DeleteCount} old files removed in new version.", context.GameId.GameBiz, taskFiles.Count, deleteFiles.Count);
+        return taskFiles;
     }
 
 
