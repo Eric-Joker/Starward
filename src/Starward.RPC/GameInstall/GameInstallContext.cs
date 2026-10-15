@@ -1,5 +1,7 @@
 using Starward.Core;
 using Starward.Core.HoYoPlay;
+using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
@@ -106,6 +108,16 @@ public class GameInstallContext
     internal string? LatestGameVersion { get; set; }
 
     internal string? PredownloadVersion { get; set; }
+
+    /// <summary>
+    /// 修复时一并重新链接到修好文件的其他硬链接区服文件数，只用于日志
+    /// </summary>
+    internal long _sharedInstallRelinkedFileCount;
+
+    /// <summary>
+    /// 修复时判断过的其他硬链接区服目录，值为能否一并修复。同一目录的 config.ini 只读一次
+    /// </summary>
+    internal ConcurrentDictionary<string, bool> SharedInstallRoots { get; } = new(StringComparer.OrdinalIgnoreCase);
 
 
 
