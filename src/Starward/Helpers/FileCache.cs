@@ -19,6 +19,12 @@ internal static class FileCache
 
     private const int RETRY_COUNT = 2;
 
+    /// <summary>
+    /// 单次下载的停滞超时：等响应头或两次收到数据之间超过此时长即判定卡死。
+    /// 按停滞而非总时长计时，慢网下仍在推进的大图不会被误杀。
+    /// </summary>
+    private static readonly TimeSpan StallTimeout = TimeSpan.FromSeconds(30);
+
     private static readonly FusionCache _fusionCache;
 
     private static readonly HttpClient _httpClient;
@@ -124,10 +130,10 @@ internal static class FileCache
         {
             try
             {
-                await DownloadFileAsync(url, filePath, cancellationToken).ConfigureAwait(false);
+                await DownloadFileAsync(url, filePath).ConfigureAwait(false);
                 return filePath;
             }
-            catch (HttpRequestException)
+            catch (Exception ex) when (ex is HttpRequestException or TimeoutException)
             {
                 if (i < RETRY_COUNT + 1)
                 {
@@ -144,31 +150,65 @@ internal static class FileCache
 
 
 
-    private static async Task DownloadFileAsync(string url, string path, CancellationToken cancellationToken)
+    /// <summary>
+    /// 下载远程文件到本地缓存路径（先写 .tmp，完成后原子替换）。
+    /// </summary>
+    /// <param name="url">远程资源地址。</param>
+    /// <param name="path">目标缓存文件完整路径（无 .tmp 后缀）。</param>
+    /// <exception cref="HttpRequestException">请求失败（含 Range 无效）或响应体为空。</exception>
+    /// <exception cref="TimeoutException">超过 <see cref="StallTimeout"/> 没有收到响应头或新数据。</exception>
+    /// <exception cref="IOException">读写 .tmp 或移动到正式文件失败（被占用、磁盘已满等）。</exception>
+    private static async Task DownloadFileAsync(string url, string path)
     {
         string tmpPath = path + ".tmp";
 
-        using (FileStream fs = File.Open(tmpPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None))
-        {
-            using var request = new HttpRequestMessage(HttpMethod.Get, url);
-            request.Headers.Range = new RangeHeaderValue(fs.Length, null);
-            using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
-            response.EnsureSuccessStatusCode();
-            if (response.Content.Headers.ContentRange is { From: > 0 } range)
-            {
-                fs.Position = range.From.Value;
-            }
-            else
-            {
-                fs.Position = 0;
-                fs.SetLength(0);
-            }
-            using var hs = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-            await hs.CopyToAsync(fs, cancellationToken).ConfigureAwait(false);
-            await fs.FlushAsync(cancellationToken).ConfigureAwait(false);
-        }
+        // 不使用外部 CancellationToken（控件取消 ≠ 取消缓存写入），只受停滞超时约束；每收到一段数据重新计时。
+        using CancellationTokenSource stallCts = new(StallTimeout);
 
-        File.Move(tmpPath, path, true);
+        // 流作用域结束并释放句柄后再 Move，避免文件占用。
+        try
+        {
+            using (FileStream fs = File.Open(tmpPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None))
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Get, url);
+                request.Headers.Range = new RangeHeaderValue(fs.Length, null);
+                using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, stallCts.Token).ConfigureAwait(false);
+                response.EnsureSuccessStatusCode();
+                if (response.Content.Headers.ContentRange is { From: > 0 } range)
+                {
+                    fs.Position = range.From.Value;
+                }
+                else
+                {
+                    fs.Position = 0;
+                    fs.SetLength(0);
+                }
+                using var hs = await response.Content.ReadAsStreamAsync(stallCts.Token).ConfigureAwait(false);
+                // 手动拷贝而非 CopyToAsync：需要每读到一段就重置停滞计时。
+                byte[] buffer = ArrayPool<byte>.Shared.Rent(81920);
+                try
+                {
+                    int read;
+                    while ((read = await hs.ReadAsync(buffer, stallCts.Token).ConfigureAwait(false)) > 0)
+                    {
+                        stallCts.CancelAfter(StallTimeout);
+                        await fs.WriteAsync(buffer.AsMemory(0, read), CancellationToken.None).ConfigureAwait(false);
+                    }
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(buffer);
+                }
+                await fs.FlushAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+
+            File.Move(tmpPath, path, true);
+        }
+        catch (OperationCanceledException) when (stallCts.IsCancellationRequested)
+        {
+            // 转成 TimeoutException 交给上层重试；.tmp 保留已收到的部分，下一轮续传。
+            throw new TimeoutException($"No data received for {StallTimeout.TotalSeconds} seconds: {url}");
+        }
     }
 
 
