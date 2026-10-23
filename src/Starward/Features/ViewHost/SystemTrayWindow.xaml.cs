@@ -12,6 +12,7 @@ using Starward.Features.GameLauncher;
 using Starward.Features.GameRecord.AutoRefresh;
 using Starward.Features.GameRecord.SignIn;
 using Starward.Features.GameSelector;
+using Starward.Features.PlayTime;
 using Starward.Features.Setting;
 using Starward.Frameworks;
 using Starward.Helpers;
@@ -97,6 +98,8 @@ public sealed partial class SystemTrayWindow : WindowEx
         _autoSignInService.StartResident();
         // 战绩自动更新：等云游戏免费时长那轮启动批量打完（它自己又排在签到首轮之后）再检查一次到期板块。
         _autoRecordRefreshService.StartResident(_autoCloudGameFreeTimeService.StartupBatchCompleted);
+        // 安装更新时安装器会结束安装目录下的 Starward 进程（含记录时长的子进程）；游戏还在运行时接续记录。
+        _ = Task.Run(() => AppConfig.GetService<PlayTimeRecordService>().ResumeInterruptedRecordings());
     }
 
 
