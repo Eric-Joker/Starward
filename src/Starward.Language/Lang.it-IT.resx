@@ -1579,6 +1579,12 @@ Do you accept the risk and continue to use it?</value>
   <data name="ImaginariumTheaterPage_SupportingCastCharactersAssistOtherPlayers" xml:space="preserve">
     <value>I personaggi del cast di supporto assistono altri giocatori</value>
   </data>
+  <data name="ImaginariumTheaterPage_TrialCharacter" xml:space="preserve">
+    <value>Prova</value>
+  </data>
+  <data name="ImaginariumTheaterPage_SupportingCastCharacter" xml:space="preserve">
+    <value>Supporto</value>
+  </data>
   <data name="ImaginariumTheaterPage_TotalPerformanceDuration" xml:space="preserve">
     <value>Durata totale dello spettacolo</value>
   </data>
