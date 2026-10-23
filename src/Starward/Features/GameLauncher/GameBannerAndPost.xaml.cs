@@ -151,7 +151,16 @@ public sealed partial class GameBannerAndPost : UserControl
         {
             if (value && Banners?.Count > 0 && PostGroups?.Count > 0)
             {
-                _bannerTimer.Start();
+                // 内容可能在主窗口隐藏到托盘/最小化之后才加载完，这时不能当作窗口已激活去恢复轮播，
+                // 否则轮播会在看不见的窗口里一直转，见 MainWindow 激活消息处的说明
+                if (IsHostWindowShown())
+                {
+                    _bannerTimer.Start();
+                }
+                else
+                {
+                    _bannerTimer.Stop();
+                }
                 this.Opacity = 1;
                 this.IsHitTestVisible = true;
             }
@@ -161,6 +170,30 @@ public sealed partial class GameBannerAndPost : UserControl
                 this.Opacity = 0;
                 this.IsHitTestVisible = false;
             }
+        }
+    }
+
+
+
+
+    /// <summary>
+    /// 宿主窗口当前是否显示在屏幕上（未隐藏到托盘、未最小化）。
+    /// </summary>
+    /// <returns>窗口可见且未最小化时为 <see langword="true"/>；尚未进入可视树或查询失败时也返回 <see langword="true"/>，保持原有行为。</returns>
+    private bool IsHostWindowShown()
+    {
+        try
+        {
+            if (XamlRoot is null)
+            {
+                return true;
+            }
+            nint hwnd = XamlRoot.GetWindowHandle();
+            return User32.IsWindowVisible(hwnd) && !User32.IsIconic(hwnd);
+        }
+        catch
+        {
+            return true;
         }
     }
 
