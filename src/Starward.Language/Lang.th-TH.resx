@@ -2789,4 +2789,7 @@
   <data name="PlayTimeStatsDialog_StatsTip" xml:space="preserve">
     <value>สถิติอ้างอิงจากเวลาที่เกมทำงาน ไม่ใช่เวลาเล่นจริง และใช้เพื่อการอ้างอิงเท่านั้น</value>
   </data>
+  <data name="AppBackground_AudioOutputUnavailableVideoPaused" xml:space="preserve">
+    <value>อุปกรณ์เอาต์พุตเสียงไม่พร้อมใช้งาน จึงหยุดพื้นหลังวิดีโอไว้ชั่วคราวและแสดงภาพนิ่งแทน จะเล่นต่อโดยอัตโนมัติเมื่ออุปกรณ์กลับมาใช้งานได้</value>
+  </data>
 </root>

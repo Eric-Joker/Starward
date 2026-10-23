@@ -2795,4 +2795,7 @@ Sei invitato a inviare i dati esportati al seguente repository:</value>
   <data name="PlayTimeStatsDialog_StatsTip" xml:space="preserve">
     <value>Le statistiche si basano sul tempo di esecuzione del gioco, non sul tempo di gioco effettivo, e servono solo come riferimento.</value>
   </data>
+  <data name="AppBackground_AudioOutputUnavailableVideoPaused" xml:space="preserve">
+    <value>Il dispositivo di uscita audio non è disponibile, quindi lo sfondo video è stato messo in pausa e viene mostrata un'immagine statica. La riproduzione riprenderà automaticamente quando il dispositivo sarà di nuovo disponibile.</value>
+  </data>
 </root>
