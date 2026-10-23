@@ -2793,4 +2793,7 @@ Sie sind herzlich eingeladen, die exportierten Daten an das folgende Repository 
   <data name="PlayTimeStatsDialog_StatsTip" xml:space="preserve">
     <value>Die Statistiken basieren auf der Laufzeit des Spiels, nicht auf der tatsächlichen Spielzeit, und dienen nur als Orientierung.</value>
   </data>
+  <data name="AppBackground_AudioOutputUnavailableVideoPaused" xml:space="preserve">
+    <value>Das Audioausgabegerät ist nicht verfügbar. Der Videohintergrund wurde pausiert und es wird ein Standbild angezeigt. Die Wiedergabe wird automatisch fortgesetzt, sobald das Gerät wieder verfügbar ist.</value>
+  </data>
 </root>

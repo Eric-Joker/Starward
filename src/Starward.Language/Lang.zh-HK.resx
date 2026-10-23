@@ -2794,4 +2794,7 @@
   <data name="PlayTimeStatsDialog_StatsTip" xml:space="preserve">
     <value>統計基於遊戲運行時長，而非實際遊玩時長，僅供參考。</value>
   </data>
+  <data name="AppBackground_AudioOutputUnavailableVideoPaused" xml:space="preserve">
+    <value>音頻輸出設備不可用，視頻背景已暫停並顯示靜態圖片。設備恢復後會自動繼續播放。</value>
+  </data>
 </root>

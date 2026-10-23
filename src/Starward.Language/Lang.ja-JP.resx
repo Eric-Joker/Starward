@@ -2794,4 +2794,7 @@
   <data name="PlayTimeStatsDialog_StatsTip" xml:space="preserve">
     <value>統計はゲームの実行時間に基づいており、実際のプレイ時間とは異なります。あくまで参考としてご覧ください。</value>
   </data>
+  <data name="AppBackground_AudioOutputUnavailableVideoPaused" xml:space="preserve">
+    <value>音声出力デバイスを使用できないため、動画背景を一時停止して静止画を表示しています。デバイスが使用可能になると自動的に再生を再開します。</value>
+  </data>
 </root>

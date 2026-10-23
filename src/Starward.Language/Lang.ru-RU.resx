@@ -2815,4 +2815,7 @@ ChatGPT может допускать ошибки. Проверьте важн�
   <data name="PlayTimeStatsDialog_StatsTip" xml:space="preserve">
     <value>Статистика основана на времени работы игры, а не на фактическом времени в игре, и приведена только для справки.</value>
   </data>
+  <data name="AppBackground_AudioOutputUnavailableVideoPaused" xml:space="preserve">
+    <value>Устройство вывода звука недоступно, поэтому видеофон приостановлен и показано статичное изображение. Воспроизведение возобновится автоматически, когда устройство снова станет доступно.</value>
+  </data>
 </root>

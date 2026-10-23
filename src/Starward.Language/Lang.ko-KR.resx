@@ -2795,4 +2795,7 @@
   <data name="PlayTimeStatsDialog_StatsTip" xml:space="preserve">
     <value>통계는 실제 플레이 시간이 아닌 게임 실행 시간을 기준으로 하며, 참고용으로만 제공됩니다.</value>
   </data>
+  <data name="AppBackground_AudioOutputUnavailableVideoPaused" xml:space="preserve">
+    <value>오디오 출력 장치를 사용할 수 없어 비디오 배경을 일시 정지하고 정지 이미지를 표시합니다. 장치를 다시 사용할 수 있게 되면 자동으로 재생을 재개합니다.</value>
+  </data>
 </root>

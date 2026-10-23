@@ -2792,4 +2792,7 @@ Bạn có chấp nhận rủi ro và tiếp tục?</value>
   <data name="PlayTimeStatsDialog_StatsTip" xml:space="preserve">
     <value>Thống kê dựa trên thời gian chạy của trò chơi, không phải thời gian chơi thực tế, và chỉ mang tính chất tham khảo.</value>
   </data>
+  <data name="AppBackground_AudioOutputUnavailableVideoPaused" xml:space="preserve">
+    <value>Thiết bị đầu ra âm thanh không khả dụng nên hình nền video đã tạm dừng và hiển thị ảnh tĩnh. Video sẽ tự động phát lại khi thiết bị khả dụng trở lại.</value>
+  </data>
 </root>
