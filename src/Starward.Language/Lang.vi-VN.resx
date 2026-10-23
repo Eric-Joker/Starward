@@ -2954,4 +2954,7 @@ Bạn có chấp nhận rủi ro và tiếp tục?</value>
   <data name="DailyNoteButton_WeekProgress" xml:space="preserve">
     <value>Tiến độ tuần này</value>
   </data>
+  <data name="AppBackground_AudioOutputUnavailableVideoPaused" xml:space="preserve">
+    <value>Thiết bị đầu ra âm thanh không khả dụng nên hình nền video đã tạm dừng và hiển thị ảnh tĩnh. Video sẽ tự động phát lại khi thiết bị khả dụng trở lại.</value>
+  </data>
 </root>

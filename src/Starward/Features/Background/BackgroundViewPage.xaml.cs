@@ -84,7 +84,6 @@ public sealed partial class BackgroundViewPage : PageBase
             if (Directory.Exists(folder))
             {
                 string[] files = Directory.GetFiles(folder);
-                var result = files.Where(x => !x.EndsWith(".tmp")).Select(x => new BackgroundFileItem(x));
                 var result = files.Select(TryCreateBackgroundFileItem).OfType<BackgroundFileItem>();
                 if (RadioMenuFlyoutItem_Filter_Image.IsChecked)
                 {
