@@ -487,7 +487,8 @@ internal class GameInstallService
         context.State = GameInstallState.Downloading;
 
         _logger.LogInformation("GameInstallTask ({GameBiz}): Start downloading in mode patch", context.GameId.GameBiz);
-        await Parallel.ForEachAsync(files, cancellationToken, async (PredownloadFile item, CancellationToken token) =>
+        ParallelOptions downloadOptions = new() { MaxDegreeOfParallelism = GetDownloadParallelism(context), CancellationToken = cancellationToken };
+        await Parallel.ForEachAsync(files, downloadOptions, async (PredownloadFile item, CancellationToken token) =>
         {
             await _polly.ExecuteAsync(async token => await _gameInstallHelper.DownloadToFileAsync(context, item, token), token);
         });
@@ -767,7 +768,8 @@ internal class GameInstallService
         context.State = GameInstallState.Downloading;
 
         _logger.LogInformation("GameInstallTask ({GameBiz}): Start downloading in mode predownload", context.GameId.GameBiz);
-        await Parallel.ForEachAsync(files, cancellationToken, async (PredownloadFile item, CancellationToken token) =>
+        ParallelOptions options = new() { MaxDegreeOfParallelism = GetDownloadParallelism(context), CancellationToken = cancellationToken };
+        await Parallel.ForEachAsync(files, options, async (PredownloadFile item, CancellationToken token) =>
         {
             await _polly.ExecuteAsync(async token => await _gameInstallHelper.DownloadToFileAsync(context, item, token), token);
         });
@@ -836,6 +838,34 @@ internal class GameInstallService
         await DownloadWPFPackageAsync(context, cancellationToken);
         await DownloadGameChannelSDKAsync(context, cancellationToken);
         await SetGameConfigIniAsync(context);
+    }
+
+
+
+    /// <summary>
+    /// 官方启动器 ldiff 补丁的并发数（getParamsConfig 按 disk_type 下发，2026-09 实测 SSD 以外为 2）。
+    /// 补丁下载不跟随 CPU 核数，也不区分磁盘类型，固定用这个值。
+    /// </summary>
+    private const int OfficialLdiffParallelism = 2;
+
+
+    /// <summary>
+    /// 预下载、ldiff 更新时同时下载的文件数。下载是在等网络，所以不按 CPU 核数：
+    /// chunk 块和安装时下的是同一种块，共用 <see cref="ChunkDownloadScheduler.MaxConcurrentDownloads"/>；
+    /// ldiff 补丁文件少而大，用固定并发数；压缩包分卷少，仍按 CPU 核数。
+    /// </summary>
+    /// <param name="context"></param>
+    /// <returns></returns>
+    private int GetDownloadParallelism(GameInstallContext context)
+    {
+        int parallelism = context.DownloadMode switch
+        {
+            GameInstallDownloadMode.Chunk => ChunkDownloadScheduler.MaxConcurrentDownloads,
+            GameInstallDownloadMode.Patch => OfficialLdiffParallelism,
+            _ => Environment.ProcessorCount,
+        };
+        _logger.LogInformation("GameInstallTask ({GameBiz}): Download parallelism: {parallelism}, download mode: {mode}", context.GameId.GameBiz, parallelism, context.DownloadMode);
+        return parallelism;
     }
 
 
