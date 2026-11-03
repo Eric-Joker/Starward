@@ -331,10 +331,12 @@
                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                                       Glyph="&#xE733;"
                                                       Visibility="{x:Bind IsForbid}" />
+                                            <!--  The battle pass reward uses a determinate ring, so keep the system style  -->
                                             <ProgressRing Width="20"
                                                           Height="20"
                                                           IsIndeterminate="False"
                                                           Maximum="2000"
+                                                          Style="{StaticResource SystemProgressRingStyle}"
                                                           Visibility="{x:Bind IsUnfinishedOrWaitTaken}"
                                                           Value="{x:Bind Progress}" />
                                         </Grid>

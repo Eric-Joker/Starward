@@ -189,12 +189,13 @@
                         <ColumnDefinition />
                     </Grid.ColumnDefinitions>
 
-                    <!--  进度圈  -->
+                    <!--  Progress ring: keep the system style because it shows a percentage (the global classic dots cannot)  -->
                     <Grid Margin="10,0,0,0" HorizontalAlignment="Left">
                         <ProgressRing Width="28"
                                       Height="28"
                                       Background="{ThemeResource ControlOnImageFillColorDefaultBrush}"
                                       IsIndeterminate="{x:Bind InstallStateIsPending}"
+                                      Style="{StaticResource SystemProgressRingStyle}"
                                       Value="{x:Bind ProgressRingValue}" />
                         <TextBlock HorizontalAlignment="Center"
                                    VerticalAlignment="Center"
