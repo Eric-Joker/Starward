@@ -10,6 +10,7 @@ using Starward.Features.GameLauncher;
 using Starward.Features.Overlay;
 using Starward.Features.Screenshot;
 using Starward.Frameworks;
+using Starward.Helpers;
 using System;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
@@ -163,7 +164,8 @@ public sealed partial class MainWindow : WindowEx
 
     private void Content_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
     {
-        if (e.Key is Windows.System.VirtualKey.Escape)
+        // 拖动中按 Esc 是取消拖动，但按键会先于拖放结束冒泡到这里（焦点不在列表里时），不能顺带隐藏窗口
+        if (e.Key is Windows.System.VirtualKey.Escape && !MouseButtonHelper.IsPrimaryButtonPressed())
         {
             Hide();
         }
