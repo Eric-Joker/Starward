@@ -80,7 +80,10 @@ public sealed partial class TimeNodeButton : UserControl
     public ObservableCollection<TimeNodeSectionView> Sections { get; } = new();
 
 
-    public bool IsEmpty { get; set => SetProperty(ref field, value); } = true;
+    /// <summary>
+    /// 加载完成后确实没有节点。默认 false：首次加载前就置 true 会让空态文案和内容区居中的进度环叠在一起。
+    /// </summary>
+    public bool IsEmpty { get; set => SetProperty(ref field, value); }
 
 
     public bool IsLoading { get; set => SetProperty(ref field, value); }
@@ -192,6 +195,8 @@ public sealed partial class TimeNodeButton : UserControl
         CancellationToken ct = cts.Token;
 
         IsLoading = true;
+        // 开始加载时先收起上一次的空态：x:Bind 的空态文案和进度环都占内容区，同时显示会叠在一起
+        IsEmpty = false;
         try
         {
             TimeNodeSnapshot snapshot = await _timeNodeService.GetSnapshotAsync(CurrentGameId.GameBiz, forceRefresh, ct);
