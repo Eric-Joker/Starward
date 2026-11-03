@@ -11,6 +11,7 @@
             <ResourceDictionary.MergedDictionaries>
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
                 <ResourceDictionary Source="/Features/GameLauncher/CompactCheckBoxStyle.xaml" />
+                <ResourceDictionary Source="/Controls/ClassicProgressRingStyle.xaml" />
 
                 <!--  Other merged dictionaries here  -->
             </ResourceDictionary.MergedDictionaries>
@@ -57,6 +58,9 @@
             <Style BasedOn="{StaticResource DefaultContentDialogStyle}" TargetType="ContentDialog">
                 <Setter Property="Background" Value="{ThemeResource CustomAcrylicBrush}" />
             </Style>
+
+            <!--  Use the classic Win8/10 dot ring for every ProgressRing; determinate rings opt in to SystemProgressRingStyle  -->
+            <Style BasedOn="{StaticResource ClassicProgressRingStyle}" TargetType="ProgressRing" />
 
             <Style BasedOn="{StaticResource DefaultFlyoutPresenterStyle}" TargetType="FlyoutPresenter">
                 <Setter Property="BorderThickness" Value="0" />
