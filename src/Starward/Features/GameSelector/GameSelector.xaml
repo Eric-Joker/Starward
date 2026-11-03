@@ -7,7 +7,6 @@
              xmlns:launcher="using:Starward.Features.GameLauncher"
              xmlns:local="using:Starward.Features.GameSelector"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:s="using:Starward"
              xmlns:sc="using:Starward.Controls"
              xmlns:sh="using:Starward.Helpers"
              x:DefaultBindMode="OneWay"
@@ -448,9 +447,10 @@
             </Grid.ColumnDefinitions>
 
             <!--  游戏图标  -->
-            <ListView AllowDrop="True"
-                      CanReorderItems="{x:Bind s:AppConfig.IsAdmin, Converter={StaticResource BoolReversedConverter}}"
+            <ListView x:Name="ListView_GameIcons"
                       ItemsSource="{x:Bind GameBizIcons}"
+                      ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                      ScrollViewer.HorizontalScrollMode="Enabled"
                       ScrollViewer.VerticalScrollBarVisibility="Hidden"
                       SelectionMode="Single">
                 <ListView.ItemsPanel>
