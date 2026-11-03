@@ -34,10 +34,13 @@ public sealed partial class ScreenshotPage : PageBase
 
 
 
+    private readonly ShellFileDragSource _fileDragSource;
+
 
     public ScreenshotPage()
     {
         this.InitializeComponent();
+        _fileDragSource = new ShellFileDragSource(GridView_Images, x => (x as ScreenshotItem)?.FilePath);
     }
 
 

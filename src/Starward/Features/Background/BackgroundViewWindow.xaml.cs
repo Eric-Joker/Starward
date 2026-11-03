@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
+using Starward.Helpers;
 using System;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -94,7 +95,8 @@ public sealed partial class BackgroundViewWindow : WindowBase
 
     private void Content_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
     {
-        if (e.Key is VirtualKey.Escape)
+        // 拖动中按 Esc 是取消拖动，但按键会先于拖放结束冒泡到这里（焦点不在列表里时），不能顺带关闭窗口
+        if (e.Key is VirtualKey.Escape && !MouseButtonHelper.IsPrimaryButtonPressed())
         {
             Close();
         }

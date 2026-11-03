@@ -28,9 +28,13 @@ public sealed partial class BackgroundViewPage : PageBase
     private readonly ILogger<BackgroundViewPage> _logger = AppConfig.GetLogger<BackgroundViewPage>();
 
 
+    private readonly ShellFileDragSource _fileDragSource;
+
+
     public BackgroundViewPage()
     {
         this.InitializeComponent();
+        _fileDragSource = new ShellFileDragSource(GridView_Images, x => (x as BackgroundFileItem)?.FilePath);
     }
 
 
