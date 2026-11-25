@@ -1,9 +1,12 @@
-﻿using Starward.Core.GameRecord.ZZZ.DailyNote;
+using Starward.Core.GameRecord.ZZZ.DailyNote;
 using Starward.Core.GameRecord.ZZZ.DeadlyAssault;
 using Starward.Core.GameRecord.ZZZ.GachaRecord;
 using Starward.Core.GameRecord.ZZZ.InterKnotReport;
 using Starward.Core.GameRecord.ZZZ.ShiyuDefense;
 using Starward.Core.GameRecord.ZZZ.ThresholdSimulation;
+using Starward.Core.GameRecord.ZZZ.UpgradeGuide;
+using System.Text;
+using System.Text.Json;
 
 namespace Starward.Core.GameRecord.ZZZ;
 
@@ -267,6 +270,55 @@ public class HyperionZZZClient : GameRecordClientBase, IGameRecordClient, IGameR
         request.Headers.Add(x_rpc_app_version, AppVersion);
         var data = await CommonSendAsync<ThresholdSimulationPeriodDetail>(request, cancellationToken).ConfigureAwait(false);
         return data.Detail;
+    }
+
+
+    /// <summary>
+    /// 国服养成指南 badge 登录，换取 <c>e_nap_token</c>。
+    /// 对齐 genshin.py：浏览器 UA、Gen2 DS、禁止 <c>x-rpc-device_id</c>（否则 -100 / 易触发 10035）。
+    /// </summary>
+    /// <param name="role">已登录的绝区零角色。</param>
+    /// <param name="language">语言代码。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>合并 e_nap_token 后的 Cookie 串。</returns>
+    public async Task<string> LoginZZZCultivateBadgeAsync(GameRecordRole role, string language, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(role);
+        string lang = LanguageUtil.FilterLanguage(language);
+        var body = new ZZZCultivateBadgeLoginBody
+        {
+            GameBiz = "nap_cn",
+            Lang = lang,
+            Region = role.Region,
+            Uid = role.Uid.ToString(),
+        };
+        const string url = "https://api-takumi.mihoyo.com/common/badge/v1/login/account";
+        string json = JsonSerializer.Serialize(body, typeof(ZZZCultivateBadgeLoginBody), GameRecordJsonContext.Default);
+        var request = new HttpRequestMessage(HttpMethod.Post, url)
+        {
+            Content = new StringContent(json, Encoding.UTF8, application_json),
+        };
+        AddHeader(request, Cookie, role.Cookie);
+        AddHeader(request, Referer, "https://act.mihoyo.com/zzz/gt/character-builder-h/index.html");
+        AddHeader(request, "Origin", "https://act.mihoyo.com");
+        // genshin.py 对 CN act DS 头使用较低 app_version；过高 + BBS UA 易 10035
+        AddHeader(request, x_rpc_app_version, "2.11.1");
+        AddHeader(request, x_rpc_client_type, "5");
+        if (!string.IsNullOrWhiteSpace(DeviceInfo?.DeviceFp))
+        {
+            AddHeader(request, x_rpc_device_fp, DeviceInfo.DeviceFp);
+        }
+        AddHeader(request, DS, CreateCultivateSecret2(url, body));
+        var (wrapper, response) = await SendCultivateBadgeLoginAsync(request, cancellationToken).ConfigureAwait(false);
+        if (wrapper is null)
+        {
+            throw new miHoYoApiException(-1, "Can not parse the response body.");
+        }
+        if (wrapper.Retcode != 0)
+        {
+            throw new miHoYoApiException(wrapper.Retcode, wrapper.Message);
+        }
+        return MergeCookieFromSetCookie(role.Cookie, response);
     }
 
 }

@@ -1,4 +1,4 @@
-﻿using Starward.Core.GameRecord.ZZZ.DailyNote;
+using Starward.Core.GameRecord.ZZZ.DailyNote;
 using Starward.Core.GameRecord.ZZZ.DeadlyAssault;
 using Starward.Core.GameRecord.ZZZ.GachaRecord;
 using Starward.Core.GameRecord.ZZZ.InterKnotReport;
@@ -103,5 +103,15 @@ public interface IGameRecordZZZClient : IGameRecordClient
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
     public abstract Task<ThresholdSimulationDetailInfo> GetZZZThresholdSimulationDetailInfoAsync(GameRecordRole role, int void_front_id, CancellationToken cancellationToken = default);
+
+
+    /// <summary>
+    /// 养成指南 badge 登录：POST <c>common/badge/v1/login/account</c>，把响应 <c>Set-Cookie</c>（含 <c>e_nap_token</c>）合并进 Cookie。
+    /// </summary>
+    /// <param name="role">已登录的绝区零角色。</param>
+    /// <param name="language">语言代码。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>合并 <c>e_nap_token</c> 后的 Cookie 串。</returns>
+    public abstract Task<string> LoginZZZCultivateBadgeAsync(GameRecordRole role, string language, CancellationToken cancellationToken = default);
 
 }

@@ -1,5 +1,9 @@
-﻿using Starward.Core.DeviceFp;
+using Starward.Core.DeviceFp;
+using Starward.Core.GameRecord.ZZZ.UpgradeGuide;
 using System.Net;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 
 namespace Starward.Core.GameRecord;
 
@@ -175,6 +179,156 @@ public abstract class GameRecordClientBase
         }
         return responseData.Data;
     }
+
+
+
+    #region 养成指南 / badge 接口
+
+
+    /// <summary>
+    /// 养成指南 H5 接口使用桌面浏览器 UA（勿用 BBS 手机 UA，易触发 10035 极验风控）。
+    /// </summary>
+    protected const string CultivateToolUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+
+
+    /// <summary>
+    /// 国际服 act 接口 Gen1 DS 盐（与 BBS 接口的盐不同，对齐 genshin.py 的 OVERSEAS 值）。
+    /// </summary>
+    protected const string CultivateToolDsSaltOverseas = "6s25p5ox5y14umn1p61aqyyvbvvl3lrt";
+
+
+    /// <summary>
+    /// 国服 act 接口 Gen2 DS 盐（与米游社网页接口的 WebSalt2 相同）。
+    /// </summary>
+    private const string CultivateToolDsSaltCN = "xV8v4Qu54lUKrEYFZkJhB8cuOh9Asafs";
+
+
+    /// <summary>
+    /// 生成养成指南接口的 Gen1 DS（<c>DS</c> 请求头），用于国际服 badge 登录。
+    /// </summary>
+    /// <param name="salt">参与签名的盐值。</param>
+    /// <returns><c>t,r,check</c> 形式的 DS 值。</returns>
+    protected static string CreateCultivateSecret1(string salt)
+    {
+        long t = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        string r = RandomNumberGenerator.GetString("0123456789abcdefghijklmnop", 6);
+        byte[] md5 = MD5.HashData(Encoding.UTF8.GetBytes($"salt={salt}&t={t}&r={r}"));
+        return $"{t},{r},{Convert.ToHexStringLower(md5)}";
+    }
+
+
+    /// <summary>
+    /// 生成养成指南接口的 Gen2 DS（<c>DS</c> 请求头），请求体参与签名，用于国服 badge 登录。
+    /// </summary>
+    /// <typeparam name="T">请求体类型。</typeparam>
+    /// <param name="url">完整请求地址（含查询参数时按官方规则排序后参与签名）。</param>
+    /// <param name="postBody">POST 请求体，序列化结果参与签名。</param>
+    /// <returns><c>t,r,check</c> 形式的 DS 值。</returns>
+    protected static string CreateCultivateSecret2<T>(string url, T postBody)
+    {
+        long t = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        int r = Random.Shared.Next(100000, 200001);
+        string b = JsonSerializer.Serialize(postBody, typeof(T), GameRecordJsonContext.Default);
+        string q = "";
+        int index = url.IndexOf('?');
+        if (index >= 0 && url.Length > index + 1)
+        {
+            q = string.Join("&", url[(index + 1)..].Split('&').Order());
+        }
+        byte[] md5 = MD5.HashData(Encoding.UTF8.GetBytes($"salt={CultivateToolDsSaltCN}&t={t}&r={r}&b={b}&q={q}"));
+        return $"{t},{r},{Convert.ToHexStringLower(md5)}";
+    }
+
+
+    /// <summary>
+    /// 养成指南 / badge 接口发送：使用浏览器 UA，避免 BBS 客户端标识触发 act 风控。
+    /// </summary>
+    /// <typeparam name="T">响应数据类型。</typeparam>
+    /// <param name="request">待发送的请求。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>响应 data。</returns>
+    protected async Task<T> CommonSendCultivateAsync<T>(HttpRequestMessage request, CancellationToken cancellationToken = default) where T : class
+    {
+        request.VersionPolicy = HttpVersionPolicy.RequestVersionOrHigher;
+        request.Headers.TryAddWithoutValidation(Accept, application_json);
+        // 覆盖或补齐为桌面浏览器 UA（勿用 miHoYoBBS 手机 UA）
+        request.Headers.Remove(UserAgent);
+        request.Headers.TryAddWithoutValidation(UserAgent, CultivateToolUserAgent);
+        var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        var responseData = await response.Content.ReadFromJsonAsync(typeof(miHoYoApiWrapper<T>), GameRecordJsonContext.Default, cancellationToken).ConfigureAwait(false) as miHoYoApiWrapper<T>;
+        if (responseData is null)
+        {
+            throw new miHoYoApiException(-1, "Can not parse the response body.");
+        }
+        if (responseData.Retcode != 0)
+        {
+            throw new miHoYoApiException(responseData.Retcode, responseData.Message);
+        }
+        return responseData.Data;
+    }
+
+
+    /// <summary>
+    /// 养成指南 badge 登录发送：与 <see cref="CommonSendCultivateAsync{T}"/> 相同 UA，并返回响应以便合并 Set-Cookie。
+    /// </summary>
+    /// <param name="request">待发送的请求。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>响应包装与原始响应（调用方负责读取 Set-Cookie）。</returns>
+    protected async Task<(miHoYoApiWrapper<object>? Wrapper, HttpResponseMessage Response)> SendCultivateBadgeLoginAsync(
+        HttpRequestMessage request,
+        CancellationToken cancellationToken = default)
+    {
+        request.VersionPolicy = HttpVersionPolicy.RequestVersionOrHigher;
+        request.Headers.TryAddWithoutValidation(Accept, application_json);
+        request.Headers.Remove(UserAgent);
+        request.Headers.TryAddWithoutValidation(UserAgent, CultivateToolUserAgent);
+        var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        var content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        var wrapper = JsonSerializer.Deserialize(content, typeof(miHoYoApiWrapper<object>), GameRecordJsonContext.Default) as miHoYoApiWrapper<object>;
+        return (wrapper, response);
+    }
+
+
+    /// <summary>
+    /// 将响应 <c>Set-Cookie</c> 中的键值合并进基础 Cookie 串（同名覆盖）。
+    /// </summary>
+    /// <param name="baseCookie">原始 Cookie；可为 null。</param>
+    /// <param name="response">服务端响应。</param>
+    /// <returns>合并后的 Cookie。</returns>
+    protected static string MergeCookieFromSetCookie(string? baseCookie, HttpResponseMessage response)
+    {
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (!string.IsNullOrWhiteSpace(baseCookie))
+        {
+            foreach (string part in baseCookie.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                int eq = part.IndexOf('=');
+                if (eq > 0)
+                {
+                    map[part[..eq].Trim()] = part[(eq + 1)..].Trim();
+                }
+            }
+        }
+        if (response.Headers.TryGetValues("Set-Cookie", out IEnumerable<string>? setCookies))
+        {
+            foreach (string sc in setCookies)
+            {
+                // 仅取第一段 name=value，忽略 Path/Expires 等属性
+                string segment = sc.Split(';', 2)[0];
+                int eq = segment.IndexOf('=');
+                if (eq > 0)
+                {
+                    map[segment[..eq].Trim()] = segment[(eq + 1)..].Trim();
+                }
+            }
+        }
+        return string.Join("; ", map.Select(static kv => $"{kv.Key}={kv.Value}"));
+    }
+
+
+    #endregion
 
 
 

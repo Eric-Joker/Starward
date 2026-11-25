@@ -1,9 +1,13 @@
-﻿using Starward.Core.GameRecord.ZZZ.DailyNote;
+using Starward.Core.GameRecord.ZZZ.DailyNote;
 using Starward.Core.GameRecord.ZZZ.DeadlyAssault;
 using Starward.Core.GameRecord.ZZZ.GachaRecord;
 using Starward.Core.GameRecord.ZZZ.InterKnotReport;
 using Starward.Core.GameRecord.ZZZ.ShiyuDefense;
 using Starward.Core.GameRecord.ZZZ.ThresholdSimulation;
+using Starward.Core.GameRecord.ZZZ.UpgradeGuide;
+using System.Text;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace Starward.Core.GameRecord.ZZZ;
 
@@ -258,6 +262,79 @@ public class HoyolabZZZClient : GameRecordClientBase, IGameRecordClient, IGameRe
         request.Headers.Add(x_rpc_app_version, AppVersion);
         var data = await CommonSendAsync<ThresholdSimulationPeriodDetail>(request, cancellationToken).ConfigureAwait(false);
         return data.Detail;
+    }
+
+
+    /// <summary>
+    /// 国际服养成指南 badge 登录，换取 <c>e_nap_token</c>。
+    /// 主机 <c>sg-act-public-api</c>；浏览器 UA + act 专用 Gen1 DS 盐；禁止 <c>x-rpc-device_id</c>。
+    /// </summary>
+    /// <param name="role">已登录的绝区零角色。</param>
+    /// <param name="language">语言代码。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>合并 e_nap_token 后的 Cookie 串。</returns>
+    public async Task<string> LoginZZZCultivateBadgeAsync(GameRecordRole role, string language, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(role);
+        string lang = LanguageUtil.FilterLanguage(language);
+        Language = lang;
+        var body = new ZZZCultivateBadgeLoginBody
+        {
+            GameBiz = "nap_global",
+            Lang = lang,
+            Region = role.Region,
+            Uid = role.Uid.ToString(),
+        };
+        const string url = "https://sg-act-public-api.hoyolab.com/common/badge/v1/login/account";
+        string json = JsonSerializer.Serialize(body, typeof(ZZZCultivateBadgeLoginBody), GameRecordJsonContext.Default);
+        string cookie = ApplyMi18nLangToCookie(role.Cookie, lang);
+        var request = new HttpRequestMessage(HttpMethod.Post, url)
+        {
+            Content = new StringContent(json, Encoding.UTF8, application_json),
+        };
+        AddHeader(request, Cookie, cookie);
+        AddHeader(request, Referer, "https://act.hoyolab.com/zzz/gt/character-builder-h/index.html");
+        AddHeader(request, "Origin", "https://act.hoyolab.com");
+        AddHeader(request, x_rpc_app_version, "1.5.0");
+        AddHeader(request, x_rpc_client_type, "5");
+        AddHeader(request, x_rpc_language, lang);
+        AddHeader(request, x_rpc_lang, lang);
+        if (!string.IsNullOrWhiteSpace(DeviceInfo?.DeviceFp))
+        {
+            AddHeader(request, x_rpc_device_fp, DeviceInfo.DeviceFp);
+        }
+        // 国际服 act 用 genshin.py OVERSEAS Gen1 salt，不是 BBS 接口的盐
+        AddHeader(request, DS, CreateCultivateSecret1(CultivateToolDsSaltOverseas));
+        var (wrapper, response) = await SendCultivateBadgeLoginAsync(request, cancellationToken).ConfigureAwait(false);
+        if (wrapper is null)
+        {
+            throw new miHoYoApiException(-1, "Can not parse the response body.");
+        }
+        if (wrapper.Retcode != 0)
+        {
+            throw new miHoYoApiException(wrapper.Retcode, wrapper.Message);
+        }
+        return MergeCookieFromSetCookie(cookie, response);
+    }
+
+
+    /// <summary>
+    /// 将 Cookie 中的 <c>mi18nLang</c> 设为指定语言；不存在则追加，便于多语言循环请求。
+    /// </summary>
+    /// <param name="cookie">原始 Cookie；可为 null。</param>
+    /// <param name="lang">语言代码。</param>
+    /// <returns>带 <c>mi18nLang</c> 的 Cookie。</returns>
+    private static string ApplyMi18nLangToCookie(string? cookie, string lang)
+    {
+        if (string.IsNullOrWhiteSpace(cookie))
+        {
+            return $"mi18nLang={lang}";
+        }
+        if (cookie.Contains("mi18nLang=", StringComparison.OrdinalIgnoreCase))
+        {
+            return Regex.Replace(cookie, @"mi18nLang=[^;]*", $"mi18nLang={lang}", RegexOptions.IgnoreCase);
+        }
+        return cookie.TrimEnd(' ', ';') + $"; mi18nLang={lang}";
     }
 
 }
