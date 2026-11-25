@@ -291,6 +291,11 @@ internal abstract class GachaLogService
                     stats.Average_5 = (double)(stats.Count - stats.Pity_5) / stats.Count_5;
                 }
                 stats.Pity_4 = list.Count - 1 - list.FindLastIndex(x => x.RankType == 4);
+                // 次一级稀有度平均抽数：与千星奇域页同一公式 (Count - Pity_4) / Count_4；无样本时不计算，展示侧显示「—」
+                if (stats.Count_4 > 0)
+                {
+                    stats.Average_4 = (double)(stats.Count - stats.Pity_4) / stats.Count_4;
+                }
 
                 if (stats.Count_5_Up > 0)
                 {

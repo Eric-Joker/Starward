@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <!-- 
     Microsoft ResX Schema 
@@ -161,6 +161,9 @@
   </data>
   <data name="GachaStatsCard_Stats" xml:space="preserve">
     <value>Stats</value>
+  </data>
+  <data name="GachaStatsCard_NoUpProbability" xml:space="preserve">
+    <value>No-UP rate</value>
   </data>
   <data name="SelectDirectoryPage_NiceToMeetYou" xml:space="preserve">
     <value>Nice to Meet You ~</value>
@@ -3067,9 +3070,6 @@ You are welcome to submit the exported data to the following repository:</value>
   </data>
 <data name="GachaLogPage_ValidatingGachaUrl" xml:space="preserve">
     <value>Validating gacha URL…</value>
-  </data>
-<data name="GachaStatsCard_NoUpProbability" xml:space="preserve">
-    <value>No-UP rate</value>
   </data>
 <data name="MapTool_BigMap" xml:space="preserve">
     <value>World Map</value>

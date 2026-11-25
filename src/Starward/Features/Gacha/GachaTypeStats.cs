@@ -65,6 +65,11 @@ public class GachaTypeStats
     public string SecondRarityText => $"{TopRarity - 1}★";
 
     /// <summary>
+    /// 第三级稀有度（3★ 统计一栏）的星级文案，如「3★」。
+    /// </summary>
+    public string ThirdRarityText => $"{TopRarity - 2}★";
+
+    /// <summary>
     /// 卡池类型的本地化显示名称（如“角色活动祈愿”、“群星跃迁”、“独家频段”等）。
     /// 来源于对应 *GachaType.ToLocalization() 的返回值（从 CoreLang 资源读取）。
     /// </summary>
@@ -183,6 +188,13 @@ public class GachaTypeStats
     public double Average_5_Up { get; set; }
 
     /// <summary>
+    /// 次一级稀有度平均抽数（不含当前 pity）。
+    /// 计算公式与千星奇域页一致：(Count - Pity_4) / Count_4；<see cref="Count_4"/> 为 0 时保持 0，展示请用 <see cref="Average_4_Text"/>。
+    /// ZZZ 中此字段实际为 A 级（RankType == 3）的平均抽数。
+    /// </summary>
+    public double Average_4 { get; set; }
+
+    /// <summary>
     /// 该卡池所有最高稀有度真实记录的列表（按时间倒序，最新记录在前）。
     /// ZZZ 中列表内容为 S 级记录。
     /// </summary>
@@ -200,10 +212,21 @@ public class GachaTypeStats
     public string Average_5_Text => Count_5 == 0 ? "—" : $"{Average_5:F2}";
 
     /// <summary>
+    /// 次一级稀有度平均抽数展示文本：有样本时形如「7.25」，无样本时为「—」。
+    /// </summary>
+    public string Average_4_Text => Count_4 == 0 ? "—" : $"{Average_4:F2}";
+
+    /// <summary>
     /// 最高稀有度平均抽数描述文本的后缀：Count_5_Up &gt; 0 时返回 " / UP"，否则返回空字符串。
     /// 注意属性名拼写为 Avarage（沿用 main 既有拼写，勿改）。
     /// </summary>
     public string Avarage_5_Desc_Text => Count_5_Up == 0 ? "" : $" / UP";
+
+    /// <summary>
+    /// 次一级稀有度平均抽数的悬停提示文本（统计卡片只在 4★ 一栏显示次数与出率，平均抽数放进 ToolTip）。
+    /// 形如「平均 7.25」，无样本时为「平均 —」；复用既有 <c>Lang.GachaStatsCard_Average</c>，不新增本地化键。
+    /// </summary>
+    public string Average_4_Desc_Text => $"{Lang.GachaStatsCard_Average} {Average_4_Text}";
 
     /// <summary>
     /// UP 最高稀有度的平均抽数与次数的格式化文本，如 " / 65.43 (12)"；无 UP 样本时为空字符串。
@@ -284,25 +307,39 @@ public class GachaTypeStats
 
 
     /// <summary>
-    /// 清除最高与次一级稀有度记录上的悬停高亮（<see cref="GachaLogItemEx.IsPointerIn"/>）。
-    /// 统计卡片在记录列表拖拽滚动结束时调用：拖拽期间指针被列表捕获，记录项收不到 PointerExited，松手后高亮可能残留。
+    /// 按物品名设置最高与次一级稀有度记录上的悬停高亮（<see cref="GachaLogItemEx.IsPointerIn"/>）：同名项为 true，其余为 false。
+    /// 同一物品在列表里可能有多条记录，悬停任意一条时全部高亮。
     /// </summary>
-    public void ClearPointerIn()
+    /// <param name="itemName">当前悬停记录的物品名；为 null 或空时清除全部高亮。</param>
+    public void SetPointerIn(string? itemName)
     {
+        // 物品名可能为空（数据库缺名称），这里显式判空，避免清除高亮时把名称同为空的记录点亮。
+        bool hasItemName = !string.IsNullOrEmpty(itemName);
         if (List_5 is not null)
         {
             foreach (GachaLogItemEx item in List_5)
             {
-                item.IsPointerIn = false;
+                item.IsPointerIn = hasItemName && item.Name == itemName;
             }
         }
         if (List_4 is not null)
         {
             foreach (GachaLogItemEx item in List_4)
             {
-                item.IsPointerIn = false;
+                item.IsPointerIn = hasItemName && item.Name == itemName;
             }
         }
+    }
+
+
+
+    /// <summary>
+    /// 清除最高与次一级稀有度记录上的悬停高亮（<see cref="GachaLogItemEx.IsPointerIn"/>）。
+    /// 统计卡片在记录列表拖拽滚动结束时调用：拖拽期间指针被列表捕获，记录项收不到 PointerExited，松手后高亮可能残留。
+    /// </summary>
+    public void ClearPointerIn()
+    {
+        SetPointerIn(null);
     }
 
 }

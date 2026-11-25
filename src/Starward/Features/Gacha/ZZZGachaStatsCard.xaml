@@ -43,7 +43,6 @@
                   Height="62"
                   Background="Transparent"
                   PointerEntered="Grid_Rarity5Item_PointerEntered"
-                  PointerExited="Grid_Rarity5Item_PointerExited"
                   RowSpacing="2"
                   Tag="{x:Bind}"
                   ToolTipService.Placement="Top"
@@ -122,7 +121,6 @@
                   Height="62"
                   Background="Transparent"
                   PointerEntered="Grid_Rarity4Item_PointerEntered"
-                  PointerExited="Grid_Rarity4Item_PointerExited"
                   RowSpacing="2"
                   Tag="{x:Bind}"
                   ToolTipService.Placement="Top"
@@ -182,6 +180,8 @@
           Shadow="{ThemeResource ThemeShadow}"
           Translation="0,0,16">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -256,39 +256,59 @@
             <Run Text="{x:Bind WarpTypeStats.Average_5_Text}" /><Run Text="{x:Bind WarpTypeStats.Avarage_5_Up_Text}" />
         </TextBlock>
 
-        <!--  S 统计（非 UP 频段显示）；UP 频段此行改为显示「不歪概率」，二者互斥同占第 4 行  -->
-        <TextBlock Grid.Row="4"
-                   Foreground="{ThemeResource Rarity5ForegroundBrush}"
-                   Visibility="{x:Bind WarpTypeStats.HasUpItem, Converter={StaticResource BoolToVisibilityReversedConverter}}">
+        <!--  S 统计（常显，UP 频段也不隐藏）  -->
+        <TextBlock Grid.Row="4" Foreground="{ThemeResource Rarity5ForegroundBrush}">
             <Run Text="S" />
             <Run Text="{x:Bind lang:Lang.GachaStatsCard_Stats}" />
         </TextBlock>
         <TextBlock Grid.Row="4"
                    HorizontalAlignment="Right"
                    HorizontalTextAlignment="Left"
-                   Foreground="{ThemeResource Rarity5ForegroundBrush}"
-                   Visibility="{x:Bind WarpTypeStats.HasUpItem, Converter={StaticResource BoolToVisibilityReversedConverter}}">
+                   Foreground="{ThemeResource Rarity5ForegroundBrush}">
             <Run Text="{x:Bind WarpTypeStats.Count_5}" />
             <Run Text="[" /><Run Text="{x:Bind WarpTypeStats.Ratio_5.ToString('P2', x:Null)}" /><Run Text="]" />
         </TextBlock>
 
-        <!--  不歪概率（仅 UP 频段显示）：小保底 50/50 抽到当期 UP 的概率，形如 54.55% (6/11)。
-              TZ 用 GachaStatsCard_NoUpProbability；main 无该键，复用 GachaStatsCard_Stats。  -->
-        <TextBlock Grid.Row="4"
+        <!--  不歪概率（仅 UP 频段显示，独立一行）：小保底 50/50 抽到当期 UP 的概率，形如 54.55% (6/11)。  -->
+        <TextBlock Grid.Row="5"
                    Foreground="{ThemeResource Rarity5ForegroundBrush}"
                    Visibility="{x:Bind WarpTypeStats.HasUpItem, Converter={StaticResource BoolToVisibilityConverter}}">
             <Run Text="S" />
-            <Run Text="{x:Bind lang:Lang.GachaStatsCard_Stats}" />
+            <Run Text="{x:Bind lang:Lang.GachaStatsCard_NoUpProbability}" />
         </TextBlock>
-        <TextBlock Grid.Row="4"
+        <TextBlock Grid.Row="5"
                    HorizontalAlignment="Right"
                    HorizontalTextAlignment="Left"
                    Foreground="{ThemeResource Rarity5ForegroundBrush}"
                    Text="{x:Bind WarpTypeStats.FiftyFiftyNoUpText}"
                    Visibility="{x:Bind WarpTypeStats.HasUpItem, Converter={StaticResource BoolToVisibilityConverter}}" />
 
+        <!--  A / B 级统计：左 A、右 B；A 级靠左，B 级右对齐到内容区右侧，与上方右对齐的数值同一列。  -->
+        <Grid Grid.Row="6" ColumnSpacing="8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition />
+                <ColumnDefinition />
+            </Grid.ColumnDefinitions>
+            <TextBlock FontSize="12"
+                       Foreground="{ThemeResource Rarity4ForegroundBrush}"
+                       ToolTipService.Placement="Top"
+                       ToolTipService.ToolTip="{x:Bind WarpTypeStats.Average_4_Desc_Text}">
+                <Run Text="A" />
+                <Run Text=" " /><Run Text="{x:Bind WarpTypeStats.Count_4}" />
+                <Run Text="[" /><Run Text="{x:Bind WarpTypeStats.Ratio_4.ToString('P2', x:Null)}" /><Run Text="]" />
+            </TextBlock>
+            <TextBlock Grid.Column="1"
+                       HorizontalAlignment="Right"
+                       FontSize="12"
+                       Foreground="{ThemeResource Rarity3ForegroundBrush}">
+                <Run Text="B" />
+                <Run Text=" " /><Run Text="{x:Bind WarpTypeStats.Count_3}" />
+                <Run Text="[" /><Run Text="{x:Bind WarpTypeStats.Ratio_3.ToString('P2', x:Null)}" /><Run Text="]" />
+            </TextBlock>
+        </Grid>
+
         <!--  当前 S 级垫数：限定频段同时标明下一次为小保底还是大保底。  -->
-        <Grid Grid.Row="5"
+        <Grid Grid.Row="7"
               Margin="0,2,0,4"
               RowSpacing="3"
               Visibility="{x:Bind WarpTypeStats.ShowPityProgress, Converter={StaticResource BoolToVisibilityConverter}}">
@@ -316,14 +336,14 @@
                          Value="{x:Bind WarpTypeStats.Pity_5}" />
         </Grid>
 
-        <!--  拖拽手柄：覆盖 tab 标签上方的卡池统计信息区域（第 0~5 行），按住此处可拖动整张卡片换位。  -->
+        <!--  拖拽手柄：覆盖 tab 标签上方的频段统计信息区域（第 0~7 行），按住此处可拖动整张卡片换位。  -->
         <Border x:Name="DragHandleBorder"
                 Grid.Row="0"
-                Grid.RowSpan="6"
+                Grid.RowSpan="8"
                 Background="Transparent"
                 helpers:PointerCursor.CursorShape="Hand" />
 
-        <Grid Grid.Row="6"
+        <Grid Grid.Row="8"
               RowSpacing="8">
             <Grid.RowDefinitions>
                 <RowDefinition Height="36" />
@@ -360,7 +380,6 @@
                                       Height="28"
                                       Background="Transparent"
                                       PointerEntered="Grid_Rarity5Item_PointerEntered"
-                                      PointerExited="Grid_Rarity5Item_PointerExited"
                                       Tag="{x:Bind}"
                                       ToolTipService.Placement="Top"
                                       ToolTipService.ToolTip="{x:Bind Time.ToString('yyyy-MM-dd HH:mm:ss', x:Null)}">
@@ -430,7 +449,6 @@
                                       Background="Transparent"
                                       ColumnSpacing="8"
                                       PointerEntered="Grid_Rarity4Item_PointerEntered"
-                                      PointerExited="Grid_Rarity4Item_PointerExited"
                                       Tag="{x:Bind}"
                                       ToolTipService.Placement="Top"
                                       ToolTipService.ToolTip="{x:Bind Time.ToString('yyyy-MM-dd HH:mm:ss', x:Null)}">

@@ -1,6 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using System.Linq;
+using Microsoft.UI.Xaml.Input;
 
 
 namespace Starward.Features.Gacha;
@@ -12,6 +12,15 @@ namespace Starward.Features.Gacha;
 /// </summary>
 public sealed partial class ZZZGachaStatsCard : UserControl, IGachaStatsDragCard
 {
+
+    /// <summary>
+    /// 悬停判定在记录项边界外放宽的像素数，等于紧凑图标网格的方块间距（4px）再加一点余量。
+    /// 指针在两张同名图标之间的缝隙里移动时仍算悬停在该记录项附近，不会因中途没有命中元素而把高亮清掉再设回来（描边闪烁）。
+    /// </summary>
+    private const double RecordItemHoverTolerance = 4.5;
+
+    /// <summary>当前指针悬停的记录项根元素（列表行或紧凑图标方块）；null 表示当前没有悬停高亮。</summary>
+    private FrameworkElement? _hoveredRecordElement;
 
     /// <summary>当前记录列表选项卡索引（0 = S 级，1 = A 级）。</summary>
     private int _listIndex;
@@ -28,6 +37,10 @@ public sealed partial class ZZZGachaStatsCard : UserControl, IGachaStatsDragCard
         this.InitializeComponent();
         Segmented_GachaItemList.SelectionChanged += Segmented_GachaItemList_SelectionChanged;
         ApplySegmentedListVisibility();
+        // 同名的相邻记录项之间（紧凑视图有 4px 方块间距）没有可命中的元素，靠 PointerEntered 切换时会把高亮清掉再设回来。
+        // 这里在卡片级跟踪指针位置，只有离开悬停项附近才清除；滚动容器会处理指针事件，须 handledEventsToo 才能收到移动。
+        AddHandler(UIElement.PointerMovedEvent, new PointerEventHandler(Card_PointerMoved), true);
+        PointerExited += Card_PointerExited;
         Unloaded += OnCardUnloaded;
     }
 
@@ -39,7 +52,10 @@ public sealed partial class ZZZGachaStatsCard : UserControl, IGachaStatsDragCard
     {
         Unloaded -= OnCardUnloaded;
         Segmented_GachaItemList.SelectionChanged -= Segmented_GachaItemList_SelectionChanged;
-        WarpTypeStats?.ClearPointerIn();
+        RemoveHandler(UIElement.PointerMovedEvent, new PointerEventHandler(Card_PointerMoved));
+        PointerExited -= Card_PointerExited;
+        // 卡片移除时清掉模型上的高亮，避免重建后的新卡片带着残留描边出现。
+        ClearRecordPointerIn();
     }
 
 
@@ -55,7 +71,18 @@ public sealed partial class ZZZGachaStatsCard : UserControl, IGachaStatsDragCard
 
     // Using a DependencyProperty as the backing store for WarpTypeStats.  This enables animation, styling, binding, etc...
     public static readonly DependencyProperty WarpTypeStatsProperty =
-        DependencyProperty.Register("WarpTypeStats", typeof(GachaTypeStats), typeof(ZZZGachaStatsCard), new PropertyMetadata(null));
+        DependencyProperty.Register("WarpTypeStats", typeof(GachaTypeStats), typeof(ZZZGachaStatsCard), new PropertyMetadata(null, OnWarpTypeStatsChanged));
+
+
+    /// <summary>
+    /// 频段数据变化时复位悬停跟踪状态（换绑数据后旧记录项已无意义）。
+    /// </summary>
+    /// <param name="d">卡片。</param>
+    /// <param name="e">变更参数（未使用；旧记录项已不再展示，仅复位跟踪状态）。</param>
+    private static void OnWarpTypeStatsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        ((ZZZGachaStatsCard)d)._hoveredRecordElement = null;
+    }
 
 
     /// <summary>
@@ -140,83 +167,105 @@ public sealed partial class ZZZGachaStatsCard : UserControl, IGachaStatsDragCard
             ScrollViewer_GachaItemList?.ChangeView(null, 0, null, true);
         }
         catch { }
+        ClearRecordPointerIn();
+    }
+
+
+    /// <summary>
+    /// 指针进入 S 级记录项时：按代理人/音擎/邦布名高亮同名项（设置 <see cref="GachaLogItemEx.IsPointerIn"/>），用于展开该行详情并弱化其余行。
+    /// <para>离开记录项不再在这里清除高亮：紧凑视图的图标方块之间有 4px 间距，清除后要等进入相邻项才恢复，
+    /// 相邻两项同名时描边会闪一下。改由 <see cref="Card_PointerMoved"/> 按指针与当前悬停项的位置关系判断。</para>
+    /// </summary>
+    /// <param name="sender">触发进入的列表项根元素；其 <c>Tag</c> 应为 <see cref="GachaLogItemEx"/>。</param>
+    /// <param name="e">指针路由事件参数。</param>
+    private void Grid_Rarity5Item_PointerEntered(object sender, PointerRoutedEventArgs e)
+    {
+        if (sender is FrameworkElement element && element.Tag is GachaLogItemEx item)
+        {
+            _hoveredRecordElement = element;
+            WarpTypeStats?.SetPointerIn(item.Name);
+        }
+    }
+
+
+    /// <summary>
+    /// 指针进入 A 级记录项时：按名称高亮同名项（逻辑同上，操作 <see cref="GachaTypeStats.List_4"/>）。
+    /// </summary>
+    /// <param name="sender">触发进入的列表项根元素；其 <c>Tag</c> 应为 <see cref="GachaLogItemEx"/>。</param>
+    /// <param name="e">指针路由事件参数。</param>
+    private void Grid_Rarity4Item_PointerEntered(object sender, PointerRoutedEventArgs e)
+    {
+        if (sender is FrameworkElement element && element.Tag is GachaLogItemEx item)
+        {
+            _hoveredRecordElement = element;
+            WarpTypeStats?.SetPointerIn(item.Name);
+        }
+    }
+
+
+    /// <summary>
+    /// 指针在卡片内移动：把悬停判定更新到当前指针位置，超出悬停记录项（含图标方块间距容差）就清除高亮。
+    /// </summary>
+    /// <param name="sender">事件源（本卡片）。</param>
+    /// <param name="e">指针路由事件参数。</param>
+    private void Card_PointerMoved(object sender, PointerRoutedEventArgs e)
+    {
+        UpdateRecordPointerIn(e);
+    }
+
+
+    /// <summary>
+    /// 指针离开卡片：清除悬停高亮。
+    /// <para>卡片级的 PointerExited 只在指针真正离开卡片时触发（子元素的进出不会冒泡到这里，实测）；
+    /// 但事件里的坐标可能是离开前的旧位置，不能据此判断指针是否还在卡片内，直接清除。</para>
+    /// </summary>
+    /// <param name="sender">事件源（本卡片）。</param>
+    /// <param name="e">指针路由事件参数。</param>
+    private void Card_PointerExited(object sender, PointerRoutedEventArgs e)
+    {
+        if (_hoveredRecordElement is null)
+        {
+            return;
+        }
+        ClearRecordPointerIn();
+    }
+
+
+    /// <summary>
+    /// 按指针相对当前悬停记录项的位置更新高亮：仍在记录项边界外放宽 <see cref="RecordItemHoverTolerance"/> 的范围内则保留，否则清除。
+    /// </summary>
+    /// <param name="e">指针路由事件参数，用于取相对悬停记录项的当前位置。</param>
+    private void UpdateRecordPointerIn(PointerRoutedEventArgs e)
+    {
+        FrameworkElement? hovered = _hoveredRecordElement;
+        if (hovered is null)
+        {
+            return;
+        }
+        if (hovered.XamlRoot is null)
+        {
+            // 记录项已离开视觉树，没有可用的坐标空间。
+            ClearRecordPointerIn();
+            return;
+        }
+        var position = e.GetCurrentPoint(hovered).Position;
+        if (position.X < -RecordItemHoverTolerance
+            || position.Y < -RecordItemHoverTolerance
+            || position.X > hovered.ActualWidth + RecordItemHoverTolerance
+            || position.Y > hovered.ActualHeight + RecordItemHoverTolerance)
+        {
+            ClearRecordPointerIn();
+        }
+    }
+
+
+    /// <summary>
+    /// 清除记录项上的悬停高亮，并复位悬停跟踪状态。
+    /// </summary>
+    private void ClearRecordPointerIn()
+    {
+        _hoveredRecordElement = null;
         WarpTypeStats?.ClearPointerIn();
-    }
-
-
-    private void Grid_Rarity5Item_PointerEntered(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
-    {
-        try
-        {
-            if (sender is FrameworkElement ele && ele.Tag is GachaLogItemEx item)
-            {
-                if (WarpTypeStats?.List_5?.Any() ?? false)
-                {
-                    foreach (var l5 in WarpTypeStats.List_5)
-                    {
-                        l5.IsPointerIn = (l5.Name == item.Name);
-                    }
-                }
-            }
-        }
-        catch { }
-    }
-
-
-    private void Grid_Rarity5Item_PointerExited(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
-    {
-        try
-        {
-            if (sender is FrameworkElement ele && ele.Tag is GachaLogItemEx item)
-            {
-                if (WarpTypeStats?.List_5?.Any() ?? false)
-                {
-                    foreach (var l5 in WarpTypeStats.List_5)
-                    {
-                        l5.IsPointerIn = false;
-                    }
-                }
-            }
-        }
-        catch { }
-    }
-
-
-    private void Grid_Rarity4Item_PointerEntered(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
-    {
-        try
-        {
-            if (sender is FrameworkElement ele && ele.Tag is GachaLogItemEx item)
-            {
-                if (WarpTypeStats?.List_4?.Any() ?? false)
-                {
-                    foreach (var l5 in WarpTypeStats.List_4)
-                    {
-                        l5.IsPointerIn = (l5.Name == item.Name);
-                    }
-                }
-            }
-        }
-        catch { }
-    }
-
-
-    private void Grid_Rarity4Item_PointerExited(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
-    {
-        try
-        {
-            if (sender is FrameworkElement ele && ele.Tag is GachaLogItemEx item)
-            {
-                if (WarpTypeStats?.List_4?.Any() ?? false)
-                {
-                    foreach (var l5 in WarpTypeStats.List_4)
-                    {
-                        l5.IsPointerIn = false;
-                    }
-                }
-            }
-        }
-        catch { }
     }
 
 

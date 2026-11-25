@@ -96,6 +96,8 @@ internal static class GachaShareImageRenderer
     private static readonly Color Rarity4 = Color.FromArgb(0xFF, 0xD0, 0x7A, 0xE8);
     private static readonly Color Rarity4Hi = Color.FromArgb(0xFF, 0xE2, 0xA6, 0xF2);
     private static readonly Color Rarity4TileBackground = Color.FromArgb(0x40, 0xD0, 0x7A, 0xE8);
+    // 第三级稀有度：对应页面 #5EAAED，同样略提亮
+    private static readonly Color Rarity3 = Color.FromArgb(0xFF, 0x6C, 0xBC, 0xF2);
     // 须在上面各颜色之后声明：静态字段按书写顺序初始化
     private static readonly RarityPalette Rarity5Palette = new(Rarity5, Rarity5Hi, CompactTileBackground);
     private static readonly RarityPalette Rarity4Palette = new(Rarity4, Rarity4Hi, Rarity4TileBackground);
@@ -204,7 +206,9 @@ internal static class GachaShareImageRenderer
                 {
                     GachaTypeStats stat = stats[i];
                     string rarityLabel = isZzz ? "S" : stat.TopRarityText;
-                    DrawCard(ds, device, stat, cardLeft, cardTop, contentHeight, rarityLabel, accentColor, viewMode,
+                    string secondRarityLabel = isZzz ? "A" : stat.SecondRarityText;
+                    string thirdRarityLabel = isZzz ? "B" : stat.ThirdRarityText;
+                    DrawCard(ds, device, stat, cardLeft, cardTop, contentHeight, rarityLabel, secondRarityLabel, thirdRarityLabel, accentColor, viewMode,
                              titleFormat, bodyFormat, smallFormat, capsuleFormat, upFormat,
                              tilePityFormat, tileBadgeFormat, tileNameFormat, iconBitmaps, bgLayer);
                     cardLeft += CardWidth + CardSpacing;
@@ -274,8 +278,17 @@ internal static class GachaShareImageRenderer
         height += 22f;
         height += RowSpacing + 16f;
         height += RowSpacing + 1 + RowSpacing;
+        // 最高稀有度平均
         height += 20f + RowSpacing;
+        // 最高稀有度统计（常显）
         height += 20f + RowSpacing;
+        // 不歪概率：仅 UP 卡池有这一行
+        if (stats.HasUpItem)
+        {
+            height += 20f + RowSpacing;
+        }
+        // 次一级 / 第三级稀有度统计（12pt 小字行）
+        height += 16f + RowSpacing;
         if (stats.ShowPityProgress)
         {
             height += PityProgressBlockHeight;
@@ -315,6 +328,8 @@ internal static class GachaShareImageRenderer
         float top,
         float height,
         string rarityLabel,
+        string secondRarityLabel,
+        string thirdRarityLabel,
         Color accentColor,
         GachaRecordViewMode viewMode,
         CanvasTextFormat titleFormat,
@@ -377,21 +392,29 @@ internal static class GachaShareImageRenderer
         DrawText(ds, averageRight, rightX - MeasureTextWidth(ds, averageRight, bodyFormat), y, bodyFormat, RarityAverage);
         y += 20f + RowSpacing;
 
-        // TZ 此行为「不歪概率」（Lang.GachaStatsCard_NoUpProbability）；main 无该键，复用 GachaStatsCard_Stats，
-        // 用右侧的百分比值区分语义（与页面卡片保持一致）。
+        // 最高稀有度统计：页面卡片改为常显（不再被「不歪概率」挤掉），分享图同步。
+        string statsLeft = $"{rarityLabel}{Lang.GachaStatsCard_Stats}";
+        string statsRight = $"{stats.Count_5} [{stats.Ratio_5:P2}]";
+        DrawText(ds, statsLeft, x, y, bodyFormat, palette.Main);
+        DrawText(ds, statsRight, rightX - MeasureTextWidth(ds, statsRight, bodyFormat), y, bodyFormat, palette.Main);
+        y += 20f + RowSpacing;
+
+        // 不歪概率：仅 UP 卡池显示，独占一行（与页面第 5 行一致）。
         if (stats.HasUpItem)
         {
-            DrawText(ds, $"{rarityLabel}{Lang.GachaStatsCard_Stats}", x, y, bodyFormat, palette.Main);
+            string noUpLeft = $"{rarityLabel}{Lang.GachaStatsCard_NoUpProbability}";
+            DrawText(ds, noUpLeft, x, y, bodyFormat, palette.Main);
             DrawText(ds, stats.FiftyFiftyNoUpText, rightX - MeasureTextWidth(ds, stats.FiftyFiftyNoUpText, bodyFormat), y, bodyFormat, palette.Main);
+            y += 20f + RowSpacing;
         }
-        else
-        {
-            string statsLeft = $"{rarityLabel}{Lang.GachaStatsCard_Stats}";
-            string statsRight = $"{stats.Count_5} [{stats.Ratio_5:P2}]";
-            DrawText(ds, statsLeft, x, y, bodyFormat, palette.Main);
-            DrawText(ds, statsRight, rightX - MeasureTextWidth(ds, statsRight, bodyFormat), y, bodyFormat, palette.Main);
-        }
-        y += 20f + RowSpacing;
+
+        // 次一级 / 第三级稀有度统计：12pt 小字一行，左次一级（Count_4）、右第三级（Count_3），与页面第 6 行一致。
+        // 页面里 4★ 靠左、3★ 右对齐到内容区右侧（和上面右对齐的数值同一列），分享图按同样的对齐方式排。
+        string secondRarityText = $"{secondRarityLabel} {stats.Count_4} [{stats.Ratio_4:P2}]";
+        string thirdRarityText = $"{thirdRarityLabel} {stats.Count_3} [{stats.Ratio_3:P2}]";
+        DrawText(ds, secondRarityText, x, y, smallFormat, Rarity4);
+        DrawText(ds, thirdRarityText, rightX - MeasureTextWidth(ds, thirdRarityText, smallFormat), y, smallFormat, Rarity3);
+        y += 16f + RowSpacing;
 
         if (stats.ShowPityProgress)
         {
@@ -693,7 +716,7 @@ internal static class GachaShareImageRenderer
 
 
     /// <summary>
-    /// 绘制卡片级当前最高稀有度垫数进度（对应 <c>GachaStatsCard</c> / <c>ZZZGachaStatsCard</c> 第 5 行 ProgressBar）。
+    /// 绘制卡片级当前最高稀有度垫数进度（对应 <c>GachaStatsCard</c> / <c>ZZZGachaStatsCard</c> 第 7 行 ProgressBar）。
     /// 仅由调用方在 <see cref="GachaTypeStats.ShowPityProgress"/> 为 true 时调用；
     /// 非 UP 卡池不绘制右侧大小保底文案。与列表行内的 <see cref="DrawPityBar"/> 无关。
     /// </summary>
