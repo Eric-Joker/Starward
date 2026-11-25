@@ -653,5 +653,113 @@ namespace Starward.Core.Localization {
                 return ResourceManager.GetString("ZZZQueryType_WEngine", resourceCulture);
             }
         }
+        
+        /// <summary>
+        ///   查找类似 Incorrect account or password. 的本地化字符串。
+        /// </summary>
+        public static string PassportError_LoginFailed {
+            get {
+                return ResourceManager.GetString("PassportError_LoginFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 The account does not exist. 的本地化字符串。
+        /// </summary>
+        public static string PassportError_AccountNotFound {
+            get {
+                return ResourceManager.GetString("PassportError_AccountNotFound", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Too many failed attempts. The account has been locked temporarily. 的本地化字符串。
+        /// </summary>
+        public static string PassportError_AccountLocked {
+            get {
+                return ResourceManager.GetString("PassportError_AccountLocked", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Incorrect verification code. 的本地化字符串。
+        /// </summary>
+        public static string PassportError_SmsCodeWrong {
+            get {
+                return ResourceManager.GetString("PassportError_SmsCodeWrong", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Human verification failed. Please try again. 的本地化字符串。
+        /// </summary>
+        public static string PassportError_CaptchaFailed {
+            get {
+                return ResourceManager.GetString("PassportError_CaptchaFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Too many requests. Please try again later. 的本地化字符串。
+        /// </summary>
+        public static string PassportError_TooFrequent {
+            get {
+                return ResourceManager.GetString("PassportError_TooFrequent", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Complete the SMS verification to continue signing in. 的本地化字符串。
+        /// </summary>
+        public static string PassportError_DeviceVerifyRequired {
+            get {
+                return ResourceManager.GetString("PassportError_DeviceVerifyRequired", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 The sign-in has expired. Please sign in again. 的本地化字符串。
+        /// </summary>
+        public static string PassportError_TokenExpired {
+            get {
+                return ResourceManager.GetString("PassportError_TokenExpired", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 The request was rejected or the service is temporarily unavailable. 的本地化字符串。
+        /// </summary>
+        public static string PassportError_RequestRejected {
+            get {
+                return ResourceManager.GetString("PassportError_RequestRejected", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 The MiHoYo ID (mid) is required to exchange tokens. 的本地化字符串。
+        /// </summary>
+        public static string PassportError_MidRequired {
+            get {
+                return ResourceManager.GetString("PassportError_MidRequired", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Email verification is required. 的本地化字符串。
+        /// </summary>
+        public static string PassportError_EmailVerifyRequired {
+            get {
+                return ResourceManager.GetString("PassportError_EmailVerifyRequired", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Request failed ({0}). 的本地化字符串。
+        /// </summary>
+        public static string PassportError_Unknown {
+            get {
+                return ResourceManager.GetString("PassportError_Unknown", resourceCulture);
+            }
+        }
     }
 }

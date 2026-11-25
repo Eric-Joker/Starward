@@ -11,9 +11,13 @@ public class UserInfo
 
     /// <summary>
     /// 账号数字 ID，接口返回的是字符串。
+    /// <para>
+    /// 用 <see cref="LenientInt64Converter"/> 解析：除了数字与数字字符串，
+    /// 国服登录协议里未确认的扫码状态等场景还会返回空字符串，直接反序列化会让整个响应解析失败。
+    /// </para>
     /// </summary>
     [JsonPropertyName("aid")]
-    [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+    [JsonConverter(typeof(LenientInt64Converter))]
     public long Aid { get; set; }
 
 

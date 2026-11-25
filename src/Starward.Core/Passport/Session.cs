@@ -55,10 +55,10 @@ public class SessionVerifyResult
 
 
     /// <summary>
-    /// 账号信息。
+    /// 账号信息，类型为账号资料与会话字段的并集。
     /// </summary>
     [JsonPropertyName("user_info")]
-    public UserInfo UserInfo { get; set; }
+    public PassportUserInfo UserInfo { get; set; }
 
 
     /// <summary>
