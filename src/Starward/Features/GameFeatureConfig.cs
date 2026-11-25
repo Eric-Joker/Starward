@@ -1,4 +1,5 @@
-﻿using Starward.Core.HoYoPlay;
+using Starward.Core;
+using Starward.Core.HoYoPlay;
 using Starward.Features.Gacha;
 using Starward.Features.GameLauncher;
 using Starward.Features.GameRecord;
@@ -44,19 +45,31 @@ internal partial class GameFeatureConfig
         {
             return None;
         }
-        GameFeatureConfig config = gameId.Id switch
+        return FromGameBiz(gameId.GameBiz);
+    }
+
+
+
+    /// <summary>
+    /// 按区服取游戏功能配置。便笺提醒这类只拿到战绩角色（<see cref="Core.GameRecord.GameRecordRole.GameBiz"/>）的地方用它。
+    /// </summary>
+    /// <param name="gameBiz">游戏区服。</param>
+    /// <returns>该区服的功能配置；未知区服返回默认配置。</returns>
+    public static GameFeatureConfig FromGameBiz(GameBiz gameBiz)
+    {
+        GameFeatureConfig config = gameBiz.Value switch
         {
-            GameId.bh3_cn => bh3_cn,
-            GameId.bh3_glb or GameId.bh3_jp or GameId.bh3_kr or GameId.bh3_os or GameId.bh3_asia => bh3_global,
-            GameId.hk4e_cn => hk4e_cn,
-            GameId.hk4e_global => hk4e_global,
-            GameId.hk4e_bili => hk4e_bilibili,
-            GameId.hkrpg_cn => hkrpg_cn,
-            GameId.hkrpg_global => hkrpg_global,
-            GameId.hkrpg_bili => hkrpg_bilibili,
-            GameId.nap_cn => nap_cn,
-            GameId.nap_global => nap_global,
-            GameId.nap_bili => nap_bilibili,
+            GameBiz.bh3_cn => bh3_cn,
+            GameBiz.bh3_global or GameBiz.bh3_jp or GameBiz.bh3_kr or GameBiz.bh3_os or GameBiz.bh3_asia => bh3_global,
+            GameBiz.hk4e_cn => hk4e_cn,
+            GameBiz.hk4e_global => hk4e_global,
+            GameBiz.hk4e_bilibili => hk4e_bilibili,
+            GameBiz.hkrpg_cn => hkrpg_cn,
+            GameBiz.hkrpg_global => hkrpg_global,
+            GameBiz.hkrpg_bilibili => hkrpg_bilibili,
+            GameBiz.nap_cn => nap_cn,
+            GameBiz.nap_global => nap_global,
+            GameBiz.nap_bilibili => nap_bilibili,
             _ => Default,
         };
         return config;

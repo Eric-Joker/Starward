@@ -1,9 +1,11 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
+using Starward.Features.GameRecord.DailyNote.Notify;
 using Starward.Features.Setting;
+using Starward.Features.Startup;
 using Starward.Helpers;
 using Vanara.PInvoke;
 using Windows.Foundation;
@@ -16,6 +18,11 @@ public sealed partial class SystemTrayWindow : WindowBase
 {
 
 
+    /// <summary>
+    /// 实时便笺提醒：同样由托盘窗口驱动常驻检查，实例来自 <c>AppConfig.ServiceProvider.cs</c>。
+    /// </summary>
+    private readonly DailyNoteNotifyService _dailyNoteNotifyService = AppConfig.GetService<DailyNoteNotifyService>();
+
 
 
     public SystemTrayWindow()
@@ -24,6 +31,10 @@ public sealed partial class SystemTrayWindow : WindowBase
         InitializeWindow();
         SetTrayIcon();
         WeakReferenceMessenger.Default.Register<LanguageChangedMessage>(this, (_, _) => this.Bindings.Update());
+        // 常驻实例的对外通道：开着它，点击系统通知的协议进程才能找到本实例并转交「打开主窗口」请求。
+        ResidentInstanceMessenger.StartListening();
+        // 实时便笺提醒：常驻检查各账号便笺，达到阈值时发 Windows 系统通知。
+        _dailyNoteNotifyService.StartResident();
     }
 
 
@@ -125,8 +136,26 @@ public sealed partial class SystemTrayWindow : WindowBase
     }
 
 
+    protected override nint WindowSubclassProc(HWND hWnd, uint uMsg, nint wParam, nint lParam, nuint uIdSubclass, nint dwRefData)
+    {
+        if (uMsg == (uint)User32.WindowMessage.WM_POWERBROADCAST)
+        {
+            // 广播给所有顶层窗口，无需 RegisterPowerSettingNotification。不吞消息。
+            // PBT_APMRESUMESUSPEND = 7 / PBT_APMRESUMEAUTOMATIC = 0x12 / PBT_APMRESUMECRITICAL = 3
+            if (wParam is 7 or 0x12 or 3)
+            {
+                // 睡眠期间计时器不走，恢复后让常驻循环按墙上时钟重算到期时刻（便笺提醒等）
+                _dailyNoteNotifyService.NotifySystemResumed();
+            }
+        }
+        return base.WindowSubclassProc(hWnd, uMsg, wParam, lParam, uIdSubclass, dwRefData);
+    }
+
+
     private void WindowEx_Closed(object sender, WindowEventArgs args)
     {
+        // 常驻宿主走了（软件退出）：先摘掉对外通道，之后不再接收任何通知激活。
+        ResidentInstanceMessenger.StopListening();
         trayIcon?.Dispose();
     }
 

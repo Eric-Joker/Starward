@@ -1,4 +1,4 @@
-﻿using Dapper;
+using Dapper;
 using Microsoft.Extensions.DependencyInjection;
 using Starward.Core;
 using Starward.Core.GameRecord;
@@ -106,6 +106,44 @@ internal class GameRecordRoleService : GameRecordServiceBase
         var roles = await _passportService.UpdateGameRolesAsync(passport, await GetDeviceInfoAsync(passport.Region, cancellation), cancellation).ConfigureAwait(false);
         AddGameRoles(roles);
         return roles;
+    }
+
+
+
+    /// <summary>
+    /// 拉取角色所属游戏的实时便笺。按角色自身的区服选客户端与设备指纹，
+    /// 后台便笺提醒与提醒设置对话框用它，不必为了发请求去改别的共享状态。
+    /// </summary>
+    /// <param name="role">战绩角色。</param>
+    /// <param name="forceUpdate">为 false 时 5 分钟内复用缓存。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>该角色所属游戏的便笺对象。</returns>
+    /// <exception cref="NotSupportedException">角色所属游戏没有实时便笺。</exception>
+    public async Task<object> GetDailyNoteByRoleAsync(GameRecordRole role, bool forceUpdate = false, CancellationToken cancellationToken = default)
+    {
+        GameBiz biz = role.GameBiz;
+        return biz.Game switch
+        {
+            GameBiz.hk4e => await _genshinService.GetGenshinDailyNoteAsync(role, forceUpdate, cancellationToken).ConfigureAwait(false),
+            GameBiz.hkrpg => await _starRailService.GetStarRailDailyNoteAsync(role, forceUpdate, cancellationToken).ConfigureAwait(false),
+            GameBiz.nap => await _zzzService.GetZZZDailyNoteAsync(role, forceUpdate, cancellationToken).ConfigureAwait(false),
+            GameBiz.bh3 => await _bh3Service.GetBH3DailyNoteAsync(role, forceUpdate, cancellationToken).ConfigureAwait(false),
+            _ => throw new NotSupportedException($"Daily note is not supported for {role.GameBiz}."),
+        };
+    }
+
+
+
+    /// <summary>
+    /// 数据库中全部游戏角色（跨所有账号 cookie 与游戏），按账号(cookie)再按游戏排序。
+    /// 没有 Cookie 的角色跳过（它拉不了便笺）。后台的便笺提醒与提醒设置对话框用它。
+    /// </summary>
+    /// <returns>可参与便笺提醒的角色列表。</returns>
+    public static List<GameRecordRole> GetAllGameRoles()
+    {
+        using var dapper = DatabaseService.CreateConnection();
+        var list = dapper.Query<GameRecordRole>("SELECT * FROM GameRecordRole ORDER BY Cookie, GameBiz;");
+        return list.Where(x => !string.IsNullOrWhiteSpace(x.Cookie)).ToList();
     }
 
 

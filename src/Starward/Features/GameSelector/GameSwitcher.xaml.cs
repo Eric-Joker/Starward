@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Logging;
 using Microsoft.UI.Xaml;
@@ -40,6 +40,16 @@ public sealed partial class GameSwitcher : UserControl
         WeakReferenceMessenger.Default.Register<PinGameIconMessage>(this, HandlePinGameIconMessage);
         WeakReferenceMessenger.Default.Register<MainViewNavigateMessage>(this, HandleMainViewNavigateMessage);
         WeakReferenceMessenger.Default.Register<EnabledLauncherConfigChangedMessage>(this, HandleEnabledLauncherConfigChangedMessage);
+        WeakReferenceMessenger.Default.Register<SelectGameBizMessage>(this, HandleSelectGameBizMessage);
+        // 点击系统通知带来的目标游戏在主窗口建好后才能切；Loaded 时主视图已经初始化完，切游戏的事件处理可以安全执行
+        this.Loaded += GameSwitcher_Loaded;
+    }
+
+
+
+    private void GameSwitcher_Loaded(object sender, RoutedEventArgs e)
+    {
+        TryApplyPendingSelectGameBiz(clearIfMissing: false);
     }
 
 
@@ -130,6 +140,8 @@ public sealed partial class GameSwitcher : UserControl
         {
             PinnedGameIcons.CollectionChanged += PinnedGameIcons_CollectionChanged;
         }
+        // 图标补全后再试一次：启动时缓存里可能还没有目标游戏的信息
+        TryApplyPendingSelectGameBiz(clearIfMissing: true);
     }
 
 
@@ -200,6 +212,91 @@ public sealed partial class GameSwitcher : UserControl
 
 
     /// <summary>
+    /// 切到系统通知对应的游戏（点击通知打开主窗口时）。
+    /// </summary>
+    /// <param name="_">消息发送方（未使用）。</param>
+    /// <param name="message">要切到的游戏区服。</param>
+    private void HandleSelectGameBizMessage(object _, SelectGameBizMessage message)
+    {
+        try
+        {
+            ApplySelectGameBiz(message.GameBiz);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Select game biz {GameBiz}.", message.GameBiz);
+        }
+    }
+
+
+
+    /// <summary>
+    /// 切到指定游戏区服对应的固定图标；没固定这个游戏时不动。
+    /// </summary>
+    /// <param name="target">要切到的游戏区服。</param>
+    private void ApplySelectGameBiz(GameBiz target)
+    {
+        GameBiz current = CurrentGameIcon?.GameId.GameBiz ?? default;
+        GameBiz resolved = SelectGameBizMessage.ResolveTarget(current, target);
+        if (PinnedGameIcons.FirstOrDefault(x => x.GameId.GameBiz == resolved) is PinnedGameIcon icon)
+        {
+            SelectGameIcon(icon);
+        }
+        else
+        {
+            _logger.LogWarning("Game {GameBiz} is not pinned; notification switch skipped.", resolved);
+        }
+    }
+
+
+
+    /// <summary>
+    /// 应用点击系统通知时记下的目标游戏；主窗口建好后才调用。
+    /// </summary>
+    /// <param name="clearIfMissing">图标补全后仍找不到目标时清掉记录，避免之后突然切过去。</param>
+    private void TryApplyPendingSelectGameBiz(bool clearIfMissing)
+    {
+        if (App.PeekPendingSelectGameBiz() is not { } pending)
+        {
+            return;
+        }
+        GameBiz current = CurrentGameIcon?.GameId.GameBiz ?? default;
+        GameBiz target = SelectGameBizMessage.ResolveTarget(current, pending);
+        if (PinnedGameIcons.FirstOrDefault(x => x.GameId.GameBiz == target) is not PinnedGameIcon icon)
+        {
+            if (clearIfMissing)
+            {
+                App.ConsumePendingSelectGameBiz();
+                _logger.LogWarning("Pending game {GameBiz} is not pinned; notification switch skipped.", target);
+            }
+            return;
+        }
+        App.ConsumePendingSelectGameBiz();
+        SelectGameIcon(icon);
+    }
+
+
+
+    /// <summary>
+    /// 选中一个固定游戏图标：与单击图标的观感一致，并保存当前游戏设置。
+    /// </summary>
+    /// <param name="icon">要选中的图标。</param>
+    private void SelectGameIcon(PinnedGameIcon icon)
+    {
+        if (icon == CurrentGameIcon)
+        {
+            return;
+        }
+        CurrentGameIcon?.IsSelected = false;
+        CurrentGameIcon = icon;
+        icon.IsSelected = true;
+        CurrentGameChanged?.Invoke(this, icon);
+        AppConfig.CurrentGameId = icon.GameId.Id;
+    }
+
+
+
+    /// <summary>
     /// 待选游戏变更时，保存配置
     /// </summary>
     /// <param name="sender"></param>
@@ -224,12 +321,7 @@ public sealed partial class GameSwitcher : UserControl
     {
         if (sender is FrameworkElement fe && fe.DataContext is PinnedGameIcon icon)
         {
-            CurrentGameIcon?.IsSelected = false;
-            CurrentGameIcon = icon;
-            icon.IsSelected = true;
-
-            CurrentGameChanged?.Invoke(this, icon);
-            AppConfig.CurrentGameId = icon.GameId.Id;
+            SelectGameIcon(icon);
         }
     }
 

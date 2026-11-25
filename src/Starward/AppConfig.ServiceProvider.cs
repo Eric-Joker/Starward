@@ -1,4 +1,4 @@
-﻿using Microsoft.Data.Sqlite;
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
@@ -23,6 +23,7 @@ using Starward.Features.GameInstall;
 using Starward.Features.GameLauncher;
 using Starward.Features.GameRecord;
 using Starward.Features.GameRecord.BH3;
+using Starward.Features.GameRecord.DailyNote.Notify;
 using Starward.Features.GameRecord.Genshin;
 using Starward.Features.GameRecord.StarRail;
 using Starward.Features.GameRecord.ZZZ;
@@ -126,6 +127,10 @@ public static partial class AppConfig
         sc.AddSingleton<GameRecordStarRailService>();
         sc.AddSingleton<GameRecordZZZService>();
         sc.AddSingleton<WindowsDeviceFpService>();
+
+        // 实时便笺提醒：常驻检查各账号便笺，达到阈值时发 Windows 系统通知。
+        sc.AddSingleton<DailyNoteNotifyService>();
+
         sc.AddSingleton<PassportClient>();
         sc.AddSingleton<PassportService>();
 

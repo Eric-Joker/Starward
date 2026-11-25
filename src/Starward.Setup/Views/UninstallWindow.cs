@@ -1,4 +1,4 @@
-﻿using Aprillz.MewUI;
+using Aprillz.MewUI;
 using Aprillz.MewUI.Controls;
 using Starward.Setup.Locale;
 using Starward.Setup.Services;
@@ -292,6 +292,7 @@ public class UninstallWindow : WindowBase
 
                 RegistryHelper.DeleteUninstallInfo();
                 RegistryHelper.DeleteUrlProtocol();
+                RegistryHelper.DeleteNotificationRegistrations();
                 RegistryHelper.DeleteRegistrySetting();
 
                 ClearShortcut();

@@ -2,7 +2,9 @@ using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.Windows.AppLifecycle;
+using Starward.Core;
 using Starward.Features.Database;
+using Starward.Features.GameSelector;
 using Starward.Features.GamepadControl;
 using Starward.Features.Passport;
 using Starward.Features.Setting;
@@ -119,6 +121,67 @@ public partial class App : Application
 
     private SystemTrayWindow m_SystemTrayWindow;
 
+
+
+    /// <summary>
+    /// 点击系统通知后要切到的游戏；本分支的游戏切换器在主窗口里创建，所以先记在这里，等它初始化时取走。
+    /// 只在主窗口还没建好时用（见 <see cref="EnsureMainWindow(GameBiz?)"/>）。
+    /// </summary>
+    private static GameBiz? _pendingSelectGameBiz;
+
+
+    /// <summary>
+    /// 打开主窗口并切到指定游戏（点击系统通知时）。主窗口还没建时先记下目标游戏，建好后游戏切换器按它切换；
+    /// 已建好时发 <see cref="SelectGameBizMessage"/> 让游戏切换器切换。
+    /// </summary>
+    /// <param name="biz">要切到的游戏区服；为空或无法识别时只打开主窗口。</param>
+    public void EnsureMainWindow(GameBiz? biz)
+    {
+        if (biz is { } target && target.IsKnown())
+        {
+            if (m_MainWindow is null)
+            {
+                _pendingSelectGameBiz = target;
+            }
+            else
+            {
+                WeakReferenceMessenger.Default.Send(new SelectGameBizMessage(target));
+            }
+        }
+        EnsureMainWindow();
+    }
+
+
+    /// <summary>
+    /// 主窗口还没建好时，把点击系统通知要切到的游戏记下来。由通知激活进程在 XAML 启动前设置。
+    /// </summary>
+    /// <param name="biz">要切到的游戏区服。</param>
+    public static void SetPendingSelectGameBiz(GameBiz biz)
+    {
+        _pendingSelectGameBiz = biz;
+    }
+
+
+    /// <summary>
+    /// 查看待切换的游戏，不移除；游戏切换器初始化与图标异步补全时用它重试。
+    /// </summary>
+    /// <returns>待切换的游戏区服；没有时返回 <see langword="null"/>。</returns>
+    public static GameBiz? PeekPendingSelectGameBiz()
+    {
+        return _pendingSelectGameBiz;
+    }
+
+
+    /// <summary>
+    /// 取走待切换的游戏。游戏切换器每轮只切一次，避免主窗口重建时又切一遍。
+    /// </summary>
+    /// <returns>待切换的游戏区服；没有时返回 <see langword="null"/>。</returns>
+    public static GameBiz? ConsumePendingSelectGameBiz()
+    {
+        GameBiz? biz = _pendingSelectGameBiz;
+        _pendingSelectGameBiz = null;
+        return biz;
+    }
 
 
     public void EnsureMainWindow()

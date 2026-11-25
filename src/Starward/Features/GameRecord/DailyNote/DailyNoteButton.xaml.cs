@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Microsoft.UI.Xaml;
@@ -11,6 +11,7 @@ using Starward.Core.GameRecord.StarRail.DailyNote;
 using Starward.Core.GameRecord.ZZZ.DailyNote;
 using Starward.Core.HoYoPlay;
 using Starward.Features.GameRecord.BH3;
+using Starward.Features.GameRecord.DailyNote.Notify;
 using Starward.Features.GameRecord.Genshin;
 using Starward.Features.GameRecord.StarRail;
 using Starward.Features.GameRecord.ZZZ;
@@ -36,6 +37,9 @@ public sealed partial class DailyNoteButton : UserControl
     private readonly GameRecordZZZService _gameRecordZZZService = AppConfig.GetService<GameRecordZZZService>();
 
     private readonly GameRecordRoleService _gameRecordRoleService = AppConfig.GetService<GameRecordRoleService>();
+
+
+    private readonly DailyNoteNotifyService _dailyNoteNotifyService = AppConfig.GetService<DailyNoteNotifyService>();
 
 
     public DailyNoteButton()
@@ -146,6 +150,8 @@ public sealed partial class DailyNoteButton : UserControl
                 {
                     ZZZDailyNote = await GetDailyNoteWithRetryAsync(role, () => _gameRecordZZZService.GetZZZDailyNoteAsync(role, forceUpdate.Value));
                 }
+                // 交给便笺提醒判定，免得后台为同一份数据再请求一次
+                _dailyNoteNotifyService.ReportSnapshot(GameRecordRole, GetCurrentDailyNote());
             }
         }
         catch (Exception ex)
@@ -158,6 +164,53 @@ public sealed partial class DailyNoteButton : UserControl
         }
     }
 
+
+
+
+
+    /// <summary>
+    /// 打开「提醒设置」对话框，默认选中首页便笺正在显示的账号。先收起浮层，对话框与浮层不叠在一起。
+    /// </summary>
+    [RelayCommand]
+    private async Task OpenNotifySettingsAsync()
+    {
+        XamlRoot xamlRoot = this.XamlRoot;
+        Button_DailyNote.Flyout?.Hide();
+        try
+        {
+            await new DailyNoteNotifyDialog { InitialRole = GameRecordRole, XamlRoot = xamlRoot }.ShowAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Open daily note notify dialog failed.");
+        }
+    }
+
+
+    /// <summary>
+    /// 当前游戏已加载的便笺。
+    /// </summary>
+    /// <returns>便笺对象；未加载时为 null。</returns>
+    private object? GetCurrentDailyNote()
+    {
+        if (IsGenshinEnabled)
+        {
+            return GenshinDailyNote;
+        }
+        if (IsStarRailEnabled)
+        {
+            return StarRailDailyNote;
+        }
+        if (IsZZZEnabled)
+        {
+            return ZZZDailyNote;
+        }
+        if (IsBH3Enabled)
+        {
+            return BH3DailyNote;
+        }
+        return null;
+    }
 
 
 

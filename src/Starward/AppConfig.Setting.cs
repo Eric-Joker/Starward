@@ -759,6 +759,26 @@ public static partial class AppConfig
     }
 
 
+    /// <summary>
+    /// 实时便笺提醒的检查间隔（分钟）。预计更早到点的项目会提前检查，与此无关。
+    /// </summary>
+    public static int DailyNoteNotifyIntervalMinutes
+    {
+        get => GetValue(60);
+        set => SetValue(value);
+    }
+
+
+    /// <summary>
+    /// 有游戏在运行时，便笺提醒不弹出横幅，直接进通知中心。默认开启。
+    /// </summary>
+    public static bool DailyNoteNotifySilentWhenGameRunning
+    {
+        get => GetValue(true);
+        set => SetValue(value);
+    }
+
+
     #endregion
 
 
