@@ -99,7 +99,6 @@ public sealed partial class MainView : UserControl
         CheckSystemProxy();
         HotkeyManager.InitializeHotkey(this.XamlRoot.GetWindowHandle());
         _ = CheckUpdateOrShowRecentUpdateContentAsync();
-        LogUploadService.Start();
         if (AppConfig.EnableGamepadController)
         {
             await Task.Delay(1000);

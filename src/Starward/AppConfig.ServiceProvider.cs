@@ -144,8 +144,6 @@ public static partial class AppConfig
         sc.AddSingleton<GameAccountService>();
 
         sc.AddSingleton<ScreenCaptureService>();
-
-        sc.AddHttpClient<LogUploadClient>().ConfigStarwardHttpClient();
     }
 
 
