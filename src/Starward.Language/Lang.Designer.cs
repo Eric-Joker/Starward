@@ -9350,5 +9350,293 @@ namespace Starward.Language {
             }
         }
 
+        /// <summary>
+        ///   查找类似 Day {0} 的本地化字符串。
+        /// </summary>
+        public static string AutoRecordRefresh_DayOfMonthFormat {
+            get {
+                return ResourceManager.GetString("AutoRecordRefresh_DayOfMonthFormat", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Days 的本地化字符串。
+        /// </summary>
+        public static string AutoRecordRefresh_Days {
+            get {
+                return ResourceManager.GetString("AutoRecordRefresh_Days", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Enable auto update 的本地化字符串。
+        /// </summary>
+        public static string AutoRecordRefresh_Enable {
+            get {
+                return ResourceManager.GetString("AutoRecordRefresh_Enable", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Update current month 的本地化字符串。
+        /// </summary>
+        public static string AutoRecordRefresh_EnableCurrentMonth {
+            get {
+                return ResourceManager.GetString("AutoRecordRefresh_EnableCurrentMonth", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Update previous month 的本地化字符串。
+        /// </summary>
+        public static string AutoRecordRefresh_EnablePreviousMonth {
+            get {
+                return ResourceManager.GetString("AutoRecordRefresh_EnablePreviousMonth", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Errors 的本地化字符串。
+        /// </summary>
+        public static string AutoRecordRefresh_Errors {
+            get {
+                return ResourceManager.GetString("AutoRecordRefresh_Errors", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Accounts and data sections skipped during auto update. The code and message come from HoYoLAB as they are. 的本地化字符串。
+        /// </summary>
+        public static string AutoRecordRefresh_ErrorsDescription {
+            get {
+                return ResourceManager.GetString("AutoRecordRefresh_ErrorsDescription", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Frequency 的本地化字符串。
+        /// </summary>
+        public static string AutoRecordRefresh_Frequency {
+            get {
+                return ResourceManager.GetString("AutoRecordRefresh_Frequency", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Last update 的本地化字符串。
+        /// </summary>
+        public static string AutoRecordRefresh_LastUpdate {
+            get {
+                return ResourceManager.GetString("AutoRecordRefresh_LastUpdate", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Every few days 的本地化字符串。
+        /// </summary>
+        public static string AutoRecordRefresh_ModeEveryDays {
+            get {
+                return ResourceManager.GetString("AutoRecordRefresh_ModeEveryDays", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Monthly 的本地化字符串。
+        /// </summary>
+        public static string AutoRecordRefresh_ModeMonthly {
+            get {
+                return ResourceManager.GetString("AutoRecordRefresh_ModeMonthly", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Weekly 的本地化字符串。
+        /// </summary>
+        public static string AutoRecordRefresh_ModeWeekly {
+            get {
+                return ResourceManager.GetString("AutoRecordRefresh_ModeWeekly", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Current month 的本地化字符串。
+        /// </summary>
+        public static string AutoRecordRefresh_MonthCurrent {
+            get {
+                return ResourceManager.GetString("AutoRecordRefresh_MonthCurrent", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Previous month 的本地化字符串。
+        /// </summary>
+        public static string AutoRecordRefresh_MonthPrevious {
+            get {
+                return ResourceManager.GetString("AutoRecordRefresh_MonthPrevious", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Month 的本地化字符串。
+        /// </summary>
+        public static string AutoRecordRefresh_MonthTarget {
+            get {
+                return ResourceManager.GetString("AutoRecordRefresh_MonthTarget", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Never 的本地化字符串。
+        /// </summary>
+        public static string AutoRecordRefresh_NeverUpdated {
+            get {
+                return ResourceManager.GetString("AutoRecordRefresh_NeverUpdated", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Next update 的本地化字符串。
+        /// </summary>
+        public static string AutoRecordRefresh_NextUpdate {
+            get {
+                return ResourceManager.GetString("AutoRecordRefresh_NextUpdate", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 No errors 的本地化字符串。
+        /// </summary>
+        public static string AutoRecordRefresh_NoErrors {
+            get {
+                return ResourceManager.GetString("AutoRecordRefresh_NoErrors", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Auto update 的本地化字符串。
+        /// </summary>
+        public static string AutoRecordRefresh_Title {
+            get {
+                return ResourceManager.GetString("AutoRecordRefresh_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Stored Encounter Points 的本地化字符串。
+        /// </summary>
+        public static string DailyNoteButton_Genshin_StoredEncounterPoints {
+            get {
+                return ResourceManager.GetString("DailyNoteButton_Genshin_StoredEncounterPoints", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Weekly Bosses Remaining 的本地化字符串。
+        /// </summary>
+        public static string DailyNoteButton_Genshin_WeeklyBossRemaining {
+            get {
+                return ResourceManager.GetString("DailyNoteButton_Genshin_WeeklyBossRemaining", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Parametric Transformer 的本地化字符串。
+        /// </summary>
+        public static string DailyNoteButton_Genshin_ParametricTransformer {
+            get {
+                return ResourceManager.GetString("DailyNoteButton_Genshin_ParametricTransformer", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Ready 的本地化字符串。
+        /// </summary>
+        public static string DailyNoteButton_Genshin_TransformerReady {
+            get {
+                return ResourceManager.GetString("DailyNoteButton_Genshin_TransformerReady", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 {0}d remaining 的本地化字符串。
+        /// </summary>
+        public static string TimeNode_RemainingDays {
+            get {
+                return ResourceManager.GetString("TimeNode_RemainingDays", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 {0}h remaining 的本地化字符串。
+        /// </summary>
+        public static string TimeNode_RemainingHours {
+            get {
+                return ResourceManager.GetString("TimeNode_RemainingHours", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 {0}m remaining 的本地化字符串。
+        /// </summary>
+        public static string TimeNode_RemainingMinutes {
+            get {
+                return ResourceManager.GetString("TimeNode_RemainingMinutes", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Trial 的本地化字符串。
+        /// </summary>
+        public static string ImaginariumTheaterPage_TrialCharacter {
+            get {
+                return ResourceManager.GetString("ImaginariumTheaterPage_TrialCharacter", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Support 的本地化字符串。
+        /// </summary>
+        public static string ImaginariumTheaterPage_SupportingCastCharacter {
+            get {
+                return ResourceManager.GetString("ImaginariumTheaterPage_SupportingCastCharacter", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Rank data fetched at {0} 的本地化字符串。
+        /// </summary>
+        public static string DeadlyAssaultPage_RankFetchTime {
+            get {
+                return ResourceManager.GetString("DeadlyAssaultPage_RankFetchTime", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Rank data fetched at {0} 的本地化字符串。
+        /// </summary>
+        public static string ShiyuDefensePage_RankFetchTime {
+            get {
+                return ResourceManager.GetString("ShiyuDefensePage_RankFetchTime", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Desperate 的本地化字符串。
+        /// </summary>
+        public static string DeadlyAssaultPage_HardMode {
+            get {
+                return ResourceManager.GetString("DeadlyAssaultPage_HardMode", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Normal 的本地化字符串。
+        /// </summary>
+        public static string DeadlyAssaultPage_NormalMode {
+            get {
+                return ResourceManager.GetString("DeadlyAssaultPage_NormalMode", resourceCulture);
+            }
+        }
+        
     }
 }
