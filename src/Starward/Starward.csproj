@@ -84,6 +84,11 @@
 		<Content Update="Assets\**">
 			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</Content>
+		<!--  main 时代的几张图标不在 0.19 的 Starward.Assets 资源包里，随仓库放在 Assets 下；
+		      显式 Include 一次，保证它们和资源包里的图片一样被复制到输出目录。  -->
+		<Content Include="Assets\Image\signin_*.png;Assets\Image\icon_map_*.png">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</Content>
 	</ItemGroup>
 
 	<Target Name="RemoveDlls" AfterTargets="Publish">
