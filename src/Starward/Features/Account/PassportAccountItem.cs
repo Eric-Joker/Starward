@@ -1,3 +1,6 @@
+using Microsoft.UI.Xaml;
+using Starward.Core;
+
 namespace Starward.Features.Account;
 
 /// <summary>
@@ -31,6 +34,42 @@ public class PassportAccountItem
 
     /// <summary>米游社头像，取不到时是通用图标，不会为空。</summary>
     public string AvatarUrl { get; set; } = DefaultAvatarUrl;
+
+
+    /// <summary>米游社头像框，没有时为空，界面不会显示。</summary>
+    public string? Pendant { get; set; }
+
+
+    /// <summary>服务器区域，见 <see cref="ServerRegion"/>：国服或国际服。</summary>
+    public ServerRegion Region { get; set; } = ServerRegion.miHoYo;
+
+
+    /// <summary>登录时使用的账号名（手机号 / 通行证 ID），重新登录时用来预填输入框。</summary>
+    public string? LoginName { get; set; }
+
+
+    /// <summary>本地保存的登录凭据已经失效，需要重新登录；界面上显示警告红点。</summary>
+    public bool IsExpired { get; set; }
+
+
+    /// <summary>头像上的警告红点，登录失效时显示。</summary>
+    public Visibility AlertVisibility => IsExpired ? Visibility.Visible : Visibility.Collapsed;
+
+
+    /// <summary>账号行里的“重新登录”入口，登录失效时显示。</summary>
+    public Visibility ExpiredRowVisibility => IsExpired ? Visibility.Visible : Visibility.Collapsed;
+
+
+    /// <summary>头像框，没有时不显示。</summary>
+    public Visibility PendantVisibility => string.IsNullOrWhiteSpace(Pendant) ? Visibility.Collapsed : Visibility.Visible;
+
+
+    /// <summary>区域标签只在国际服账号上显示，国服账号不占位置。</summary>
+    public Visibility IntlTagVisibility => Region is ServerRegion.HoYoverse ? Visibility.Visible : Visibility.Collapsed;
+
+
+    /// <summary>区域文字：国服 / 国际服。</summary>
+    public string RegionText => Region is ServerRegion.HoYoverse ? Lang.PassportLogin_RegionGlobal : Lang.PassportLogin_RegionChina;
 
 
 }

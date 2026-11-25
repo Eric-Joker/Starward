@@ -217,6 +217,11 @@ internal class PassportAccountService
         if (tokenSet is not null)
         {
             TrySaveAccountRecord(tokenSet);
+            // 刚写入的令牌是有效的：把这个账号从“登录已失效”里移掉，界面上的红点跟着消失。
+            lock (_lock)
+            {
+                _expiredAccountKeys.Remove(PassportAccountRecord.GetKey(tokenSet));
+            }
             // 让上游 MainView / 自动登录读到的 PassportUserInfo 与账号池保持一致。
             SyncAccountToPassportUserInfo(tokenSet);
             if (tokenSet.Aid > 0)
@@ -1188,13 +1193,14 @@ internal class PassportAccountService
     /// 手动刷新账号池里所有账号的凭据。
     /// <para>
     /// 只对确实到期的账号发请求：SToken 超过 6 小时没有校验、派生令牌缺失或者超过 30 天。
-    /// 返回（已刷新的账号数，登录已失效的账号数）。
+    /// 返回（已刷新的账号数，登录已失效的账号数，登录已失效的账号标识）。
+    /// 失效的账号标识供账号中心在对应账号上显示警告红点。
     /// </para>
     /// </summary>
-    public async Task<(int Refreshed, int Expired)> RefreshAllAccountsAsync(CancellationToken cancellationToken = default)
+    public async Task<(int Refreshed, int Expired, IReadOnlyList<string> ExpiredKeys)> RefreshAllAccountsAsync(CancellationToken cancellationToken = default)
     {
         int refreshed = 0;
-        int expired = 0;
+        var expiredKeys = new List<string>();
         try
         {
             await PrepareDeviceAsync(cancellationToken);
@@ -1219,7 +1225,17 @@ internal class PassportAccountService
                 }
                 else
                 {
-                    expired++;
+                    expiredKeys.Add(record.Key);
+                }
+            }
+            if (expiredKeys.Count > 0)
+            {
+                lock (_lock)
+                {
+                    foreach (string key in expiredKeys)
+                    {
+                        _expiredAccountKeys.Add(key);
+                    }
                 }
             }
             _accountItems = null;
@@ -1229,7 +1245,153 @@ internal class PassportAccountService
         {
             _logger.LogError(ex, "Refresh all passport accounts");
         }
-        return (refreshed, expired);
+        return (refreshed, expiredKeys.Count, expiredKeys);
+    }
+
+
+
+
+    /// <summary>
+    /// 校验账号池里所有账号的登录状态（强制向服务端校验一次 SToken），返回登录已失效的账号标识。
+    /// <para>
+    /// 账号中心每次打开时在后台跑一次：不需要用户手动点“刷新信息”也能看到哪个账号失效了。
+    /// 只校验会话本身，不换取派生令牌，请求量按账号数计。
+    /// </para>
+    /// </summary>
+    public async Task<IReadOnlyList<string>> VerifyAllAccountsAsync(CancellationToken cancellationToken = default)
+    {
+        var expiredKeys = new List<string>();
+        try
+        {
+            await PrepareDeviceAsync(cancellationToken);
+            foreach (var record in QueryAccountRecords())
+            {
+                var tokenSet = DecryptTokenSet(record);
+                if (tokenSet?.HasStoken is not true || tokenSet.Aid <= 0 || string.IsNullOrWhiteSpace(tokenSet.Mid))
+                {
+                    continue;
+                }
+                if (await RefreshAccountAsync(tokenSet, needVerify: true, needDerived: false, cancellationToken))
+                {
+                    SaveTokenSetOrRecord(tokenSet);
+                }
+                else
+                {
+                    expiredKeys.Add(record.Key);
+                }
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    break;
+                }
+            }
+            lock (_lock)
+            {
+                _expiredAccountKeys.Clear();
+                foreach (string key in expiredKeys)
+                {
+                    _expiredAccountKeys.Add(key);
+                }
+            }
+            _accountItems = null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Verify all passport accounts");
+        }
+        return expiredKeys;
+    }
+
+
+
+
+    /// <summary>
+    /// 强制刷新账号池里每个账号的米游社资料（昵称、头像、头像框），返回刷新成功的账号数。
+    /// <para>
+    /// 账号中心“刷新信息”按钮用：资料写在 <c>GameRecordUser</c> 表里，账号列表与工具箱共用。
+    /// 国际服账号只更新资料，不做工具箱同步。
+    /// </para>
+    /// </summary>
+    public async Task<int> RefreshAccountUserInfosAsync(CancellationToken cancellationToken = default)
+    {
+        int refreshed = 0;
+        try
+        {
+            foreach (var record in QueryOrderedAccountRecords())
+            {
+                var tokenSet = DecryptTokenSet(record);
+                if (tokenSet?.HasStoken is not true || tokenSet.Aid <= 0)
+                {
+                    continue;
+                }
+                string? cookie = tokenSet.CreateToolboxCookie();
+                if (string.IsNullOrWhiteSpace(cookie))
+                {
+                    continue;
+                }
+                var user = await AddOrUpdateRecordUserAsync(tokenSet, cookie, cancellationToken);
+                if (user is null)
+                {
+                    continue;
+                }
+                if (!string.IsNullOrWhiteSpace(user.Nickname) && user.Nickname != tokenSet.Nickname)
+                {
+                    tokenSet.Nickname = user.Nickname;
+                    SaveTokenSetOrRecord(tokenSet);
+                }
+                refreshed++;
+            }
+            _accountItems = null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Refresh the profile of the passport accounts");
+        }
+        return refreshed;
+    }
+
+
+
+
+    /// <summary>
+    /// 保存用户在导入令牌时提供的设备标识（<c>x-rpc-device_id</c>）。
+    /// <para>
+    /// 服务端只认账号已经登记过的那一枚设备号，所以这里只接受用户从浏览器请求头抄来的 GUID，
+    /// 写入设备信息后立即对后续通行证请求生效，不做任何自动获取 / 登记。
+    /// </para>
+    /// </summary>
+    /// <returns>写入成功返回 true；格式不合法返回 false。</returns>
+    public bool SaveDeviceId(string? deviceId)
+    {
+        deviceId = deviceId?.Trim();
+        if (string.IsNullOrWhiteSpace(deviceId) || !Guid.TryParse(deviceId, out Guid parsed))
+        {
+            return false;
+        }
+        deviceId = parsed.ToString("D");
+        try
+        {
+            AndroidDeviceInfo? info = _deviceInfo;
+            if (info is null && !string.IsNullOrWhiteSpace(AppConfig.AndroidDeviceInfo))
+            {
+                try
+                {
+                    info = JsonSerializer.Deserialize<AndroidDeviceInfo>(AppConfig.AndroidDeviceInfo, DeviceFpJsonContext.Default.AndroidDeviceInfo);
+                }
+                catch { }
+            }
+            info ??= AndroidDeviceInfo.CreateRandom();
+            info.BbsDeviceId = deviceId;
+            AppConfig.AndroidDeviceInfo = JsonSerializer.Serialize(info, DeviceFpJsonContext.Default.AndroidDeviceInfo);
+            _deviceInfo = info;
+            _client.DeviceId = deviceId;
+            _logger.LogInformation("Device id (x-rpc-device_id) set to {DeviceId}.", deviceId);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Save the device id");
+            return false;
+        }
     }
 
 
@@ -1391,6 +1553,13 @@ internal class PassportAccountService
     private IReadOnlyList<PassportAccountItem>? _accountItems;
 
 
+    /// <summary>
+    /// 登录已经失效的账号标识。由 <see cref="RefreshAllAccountsAsync"/> / <see cref="VerifyAllAccountsAsync"/>
+    /// 维护，账号中心据此在对应账号上显示警告红点；本地重新登录成功后自动移除。
+    /// </summary>
+    private readonly HashSet<string> _expiredAccountKeys = new();
+
+
 
 
     /// <summary>
@@ -1420,12 +1589,21 @@ internal class PassportAccountService
                 {
                     continue;
                 }
+                bool isExpired;
+                lock (_lock)
+                {
+                    isExpired = _expiredAccountKeys.Contains(record.Key);
+                }
                 list.Add(new PassportAccountItem
                 {
                     Key = record.Key,
                     DisplayName = tokenSet.DisplayName ?? Lang.PassportLogin_UnknownAccount,
                     Detail = GetAccountIdText(tokenSet),
                     AvatarUrl = GetAccountAvatarUrl(tokenSet.Aid) ?? PassportAccountItem.DefaultAvatarUrl,
+                    Pendant = GetAccountPendant(tokenSet.Aid, tokenSet.Region),
+                    Region = tokenSet.Region,
+                    LoginName = string.IsNullOrWhiteSpace(tokenSet.AccountName) ? tokenSet.Mid : tokenSet.AccountName,
+                    IsExpired = isExpired,
                 });
             }
             _accountItems = list;
@@ -1610,6 +1788,10 @@ internal class PassportAccountService
                 return false;
             }
             _accountItems = null;
+            lock (_lock)
+            {
+                _expiredAccountKeys.Remove(key);
+            }
             RemovePassportUserInfoRow(tokenSet);
             var current = TokenSet;
             if (current?.HasStoken is true && PassportAccountRecord.GetKey(current) == key)
@@ -2013,6 +2195,19 @@ internal class PassportAccountService
         }
         return GameRecordRoleService.GetRecordUser(aid, false)?.AvatarUrl
             ?? GameRecordRoleService.GetRecordUser(aid, true)?.AvatarUrl;
+    }
+
+
+
+
+    /// <summary>账号的头像框取自米游社工具箱里同一个账号的资料，没有时返回 null。</summary>
+    private static string? GetAccountPendant(long aid, ServerRegion region)
+    {
+        if (aid <= 0)
+        {
+            return null;
+        }
+        return GameRecordRoleService.GetRecordUser(aid, region is ServerRegion.HoYoverse)?.Pendant;
     }
 
 

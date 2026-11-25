@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8" ?>
+<?xml version="1.0" encoding="utf-8" ?>
 <UserControl x:Class="Starward.Features.ViewHost.MainView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -7,6 +7,7 @@
              xmlns:local="using:Starward.Features.ViewHost"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:sc="using:Starward.Controls"
+             xmlns:sfa="using:Starward.Features.Account"
              xmlns:sfb="using:Starward.Features.Background"
              xmlns:sfg="using:Starward.Features.GameSelector"
              xmlns:sfp="using:Starward.Features.Passport"
@@ -141,18 +142,79 @@
                 </NavigationViewItem>
             </NavigationView.MenuItems>
 
-            <!--  通行证  -->
+            <!--  账号：上面是账号中心（米哈游账号池），下面是上游 0.19 的 HYP 通行证入口  -->
             <NavigationView.PaneFooter>
-                <Border Width="56"
-                        Height="48"
-                        Background="Transparent">
-                    <Button Width="48"
+                <StackPanel Width="56" Spacing="4">
+                    <!--
+                        账号中心：国服通行证的密码 / 短信 / 扫码 / 令牌导入，以及国际服的 HYP 网页登录。
+                        外显是账号池里至多三个账号头像的叠影，一个账号都没有时退回通用图标。
+                    -->
+                    <Button x:Name="Button_Account"
+                            Width="56"
                             Height="40"
                             Padding="0"
                             HorizontalAlignment="Center"
                             VerticalAlignment="Center"
+                            BorderThickness="0"
                             Style="{ThemeResource DateTimePickerFlyoutButtonStyle}"
-                            Visibility="{x:Bind CurrentLauncherConfig.CanLogin, FallbackValue=Collapsed, Converter={StaticResource BoolToVisibilityConverter}}">
+                            Visibility="Collapsed">
+                        <Button.Flyout>
+                            <Flyout x:Name="Flyout_Account"
+                                    Closed="Flyout_Account_Closed"
+                                    Opening="Flyout_Account_Opening"
+                                    Placement="RightEdgeAlignedBottom">
+                                <Flyout.FlyoutPresenterStyle>
+                                    <Style BasedOn="{StaticResource DefaultFlyoutPresenterStyle}" TargetType="FlyoutPresenter">
+                                        <Setter Property="Background" Value="{ThemeResource CustomAcrylicBrush}" />
+                                        <Setter Property="BorderThickness" Value="0" />
+                                        <Setter Property="Padding" Value="0" />
+                                        <Setter Property="CornerRadius" Value="12" />
+                                    </Style>
+                                </Flyout.FlyoutPresenterStyle>
+                                <sfa:AccountCenterPanel x:Name="Panel_AccountCenter" />
+                            </Flyout>
+                        </Button.Flyout>
+
+                        <Grid x:Name="Grid_AccountAvatars"
+                              Width="46"
+                              Height="30"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center">
+                            <!--  后画的盖住先画的，所以最右边的写在最前面、最上层的写在最后  -->
+                            <sc:CachedImage x:Name="Image_AccountAvatar_3"
+                                            Width="30"
+                                            Height="30"
+                                            HorizontalAlignment="Left"
+                                            CornerRadius="100" />
+                            <sc:CachedImage x:Name="Image_AccountAvatar_2"
+                                            Width="30"
+                                            Height="30"
+                                            HorizontalAlignment="Left"
+                                            CornerRadius="100" />
+                            <sc:CachedImage x:Name="Image_AccountAvatar_1"
+                                            Width="30"
+                                            Height="30"
+                                            HorizontalAlignment="Left"
+                                            CornerRadius="100" />
+                            <!--  一个账号都没有的时候用通用图标，不使用任何官方素材  -->
+                            <FontIcon x:Name="Glyph_Account"
+                                      FontSize="18"
+                                      Glyph="&#xE77B;" />
+                        </Grid>
+                    </Button>
+
+                    <!--  上游 0.19 的 HYP 通行证：展示 / 失效红点 / 登出 / 授权登录保持不变  -->
+                    <Border Width="56"
+                            Height="48"
+                            Background="Transparent">
+                        <Button x:Name="Button_HypAccount"
+                                Width="48"
+                                Height="40"
+                                Padding="0"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Style="{ThemeResource DateTimePickerFlyoutButtonStyle}"
+                                Visibility="{x:Bind CurrentLauncherConfig.CanLogin, FallbackValue=Collapsed, Converter={StaticResource BoolToVisibilityConverter}}">
                         <Grid>
                             <FontIcon FontSize="16"
                                       Glyph="&#xE77B;"
@@ -189,7 +251,15 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
 
-                                    <StackPanel Margin="0,20,0,0" VerticalAlignment="Center">
+                                    <StackPanel Margin="0,12,0,0" VerticalAlignment="Center">
+                                        <!--  国服 / 国际服：HYP 登录跟随当前启动器配置的服务器区域  -->
+                                        <TextBlock Margin="0,0,0,8"
+                                                   HorizontalAlignment="Center"
+                                                   FontSize="11"
+                                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                                   IsTextScaleFactorEnabled="False"
+                                                   Text="{x:Bind CurrentPassportRegionText, FallbackValue=''}"
+                                                   TextAlignment="Center" />
                                         <!--  头像  -->
                                         <Grid>
                                             <sc:CachedImage Width="64"
@@ -348,8 +418,9 @@
                                 </Grid>
                             </Flyout>
                         </Button.Flyout>
-                    </Button>
-                </Border>
+                        </Button>
+                    </Border>
+                </StackPanel>
             </NavigationView.PaneFooter>
 
             <Frame Name="MainView_Frame" Margin="0,48,0,0" />
