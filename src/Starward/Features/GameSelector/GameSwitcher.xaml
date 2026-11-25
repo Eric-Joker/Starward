@@ -46,14 +46,19 @@
             </ListView.ItemContainerStyle>
             <ListView.ItemTemplate>
                 <DataTemplate x:DataType="local:PinnedGameIcon">
+                    <!--  右键 / 长按图标弹出该区服的启动预设浮窗（0.19 上游没有预设概念，见 GameSwitcher.xaml.cs）  -->
                     <Grid x:Name="Grid_GameIcon"
                           Width="40"
                           Height="40"
                           sh:PointerCursor.CursorShape="Hand"
                           CornerRadius="8"
+                          Holding="Grid_GameIcon_Holding"
+                          IsHoldingEnabled="True"
+                          IsRightTapEnabled="True"
                           IsTapEnabled="True"
                           PointerEntered="Grid_GameIcon_PointerEntered"
                           PointerExited="Grid_GameIcon_PointerExited"
+                          RightTapped="Grid_GameIcon_RightTapped"
                           Shadow="{ThemeResource ThemeShadow}"
                           Tag="{x:Bind GameId}"
                           Tapped="Grid_GameIcon_Tapped"

@@ -1,0 +1,273 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<UserControl x:Class="Starward.Features.GameLauncher.GameLaunchProfileFlyout"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:lang="using:Starward.Language"
+             xmlns:local="using:Starward.Features.GameLauncher"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             x:DefaultBindMode="OneWay"
+             mc:Ignorable="d">
+
+    <UserControl.Resources>
+        <!--  面板的排版尺度全在下面这几个值里，左右只用一个数：外框内边距 6、行高 40、
+              行间距 4、分隔线 1；预设列表、分隔线、底部按钮共用这套值。  -->
+        <Thickness x:Key="PanelPadding">6</Thickness>
+        <x:Double x:Key="RowHeight">40</x:Double>
+        <!--  预设列表和分隔线之间的留白：列表下边距 2 + 分隔线上边距 6 = 8（分隔线下面仍是 2）。  -->
+        <Thickness x:Key="ListBottomGap">0,0,0,2</Thickness>
+        <Thickness x:Key="DividerMargin">0,6,0,2</Thickness>
+        <!--  行内文字的行盒高度：按 BlockLineHeight 用这一个行盒，行盒在 40 高的行里居中，
+              文字不会再被字体自身的上/下留白顶得偏下  -->
+        <x:Double x:Key="RowLineHeight">16</x:Double>
+        <!--  预设名的左边缘要和底部按钮的文字左边缘落在同一条线上：
+              面板内边距 6 + 按钮内边距 8 + 图标 12 + 图标与文字间距 8 = 34。
+              列表整行从面板内边距 6 那条线开始，所以行内再让出 34 - 6 = 28。  -->
+        <Thickness x:Key="RowTextInset">28,0,0,0</Thickness>
+
+        <!--  预设行：整行的悬停 / 选中高亮由 ListViewItem 自己画，行内只剩一个预设名。
+              行高 40、行内左边距 28，所以文字左边就是 6 + 28 = 34 那条线，和底部按钮的文字对齐；
+              右边不留列，文字超长时在本行里省略。  -->
+        <Style x:Key="ProfileRowStyle" BasedOn="{StaticResource DefaultListViewItemStyle}" TargetType="ListViewItem">
+            <Setter Property="MinHeight" Value="{StaticResource RowHeight}" />
+            <Setter Property="Padding" Value="{StaticResource RowTextInset}" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="MinWidth" Value="0" />
+            <!--  这里只是选预设，不需要焦点框  -->
+            <Setter Property="UseSystemFocusVisuals" Value="False" />
+            <!--  文字位置只由上面的 Padding 决定：默认模板里的 ListViewItemPresenter 会在内容前
+                  塞一段「行内选择指示条」的宽度（4 左边距 + 3 宽 + 0 右边距 = 7），它按
+                  SelectionMode=Single 常驻，于是文字会比底部按钮靠右 7。选中高亮由列表项整行画，
+                  指示条用不到，直接关掉，内容就从列首开始排。  -->
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListViewItem">
+                        <ListViewItemPresenter HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                               VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                                               CheckMode="{ThemeResource ListViewItemCheckMode}"
+                                               ContentMargin="{TemplateBinding Padding}"
+                                               ContentTransitions="{TemplateBinding ContentTransitions}"
+                                               Control.IsTemplateFocusTarget="True"
+                                               CornerRadius="{ThemeResource ListViewItemCornerRadius}"
+                                               DisabledOpacity="{ThemeResource ListViewItemDisabledThemeOpacity}"
+                                               DragBackground="{ThemeResource ListViewItemDragBackground}"
+                                               DragForeground="{ThemeResource ListViewItemDragForeground}"
+                                               DragOpacity="{ThemeResource ListViewItemDragThemeOpacity}"
+                                               FocusVisualMargin="{TemplateBinding FocusVisualMargin}"
+                                               FocusVisualPrimaryBrush="{ThemeResource ListViewItemFocusVisualPrimaryBrush}"
+                                               FocusVisualPrimaryThickness="{TemplateBinding FocusVisualPrimaryThickness}"
+                                               FocusVisualSecondaryBrush="{ThemeResource ListViewItemFocusVisualSecondaryBrush}"
+                                               FocusVisualSecondaryThickness="{TemplateBinding FocusVisualSecondaryThickness}"
+                                               PlaceholderBackground="{ThemeResource ListViewItemPlaceholderBackground}"
+                                               PointerOverBackground="{ThemeResource ListViewItemBackgroundPointerOver}"
+                                               PointerOverForeground="{ThemeResource ListViewItemForegroundPointerOver}"
+                                               PressedBackground="{ThemeResource ListViewItemBackgroundPressed}"
+                                               ReorderHintOffset="{ThemeResource ListViewItemReorderHintThemeOffset}"
+                                               SelectedBackground="{ThemeResource ListViewItemBackgroundSelected}"
+                                               SelectedForeground="{ThemeResource ListViewItemForegroundSelected}"
+                                               SelectedPointerOverBackground="{ThemeResource ListViewItemBackgroundSelectedPointerOver}"
+                                               SelectedPressedBackground="{ThemeResource ListViewItemBackgroundSelectedPressed}"
+                                               SelectionCheckMarkVisualEnabled="{ThemeResource ListViewItemSelectionCheckMarkVisualEnabled}"
+                                               SelectionIndicatorVisualEnabled="False" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!--  托盘里的预设行：托盘里没有底部那颗「编辑预设 / 新增预设」按钮，行内就不用留 28 去和它对齐，
+              左右内边距收到和托盘菜单一个尺度（菜单行按钮内边距 12 + 面板内边距 6）。  -->
+        <Style x:Key="TrayProfileRowStyle" BasedOn="{StaticResource ProfileRowStyle}" TargetType="ListViewItem">
+            <Setter Property="Padding" Value="12,0,12,0" />
+        </Style>
+
+        <!--  面板背景用自己的一份亚克力画刷，不用 App.xaml 里那把共享的 CustomAcrylicBrush：
+              那个实例全应用共用，被别的窗口（托盘预设浮窗）的视觉树取到之后，
+              主窗口里同样引用它的地方（左侧导航栏、公告栏）会跟着变样（整块发白）。
+              这里的每个 UserControl 实例各拿一份，属性值和 CustomAcrylicBrush 保持一致，观感不变。  -->
+        <AcrylicBrush x:Key="PanelAcrylicBrush"
+                      FallbackColor="#F52C2C2C"
+                      TintColor="{ThemeResource ControlOnImageFillColorDefault}"
+                      TintOpacity="0.6" />
+    </UserControl.Resources>
+
+    <Grid>
+
+        <!--  预设面板：作为 Flyout 的内容时显示。
+              外框 HorizontalAlignment=Left 是关键：面板宽度只由可见的内容决定。
+              里面只声明一列，宽度 Auto：列宽 = 可见内容里最宽的那一个，面板不会平白撑到 360。
+              （Grid 不带 ColumnDefinitions 时隐含一列 *，在有界测量下会吃满可用宽度，
+              于是列表收起来时面板照样量出 360 宽、按钮拉满 348，文字贴着左边、右边空一大块。）  -->
+        <Grid x:Name="Content_FlyoutMode"
+              MaxWidth="360"
+              Padding="{StaticResource PanelPadding}"
+              HorizontalAlignment="Left"
+              Background="{StaticResource PanelAcrylicBrush}"
+              CornerRadius="8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!--  预设列表：整行（含内边距与整宽）由 ListViewItem 自己画悬停 / 选中高亮。
+                  排序和增删改名都挪到 GameLaunchProfileWindow 里，这里只负责选预设。
+                  MaxWidth = 360 - 面板左右内边距 12 = 348，文字超长时在本列里省略，
+                  面板不会为了长名字撑过 360。  -->
+            <ListView x:Name="ListView_Profiles_FlyoutMode"
+                      Grid.Row="0"
+                      MaxWidth="348"
+                      Margin="{StaticResource ListBottomGap}"
+                      Padding="0"
+                      FontSize="14"
+                      IsItemClickEnabled="True"
+                      IsTabStop="False"
+                      ItemClick="ListView_Profiles_ItemClick"
+                      ItemContainerStyle="{StaticResource ProfileRowStyle}"
+                      ItemsSource="{x:Bind Profiles, Mode=OneWay}"
+                      SelectionChanged="ListView_Profiles_SelectionChanged"
+                      SelectionMode="Single"
+                      Visibility="{x:Bind IsProfileListVisible, Mode=OneWay}">
+                <ListView.ItemTemplate>
+                    <DataTemplate x:DataType="local:GameLaunchProfile">
+                        <!--  名字的左边缘由行的 Padding 28（加面板内边距 6 = 34）定，和底部按钮的文字对齐。
+                              和编辑窗口一样用经典绑定：名字属于预设本身，改名时这一行跟着通知重读。  -->
+                        <TextBlock VerticalAlignment="Center"
+                                   AutomationProperties.Name="{Binding DisplayName, Mode=OneWay}"
+                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                   LineHeight="{StaticResource RowLineHeight}"
+                                   LineStackingStrategy="BlockLineHeight"
+                                   Text="{Binding DisplayName, Mode=OneWay}"
+                                   TextTrimming="CharacterEllipsis"
+                                   TextWrapping="NoWrap" />
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+
+            <!--  分隔线和底部按钮同处一行：分隔线自己不占行高（Height=1 加 Margin），
+                  于是列表和按钮之间的间距仍是 4，和一个行间距一致  -->
+            <StackPanel x:Name="StackPanel_Bottom_FlyoutMode"
+                        Grid.Row="1"
+                        Orientation="Vertical">
+                <!--  分隔线跟着列表一起隐藏：只有一个预设时列表不显示，这条线也不该露出来  -->
+                <Rectangle Height="1"
+                           Margin="{StaticResource DividerMargin}"
+                           Fill="{ThemeResource DividerStrokeColorDefaultBrush}"
+                           Visibility="{x:Bind IsProfileListVisible, Mode=OneWay}" />
+
+                <!--  一个按钮，两种状态：列表显示时进编辑窗口（「编辑预设」），
+                      只有一个预设时直接新增（「新增预设」）。
+                      内边距 8,0：图标左边缘 = 面板内边距 6 + 8 = 14，
+                      文字左边缘 = 14 + 图标 12 + 间距 8 = 34，和上面预设名的左边缘（6 + 28）一致；
+                      按钮 HorizontalAlignment=Stretch，右边和列表 / 分隔线一样收在面板内边距 6 上。  -->
+                <Button MinHeight="{StaticResource RowHeight}"
+                        Padding="8,0"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Left"
+                        Click="Button_AddOrEditProfile_Click"
+                        Style="{ThemeResource DateTimePickerFlyoutButtonStyle}"
+                        ToolTipService.ToolTip="{x:Bind AddOrEditProfileText, Mode=OneWay}">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon VerticalAlignment="Center"
+                                  FontSize="12"
+                                  Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                  Glyph="{x:Bind AddOrEditProfileGlyph, Mode=OneWay}"
+                                  IsHitTestVisible="False"
+                                  IsTextScaleFactorEnabled="False" />
+                        <TextBlock VerticalAlignment="Center"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   LineHeight="{StaticResource RowLineHeight}"
+                                   LineStackingStrategy="BlockLineHeight"
+                                   Text="{x:Bind AddOrEditProfileText, Mode=OneWay}"
+                                   TextTrimming="CharacterEllipsis"
+                                   TextWrapping="NoWrap" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+        </Grid>
+
+        <!--  预设面板：内嵌在游戏选择器里时显示，外框尺寸规则和上面完全一致  -->
+        <Grid x:Name="Content_PanelMode"
+              MaxWidth="360"
+              Padding="{StaticResource PanelPadding}"
+              HorizontalAlignment="Left"
+              Background="{StaticResource PanelAcrylicBrush}"
+              CornerRadius="8"
+              Visibility="Collapsed">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <ListView x:Name="ListView_Profiles_PanelMode"
+                      Grid.Row="0"
+                      MaxWidth="348"
+                      Margin="{StaticResource ListBottomGap}"
+                      Padding="0"
+                      FontSize="14"
+                      IsItemClickEnabled="True"
+                      IsTabStop="False"
+                      ItemClick="ListView_Profiles_ItemClick"
+                      ItemContainerStyle="{StaticResource ProfileRowStyle}"
+                      ItemsSource="{x:Bind Profiles, Mode=OneWay}"
+                      SelectionChanged="ListView_Profiles_SelectionChanged"
+                      SelectionMode="Single"
+                      Visibility="{x:Bind IsProfileListVisible, Mode=OneWay}">
+                <ListView.ItemTemplate>
+                    <DataTemplate x:DataType="local:GameLaunchProfile">
+                        <!--  和编辑窗口一样用经典绑定：名字属于预设本身，改名时这一行跟着通知重读。  -->
+                        <TextBlock VerticalAlignment="Center"
+                                   AutomationProperties.Name="{Binding DisplayName, Mode=OneWay}"
+                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                   LineHeight="{StaticResource RowLineHeight}"
+                                   LineStackingStrategy="BlockLineHeight"
+                                   Text="{Binding DisplayName, Mode=OneWay}"
+                                   TextTrimming="CharacterEllipsis"
+                                   TextWrapping="NoWrap" />
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+
+            <StackPanel x:Name="StackPanel_Bottom_PanelMode"
+                        Grid.Row="1"
+                        Orientation="Vertical">
+                <Rectangle Height="1"
+                           Margin="{StaticResource DividerMargin}"
+                           Fill="{ThemeResource DividerStrokeColorDefaultBrush}"
+                           Visibility="{x:Bind IsProfileListVisible, Mode=OneWay}" />
+
+                <Button MinHeight="{StaticResource RowHeight}"
+                        Padding="8,0"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Left"
+                        Click="Button_AddOrEditProfile_Click"
+                        Style="{ThemeResource DateTimePickerFlyoutButtonStyle}"
+                        ToolTipService.ToolTip="{x:Bind AddOrEditProfileText, Mode=OneWay}">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon VerticalAlignment="Center"
+                                  FontSize="12"
+                                  Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                  Glyph="{x:Bind AddOrEditProfileGlyph, Mode=OneWay}"
+                                  IsHitTestVisible="False"
+                                  IsTextScaleFactorEnabled="False" />
+                        <TextBlock VerticalAlignment="Center"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   LineHeight="{StaticResource RowLineHeight}"
+                                   LineStackingStrategy="BlockLineHeight"
+                                   Text="{x:Bind AddOrEditProfileText, Mode=OneWay}"
+                                   TextTrimming="CharacterEllipsis"
+                                   TextWrapping="NoWrap" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+        </Grid>
+    </Grid>
+
+</UserControl>

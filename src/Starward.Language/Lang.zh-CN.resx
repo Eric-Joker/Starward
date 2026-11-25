@@ -3194,4 +3194,22 @@
   <data name="SignInButton_ReSignConfirmContent" xml:space="preserve">
     <value>补签将消耗 {0} 补签货币，当前拥有 {1}。是否继续？</value>
   </data>
+  <data name="GameLauncherSettingDialog_LaunchProfile" xml:space="preserve">
+    <value>启动预设</value>
+  </data>
+  <data name="GameLauncherSettingDialog_NewProfile" xml:space="preserve">
+    <value>新增预设</value>
+  </data>
+  <data name="GameLauncherSettingDialog_EditProfile" xml:space="preserve">
+    <value>管理预设</value>
+  </data>
+  <data name="GameLauncherSettingDialog_ProfileName" xml:space="preserve">
+    <value>预设名称</value>
+  </data>
+  <data name="GameLauncherSettingDialog_DefaultProfileName" xml:space="preserve">
+    <value>默认预设</value>
+  </data>
+  <data name="GameLauncherSettingDialog_ProfileNameFormat" xml:space="preserve">
+    <value>预设 {0}</value>
+  </data>
 </root>

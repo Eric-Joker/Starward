@@ -101,7 +101,9 @@ public sealed partial class GameSettingPage : PageBase
         {
             if (SetProperty(ref field, value))
             {
-                AppConfig.SetStartArgument(CurrentGameId, value);
+                // 启动参数属于当前预设：和启动器设置对话框写同一个值
+                Starward.Features.GameLauncher.GameLaunchProfileStore.GetCurrentProfile(CurrentGameId.GameBiz).Argument = value;
+                Starward.Features.GameLauncher.GameLaunchProfileStore.Save(CurrentGameId.GameBiz);
             }
         }
     }
@@ -237,7 +239,7 @@ public sealed partial class GameSettingPage : PageBase
                 _displayInformation.AdvancedColorInfoChanged += _displayInformation_AdvancedColorInfoChanged;
                 UpdateHdrState(_displayInformation);
             }
-            StartArgument = AppConfig.GetStartArgument(CurrentGameId);
+            StartArgument = Starward.Features.GameLauncher.GameLaunchProfileStore.GetCurrentProfile(CurrentGameId.GameBiz).Argument;
             //UsePopupWindow = AppConfig.GetUsePopupWindow(CurrentGameId);
             var resolutionSetting = GameSettingService.GetGameResolutionSetting(CurrentGameBiz);
             if (resolutionSetting != null)

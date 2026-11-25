@@ -100,12 +100,15 @@
                                 Grid.Column="1"
                                 CurrentGameBiz="{x:Bind CurrentGameBiz}" />
 
-            <!--  启动游戏  -->
+            <!--  启动游戏：当前预设名摆在「开始游戏」主文案的右下角，作为一行灰色小字；
+                  预设只有一个时名字整块隐藏（见 StartGameButton.xaml）  -->
             <local:StartGameButton x:Name="Button_StartGame"
                                    Grid.Column="2"
                                    HorizontalAlignment="Right"
                                    GameCommand="{x:Bind ClickStartGameButtonCommand}"
                                    GameState="{x:Bind GameState}"
+                                   ProfileName="{x:Bind CurrentLaunchProfileName}"
+                                   ProfileNameVisible="{x:Bind IsLaunchProfileNameVisible}"
                                    RunningGameProcessInfo="{x:Bind RunningGameInfo}"
                                    RunningGameTime="{x:Bind RunningGameTime}"
                                    SettingCommand="{x:Bind OpenGameLauncherSettingDialogCommand}" />

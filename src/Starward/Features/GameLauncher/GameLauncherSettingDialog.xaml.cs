@@ -119,13 +119,17 @@ public sealed partial class GameLauncherSettingDialog : ContentDialogBase
         await InitializeBasicInfoAsync();
         InitializeStartArgument();
         InitializeCustomBg();
+        InitializeBannerAndPost();
         await InitializeGraphicsSettingAsync();
         await InitializeResourceManageAsync();
+        // 对话框还开着的时候预设被改了或换人了，顶部那行预设名和预设级设置也要跟着变。
+        WeakReferenceMessenger.Default.Register<GameLaunchProfileChangedMessage>(this, OnGameLaunchProfileChanged);
     }
 
 
     protected override void OnUnloaded()
     {
+        WeakReferenceMessenger.Default.UnregisterAll(this);
         FlipView_Settings.Items.Clear();
         UnloadGraphicsSetting();
     }
@@ -153,7 +157,7 @@ public sealed partial class GameLauncherSettingDialog : ContentDialogBase
     public bool UninstallAndRepairEnabled { get; set => SetProperty(ref field, value); }
 
     /// <summary>
-    /// 是否启用公告
+    /// 是否显示游戏公告。属于当前预设：同一个区服的不同预设可以各自决定要不要公告栏。
     /// </summary>
     public bool EnableBannerAndPost
     {
@@ -162,11 +166,25 @@ public sealed partial class GameLauncherSettingDialog : ContentDialogBase
         {
             if (SetProperty(ref field, value))
             {
-                AppConfig.EnableBannerAndPost = value;
+                CurrentLaunchProfile.EnableBannerAndPost = value;
+                GameLaunchProfileStore.Save(CurrentGameBiz);
                 WeakReferenceMessenger.Default.Send(new GameAnnouncementSettingChangedMessage());
             }
         }
-    } = AppConfig.EnableBannerAndPost;
+    }
+
+
+    /// <summary>
+    /// 取当前预设的"是否显示游戏公告"。预设里还没记过这一项时跟随全局开关（默认开启）。
+    /// </summary>
+    private void InitializeBannerAndPost()
+    {
+        try
+        {
+            EnableBannerAndPost = AppConfig.GetEnableBannerAndPost(CurrentGameBiz);
+        }
+        catch { }
+    }
 
     /// <summary>
     /// 是否启用游戏公告红点
@@ -462,7 +480,20 @@ public sealed partial class GameLauncherSettingDialog : ContentDialogBase
 
 
     /// <summary>
-    /// 命令行启动参数
+    /// 当前区服选中的启动预设。启动参数、DX12、自定义启动程序、自定义背景都改这个预设。
+    /// </summary>
+    private GameLaunchProfile CurrentLaunchProfile => GameLaunchProfileStore.GetCurrentProfile(CurrentGameBiz);
+
+
+    /// <summary>
+    /// 当前预设名，显示在启动参数页顶部，说明这些设置改的是哪个预设。
+    /// 用带通知的属性而不是只读计算属性，否则换预设后这一行不会重新取值。
+    /// </summary>
+    public string? CurrentLaunchProfileName { get; set => SetProperty(ref field, value); }
+
+
+    /// <summary>
+    /// 命令行启动参数。属于当前预设，允许为空（不附加任何启动参数）。
     /// </summary>
     public string? StartGameArgument
     {
@@ -470,7 +501,8 @@ public sealed partial class GameLauncherSettingDialog : ContentDialogBase
         {
             if (SetProperty(ref field, value))
             {
-                AppConfig.SetStartArgument(CurrentGameId, value);
+                CurrentLaunchProfile.Argument = value;
+                GameLaunchProfileStore.Save(CurrentGameBiz);
             }
         }
     }
@@ -490,7 +522,7 @@ public sealed partial class GameLauncherSettingDialog : ContentDialogBase
     } = Math.Clamp((int)AppConfig.StartGameAction, 0, 2);
 
     /// <summary>
-    /// 是否启用第三方工具
+    /// 是否启用第三方工具（自定义启动程序）。属于当前预设。
     /// </summary>
     public bool EnableThirdPartyTool
     {
@@ -498,7 +530,8 @@ public sealed partial class GameLauncherSettingDialog : ContentDialogBase
         {
             if (SetProperty(ref field, value))
             {
-                AppConfig.SetEnableThirdPartyTool(CurrentGameId, value);
+                CurrentLaunchProfile.EnableThirdPartyTool = value;
+                GameLaunchProfileStore.Save(CurrentGameBiz);
             }
         }
     }
@@ -535,9 +568,30 @@ public sealed partial class GameLauncherSettingDialog : ContentDialogBase
 
     private void InitializeStartArgument()
     {
-        StartGameArgument = AppConfig.GetStartArgument(CurrentGameId);
-        EnableThirdPartyTool = AppConfig.GetEnableThirdPartyTool(CurrentGameId);
+        GameLaunchProfile profile = CurrentLaunchProfile;
+        StartGameArgument = profile.Argument;
+        EnableThirdPartyTool = profile.EnableThirdPartyTool;
+        // 自定义启动程序的路径读的是当前预设的值，见 GameLauncherService.GetThirdPartyToolPath
         ThirdPartyToolPath = GameLauncherService.GetThirdPartyToolPath(CurrentGameId);
+        // 当前预设可能已经换人了，顶部那行预设名要跟着当前预设重新取值。
+        CurrentLaunchProfileName = profile.DisplayName;
+    }
+
+
+    /// <summary>
+    /// 预设被改名 / 新增 / 删除 / 排序，或者当前预设被换掉之后刷新：
+    /// 顶部那行预设名、命令行参数、第三方工具、自定义背景、显示游戏公告都跟着当前预设走。
+    /// 和 <see cref="GameLauncherPage.OnGameLaunchProfileChanged"/> 同一个消息、同一种刷新方式。
+    /// </summary>
+    private void OnGameLaunchProfileChanged(object _, GameLaunchProfileChangedMessage message)
+    {
+        try
+        {
+            InitializeStartArgument();
+            InitializeCustomBg();
+            InitializeBannerAndPost();
+        }
+        catch { }
     }
 
 
@@ -620,7 +674,8 @@ public sealed partial class GameLauncherSettingDialog : ContentDialogBase
     {
         try
         {
-            CustomBg = AppConfig.GetCustomBg(CurrentGameId);
+            GameLaunchProfile profile = CurrentLaunchProfile;
+            CustomBg = profile.CustomBg ?? AppConfig.GetCustomBg(CurrentGameId);
         }
         catch { }
     }
@@ -642,6 +697,9 @@ public sealed partial class GameLauncherSettingDialog : ContentDialogBase
                 return;
             }
             CustomBg = name;
+            // 自定义背景属于启动预设：写进当前预设，切换预设时背景跟着换
+            CurrentLaunchProfile.CustomBg = name;
+            GameLaunchProfileStore.Save(CurrentGameBiz);
             AppConfig.SetCustomBg(CurrentGameId, name);
             await AppBackground.Current.UpdateBackgroundAsync();
         }
@@ -684,6 +742,8 @@ public sealed partial class GameLauncherSettingDialog : ContentDialogBase
     private void DeleteCustomBg()
     {
         CustomBg = null;
+        CurrentLaunchProfile.CustomBg = null;
+        GameLaunchProfileStore.Save(CurrentGameBiz);
         AppConfig.SetCustomBg(CurrentGameId, null);
         _ = AppBackground.Current.UpdateBackgroundAsync();
     }
@@ -771,7 +831,7 @@ public sealed partial class GameLauncherSettingDialog : ContentDialogBase
                 {
                     ComboBox_DXRenderMode.Visibility = Visibility.Visible;
                     NavigationViewItem_GraphicsSetting.Visibility = Visibility.Visible;
-                    ComboBox_DXRenderMode.SelectedIndex = AppConfig.GetEnableDX12(CurrentGameId) switch
+                    ComboBox_DXRenderMode.SelectedIndex = CurrentLaunchProfile.EnableDX12 switch
                     {
                         null => 0,
                         false => 1,
@@ -859,12 +919,14 @@ public sealed partial class GameLauncherSettingDialog : ContentDialogBase
 
     private void ComboBox_DXRenderMode_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        AppConfig.SetEnableDX12(CurrentGameId, ComboBox_DXRenderMode.SelectedIndex switch
+        // DX12 属于启动预设：null 表示跟随游戏本身的默认渲染模式
+        CurrentLaunchProfile.EnableDX12 = ComboBox_DXRenderMode.SelectedIndex switch
         {
             1 => false,
             2 => true,
             _ => null,
-        });
+        };
+        GameLaunchProfileStore.Save(CurrentGameBiz);
     }
 
 

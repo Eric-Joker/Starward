@@ -9188,5 +9188,59 @@ namespace Starward.Language {
             }
         }
 
+        /// <summary>
+        ///   查找类似 Launch Profile 的本地化字符串。
+        /// </summary>
+        public static string GameLauncherSettingDialog_LaunchProfile {
+            get {
+                return ResourceManager.GetString("GameLauncherSettingDialog_LaunchProfile", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 New Profile 的本地化字符串。
+        /// </summary>
+        public static string GameLauncherSettingDialog_NewProfile {
+            get {
+                return ResourceManager.GetString("GameLauncherSettingDialog_NewProfile", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Manage profiles 的本地化字符串。
+        /// </summary>
+        public static string GameLauncherSettingDialog_EditProfile {
+            get {
+                return ResourceManager.GetString("GameLauncherSettingDialog_EditProfile", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Profile Name 的本地化字符串。
+        /// </summary>
+        public static string GameLauncherSettingDialog_ProfileName {
+            get {
+                return ResourceManager.GetString("GameLauncherSettingDialog_ProfileName", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Default 的本地化字符串。
+        /// </summary>
+        public static string GameLauncherSettingDialog_DefaultProfileName {
+            get {
+                return ResourceManager.GetString("GameLauncherSettingDialog_DefaultProfileName", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Profile {0} 的本地化字符串。
+        /// </summary>
+        public static string GameLauncherSettingDialog_ProfileNameFormat {
+            get {
+                return ResourceManager.GetString("GameLauncherSettingDialog_ProfileNameFormat", resourceCulture);
+            }
+        }
+
     }
 }

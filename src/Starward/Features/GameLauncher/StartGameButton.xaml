@@ -57,12 +57,34 @@
                                   HorizontalAlignment="Left"
                                   IsHitTestVisible="False"
                                   Visibility="{x:Bind IsGameActionCommandRunning}" />
-                    <!--  按键文本： 开始游戏 / 游戏正在运行 / 安装游戏 / 更新游戏 / 更新插件 / 继续下载  -->
-                    <TextBlock x:Name="TextBlock_StartGame"
-                               Margin="41,5,53,6"
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center"
-                               Text="{x:Bind StartGameButtonText}" />
+                    <!--  按键文本 + 当前预设名： 开始游戏 / 游戏正在运行 / 安装游戏 / 更新游戏 / 更新插件 / 继续下载。
+                          主文案的 Margin / 居中 / 字号一个都没动。预设名是同一格里的第二个孩子，
+                          位置由后台按实测宽高把它平移到「标题右缘 + 间距」、底边与标题底边对齐，
+                          见 UpdateLaunchProfileNameTransform —— 用 RenderTransform，不参与布局，
+                          所以它碰不到标题。只有单预设（ProfileNameVisible=false）时由 Visibility 隐藏。  -->
+                    <Grid x:Name="Grid_StartGameCaption"
+                          Margin="41,5,58,6"
+                          HorizontalAlignment="Center"
+                          VerticalAlignment="Center"
+                          SizeChanged="Grid_StartGameCaption_SizeChanged">
+                        <TextBlock x:Name="TextBlock_StartGame"
+                                   HorizontalAlignment="Center"
+                                   SizeChanged="TextBlock_StartGame_SizeChanged"
+                                   Text="{x:Bind StartGameButtonText}" />
+                        <TextBlock x:Name="TextBlock_LaunchProfileName"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   MaxWidth="200"
+                                   FontSize="11"
+                                   Foreground="{x:Bind LaunchProfileNameForeground}"
+                                   IsHitTestVisible="False"
+                                   IsTextScaleFactorEnabled="False"
+                                   SizeChanged="TextBlock_LaunchProfileName_SizeChanged"
+                                   Text="{x:Bind ProfileName, Mode=OneWay}"
+                                   TextTrimming="CharacterEllipsis"
+                                   TextWrapping="NoWrap"
+                                   Visibility="{x:Bind ProfileNameVisible, Mode=OneWay}" />
+                    </Grid>
                 </Grid>
 
                 <!--  安装中信息  -->

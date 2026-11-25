@@ -45,6 +45,38 @@ public class BackgroundService
     /// <param name="gameId"></param>
     /// <param name="path"></param>
     /// <returns></returns>
+    /// <summary>
+    /// 当前预设的自定义背景文件名；预设存储不可用或没记过时返回 null（调用方回退旧键）。
+    /// </summary>
+    private static string? GetProfileCustomBgName(GameId gameId)
+    {
+        try
+        {
+            return Starward.Features.GameLauncher.GameLaunchProfileStore.GetCurrentProfile(gameId.GameBiz).CustomBg;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+
+    /// <summary>
+    /// 当前预设正在使用的背景文件名；预设存储不可用或没记过时返回 null（调用方回退旧键）。
+    /// </summary>
+    private static string? GetProfileBgName(GameId gameId)
+    {
+        try
+        {
+            return Starward.Features.GameLauncher.GameLaunchProfileStore.GetCurrentProfile(gameId.GameBiz).Bg;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+
     public static bool TryGetCustomBgFilePath(GameId gameId, [NotNullWhen(true)] out string? path)
     {
         path = null;
@@ -52,7 +84,9 @@ public class BackgroundService
         {
             return false;
         }
-        path = Path.Join(AppConfig.UserDataFolder, "bg", AppConfig.GetCustomBg(gameId));
+        // 自定义背景属于启动预设：先读当前预设，没记过时回退到上游按 GameId 记的旧键
+        string? name = GetProfileCustomBgName(gameId);
+        path = Path.Join(AppConfig.UserDataFolder, "bg", name);
         return File.Exists(path);
     }
 
@@ -79,7 +113,8 @@ public class BackgroundService
     /// <returns></returns>
     public static string? GetLastAppBackgroundFile(GameId gameId)
     {
-        string? name = AppConfig.GetBg(gameId);
+        // 当前背景属于启动预设：先读当前预设，没记过时回退到上游按 GameId 记的旧键
+        string? name = GetProfileBgName(gameId) ?? AppConfig.GetBg(gameId);
         if (string.IsNullOrWhiteSpace(name))
         {
             return null;

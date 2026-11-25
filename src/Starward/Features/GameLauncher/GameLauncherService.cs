@@ -1,4 +1,4 @@
-using CommunityToolkit.Mvvm.Messaging;
+﻿using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Logging;
 using Starward.Core;
 using Starward.Core.HoYoPlay;
@@ -730,8 +730,10 @@ internal partial class GameLauncherService
                     exe = e;
                 }
             }
+            // 自定义启动程序、启动参数、自动登录和 DX12 都属于启动预设，先取出该区服当前选中的预设。
+            GameLaunchProfile profile = GameLaunchProfileStore.GetCurrentProfile(gameId.GameBiz);
             bool thirdPartyTool = false;
-            if (string.IsNullOrWhiteSpace(exe) && AppConfig.GetEnableThirdPartyTool(gameId))
+            if (string.IsNullOrWhiteSpace(exe) && profile.EnableThirdPartyTool)
             {
                 exe = GetThirdPartyToolPath(gameId);
                 if (File.Exists(exe))
@@ -761,9 +763,9 @@ internal partial class GameLauncherService
 
             CancellationToken token = CancellationTokenSource.CreateLinkedTokenSource(cancellation, new CancellationTokenSource(3000).Token).Token;
             var sb = new StringBuilder();
-            sb.Append(AppConfig.GetStartArgument(gameId)?.Trim());
+            sb.Append(profile.Argument?.Trim());
             await AppendDX12Async(sb, gameId, token);
-            await AppendLoginAuthTicketAsync(sb, gameId, token);
+            await AppendLoginAuthTicketAsync(sb, gameId, profile, token);
             SetGenshinEnableHDR(gameId);
             string arg = sb.ToString();
 
@@ -826,7 +828,8 @@ internal partial class GameLauncherService
                 if (dxConfig?.EnableDXSwitch is true)
                 {
                     sb.Append(' ');
-                    bool? enable = AppConfig.GetEnableDX12(gameId);
+                    // DX12 属于启动预设：预设里没显式选过（null）时沿用上游按 GameId 记的值
+                    bool? enable = GameLaunchProfileStore.GetCurrentProfile(gameId.GameBiz).EnableDX12 ?? AppConfig.GetEnableDX12(gameId);
                     if (dxConfig.AutoMode && enable.HasValue)
                     {
                         sb.Append(enable.Value ? dxConfig.CmdArgs : dxConfig.DX11CmdArgs);
@@ -900,7 +903,7 @@ internal partial class GameLauncherService
 
 
 
-    private async Task AppendLoginAuthTicketAsync(StringBuilder sb, GameId gameId, CancellationToken cancellation)
+    private async Task AppendLoginAuthTicketAsync(StringBuilder sb, GameId gameId, GameLaunchProfile profile, CancellationToken cancellation)
     {
         if (cancellation.IsCancellationRequested)
         {
@@ -908,7 +911,8 @@ internal partial class GameLauncherService
         }
         try
         {
-            if (AppConfig.AuthLoginGameByPassportAccount)
+            // 全局开关仍是总闸；预设上的开关给「按预设分别决定要不要自动登录」留入口（账号运行时逻辑由通行证模块接入）。
+            if (AppConfig.AuthLoginGameByPassportAccount && profile.EnableAuthTicketLogin)
             {
                 string? ticket = await _passportService.CreateAuthTicketAsync(gameId, cancellation);
                 if (!string.IsNullOrWhiteSpace(ticket))
@@ -952,7 +956,9 @@ internal partial class GameLauncherService
     /// <returns></returns>
     public static string? GetThirdPartyToolPath(GameId gameId)
     {
-        string? path = AppConfig.GetThirdPartyToolPath(gameId);
+        // 自定义启动程序路径属于启动预设：先读当前预设，没记过时回退到上游按 GameId 记的旧键
+        GameLaunchProfile? profile = TryGetCurrentProfile(gameId.GameBiz);
+        string? path = profile?.ThirdPartyToolPath ?? AppConfig.GetThirdPartyToolPath(gameId);
         if (!string.IsNullOrWhiteSpace(path))
         {
             path = GetFullPathIfRelativePath(path);
@@ -963,8 +969,40 @@ internal partial class GameLauncherService
         }
         else
         {
+            SetProfileThirdPartyToolPath(gameId.GameBiz, null);
             AppConfig.SetThirdPartyToolPath(gameId, null);
             return null;
+        }
+    }
+
+
+    /// <summary>
+    /// 取当前预设；预设存储在极早期（数据库未就绪）可能拿不到，调用方需要能接受 null。
+    /// </summary>
+    private static GameLaunchProfile? TryGetCurrentProfile(GameBiz gameBiz)
+    {
+        try
+        {
+            return GameLaunchProfileStore.GetCurrentProfile(gameBiz);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+
+    private static void SetProfileThirdPartyToolPath(GameBiz gameBiz, string? relativePath)
+    {
+        try
+        {
+            GameLaunchProfile profile = GameLaunchProfileStore.GetCurrentProfile(gameBiz);
+            profile.ThirdPartyToolPath = relativePath;
+            GameLaunchProfileStore.Save(gameBiz);
+        }
+        catch
+        {
+            // 预设存储不可用时只影响这一项，不影响调用方
         }
     }
 
@@ -981,11 +1019,14 @@ internal partial class GameLauncherService
         {
             path = Path.GetFullPath(path);
             string relativePath = GetRelativePathIfInRemovableStorage(path, out bool removable);
+            // 自定义启动程序路径属于启动预设：写当前预设，同时保留旧键供降级 / 回退使用
+            SetProfileThirdPartyToolPath(gameId.GameBiz, relativePath);
             AppConfig.SetThirdPartyToolPath(gameId, relativePath);
         }
         else
         {
             path = null;
+            SetProfileThirdPartyToolPath(gameId.GameBiz, null);
             AppConfig.SetThirdPartyToolPath(gameId, null);
         }
         return path;

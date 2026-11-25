@@ -3,8 +3,10 @@ using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Logging;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Starward.Core;
 using Starward.Core.HoYoPlay;
+using Starward.Features.GameLauncher;
 using Starward.Features.ViewHost;
 using Starward.GameInstall;
 using System;
@@ -360,6 +362,145 @@ public sealed partial class GameSwitcher : UserControl
             }
         }
     }
+
+
+
+
+    #region 启动预设
+
+
+    /// <summary>
+    /// 当前打开的启动预设浮窗。同一时刻只留一个，右键 / 长按另一个图标时先收掉旧的。
+    /// </summary>
+    private Flyout? _launchProfileFlyout;
+
+
+    /// <summary>
+    /// 右键游戏图标：弹出该区服的启动预设列表。0.19 上游没有预设概念，
+    /// 这里把预设编辑入口挂在游戏图标上（完整启动器页面只显示当前预设名，见 StartGameButton）。
+    /// </summary>
+    private void Grid_GameIcon_RightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        if (sender is FrameworkElement fe && fe.DataContext is PinnedGameIcon icon)
+        {
+            e.Handled = true;
+            ShowLaunchProfileFlyout(icon, fe);
+        }
+    }
+
+
+    /// <summary>
+    /// 长按游戏图标（触摸 / 触笔），等同于右键。
+    /// </summary>
+    private void Grid_GameIcon_Holding(object sender, Microsoft.UI.Xaml.Input.HoldingRoutedEventArgs e)
+    {
+        if (e.HoldingState is Microsoft.UI.Input.HoldingState.Started
+            && sender is FrameworkElement fe
+            && fe.DataContext is PinnedGameIcon icon)
+        {
+            e.Handled = true;
+            ShowLaunchProfileFlyout(icon, fe);
+        }
+    }
+
+
+    /// <summary>
+    /// 弹出某个区服的预设列表。列表本身复用 <see cref="GameLaunchProfileFlyout"/> 的 Flyout 模式，
+    /// 放在标准 <see cref="Flyout"/> 里：弹出层不参与主窗口布局，也不会被图标行的 60 高裁掉。
+    /// </summary>
+    private void ShowLaunchProfileFlyout(PinnedGameIcon icon, FrameworkElement anchor)
+    {
+        try
+        {
+            CloseLaunchProfileFlyout();
+            GameBiz gameBiz = icon.GameId.GameBiz;
+            var panel = new GameLaunchProfileFlyout { Mode = GameLaunchProfileFlyout.DisplayMode.Flyout };
+            // Flyout 自带主题背景（含亚克力），面板自己那份画刷在弹出层的独立合成层里取不到采样、
+            // 会退回接近纯黑的 FallbackColor，这里关掉，文字颜色才跟主题一致。
+            panel.UseTransparentPanelBackground();
+            panel.Refresh(gameBiz, AppConfig.GetCurrentLaunchProfileId(gameBiz));
+            var flyout = new Flyout
+            {
+                Content = panel,
+                Placement = FlyoutPlacementMode.Bottom,
+                // 用紧凑 presenter（Padding=0）：默认的 16,15,16,17 会把面板外框顶成 22，
+                // 行不贴边、整块比旧版宽高各多 32，看起来就像个没样式的默认 Flyout。
+                FlyoutPresenterStyle = App.Current.Resources["LaunchProfileFlyoutPresenterStyle"] as Style,
+            };
+            panel.ProfileSelected += (_, profile) =>
+            {
+                flyout.Hide();
+                SelectGameAndProfile(icon, profile.Id);
+            };
+            panel.ProfileAdded += (_, profileId) =>
+            {
+                flyout.Hide();
+                SelectGameAndProfile(icon, profileId);
+            };
+            flyout.Closed += (_, _) =>
+            {
+                if (ReferenceEquals(_launchProfileFlyout, flyout))
+                {
+                    _launchProfileFlyout = null;
+                }
+            };
+            _launchProfileFlyout = flyout;
+            flyout.ShowAt(anchor);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Show launch profile flyout");
+        }
+    }
+
+
+    private void CloseLaunchProfileFlyout()
+    {
+        try
+        {
+            _launchProfileFlyout?.Hide();
+        }
+        catch { }
+        _launchProfileFlyout = null;
+    }
+
+
+    /// <summary>
+    /// 切换到某个区服并选中它的某个启动预设。
+    /// <para>
+    /// 先把预设写进存储并广播 <see cref="GameLaunchProfileChangedMessage"/>，再切当前游戏：
+    /// 启动器页面是在切换游戏之后重建的，切之前写好的预设它一加载就读到，不必再等一次刷新。
+    /// </para>
+    /// </summary>
+    private void SelectGameAndProfile(PinnedGameIcon icon, string profileId)
+    {
+        try
+        {
+            GameBiz gameBiz = icon.GameId.GameBiz;
+            // 先把预设校验一遍：内部名不存在时什么都不做
+            if (GameLaunchProfileStore.GetProfile(gameBiz, profileId) is null)
+            {
+                return;
+            }
+            GameLaunchProfileStore.SetCurrentProfile(gameBiz, profileId);
+            WeakReferenceMessenger.Default.Send(new GameLaunchProfileChangedMessage());
+            if (!ReferenceEquals(CurrentGameIcon, icon))
+            {
+                CurrentGameIcon?.IsSelected = false;
+                CurrentGameIcon = icon;
+                icon.IsSelected = true;
+                CurrentGameChanged?.Invoke(this, icon);
+                AppConfig.CurrentGameId = icon.GameId.Id;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Select game and launch profile");
+        }
+    }
+
+
+    #endregion
 
 
 

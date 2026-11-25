@@ -67,6 +67,18 @@
                 <Setter Property="Background" Value="{ThemeResource CustomAcrylicBrush}" />
             </Style>
 
+            <!--  紧凑弹出层：预设列表这类「整块自绘面板」当 Flyout 内容时用。
+                  默认 presenter 的 Padding 是 16,15,16,17，叠在面板自己的 6 上会让行不贴边、
+                  整块比旧版宽高各多 32；这里清掉内边距和边框，只留亚克力与 8 圆角。  -->
+            <Style x:Key="LaunchProfileFlyoutPresenterStyle"
+                   BasedOn="{StaticResource DefaultFlyoutPresenterStyle}"
+                   TargetType="FlyoutPresenter">
+                <Setter Property="Background" Value="{ThemeResource CustomAcrylicBrush}" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="CornerRadius" Value="8" />
+            </Style>
+
             <FontFamily x:Key="SegoeFluentIcons">ms-appx:///Assets/Font/Segoe Fluent Icons.ttf#Segoe Fluent Icons</FontFamily>
             <Style TargetType="FontIcon">
                 <Setter Property="FontFamily" Value="ms-appx:///Assets/Font/Segoe Fluent Icons.ttf#Segoe Fluent Icons" />

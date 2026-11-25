@@ -364,6 +364,13 @@ public sealed partial class AppBackground : UserControl
         AccentColorHelper.ChangeAppAccentColor(color);
         AppConfig.AccentColor = color?.ToHex();
         _lastBackgroundFile = file;
+        // 当前背景属于启动预设：写进当前预设，切换预设时恢复各自保存的背景
+        try
+        {
+            Starward.Features.GameLauncher.GameLaunchProfileStore.GetCurrentProfile(CurrentGameId.GameBiz).Bg = Path.GetFileName(file);
+            Starward.Features.GameLauncher.GameLaunchProfileStore.Save(CurrentGameId.GameBiz);
+        }
+        catch { }
         AppConfig.SetBg(CurrentGameId, Path.GetFileName(file));
     }
 

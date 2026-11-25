@@ -65,6 +65,7 @@ public sealed partial class GameLauncherPage : PageBase
         WeakReferenceMessenger.Default.Register<MainWindowStateChangedMessage>(this, OnMainWindowStateChanged);
         WeakReferenceMessenger.Default.Register<RemovableStorageDeviceChangedMessage>(this, OnRemovableStorageDeviceChanged);
         WeakReferenceMessenger.Default.Register<GameInstallTaskStartedMessage>(this, OnGameInstallTaskStarted);
+        WeakReferenceMessenger.Default.Register<GameLaunchProfileChangedMessage>(this, OnGameLaunchProfileChanged);
     }
 
 
@@ -85,7 +86,78 @@ public sealed partial class GameLauncherPage : PageBase
         {
             Button_CloudGame.Visibility = Visibility.Visible;
         }
+        InitializeLaunchProfile();
     }
+
+
+
+    #region 启动预设
+
+
+    /// <summary>
+    /// 当前区服选中的启动预设。启动参数、DX12、自动登录、自定义背景都跟着它走。
+    /// </summary>
+    private GameLaunchProfile CurrentLaunchProfile => GameLaunchProfileStore.GetCurrentProfile(CurrentGameBiz);
+
+
+    /// <summary>
+    /// 当前预设的显示名称。显示为「开始游戏」主文案右下角的那行灰色小字，区服只有一个预设时为 null。
+    /// </summary>
+    public string? CurrentLaunchProfileName { get; set => SetProperty(ref field, value); }
+
+
+    /// <summary>
+    /// 只有该区服不止一个预设时才显示当前预设名。
+    /// </summary>
+    public bool IsLaunchProfileNameVisible { get; set => SetProperty(ref field, value); }
+
+
+    private void InitializeLaunchProfile()
+    {
+        try
+        {
+            var profiles = GameLaunchProfileStore.GetProfiles(CurrentGameBiz);
+            IsLaunchProfileNameVisible = profiles.Count > 1;
+            CurrentLaunchProfileName = profiles.Count > 1 ? CurrentLaunchProfile.DisplayName : null;
+            // 当前预设名是「开始游戏」主文案右下角那行小字的数据源，换预设 / 改名之后
+            // 即使新旧值算出一样（同名或同一个预设）也要通知一次，保证换预设必定重新取一遍。
+            if (IsLaunchProfileNameVisible)
+            {
+                OnPropertyChanged(nameof(CurrentLaunchProfileName));
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Initialize launch profile {Biz}", CurrentGameBiz);
+        }
+    }
+
+
+    /// <summary>
+    /// 预设被改名 / 新增 / 删除 / 排序，或者当前预设被换掉之后刷新：
+    /// 右下角的预设名、DX12 这类跟着预设走的开关都要重新读一遍。
+    /// <para>
+    /// 账号绑定（<see cref="GameLaunchProfile.AccountKey"/>）的运行时换号逻辑由通行证模块后续接入，
+    /// 本分支只保留数据字段，不在这里切号。
+    /// </para>
+    /// </summary>
+    private void OnGameLaunchProfileChanged(object _, GameLaunchProfileChangedMessage message)
+    {
+        try
+        {
+            InitializeLaunchProfile();
+            // 当前预设的 DX12 设置可能和页面上显示的不一致了，重新读一遍
+            if (DXConfig is not null)
+            {
+                _enableDX12 = CurrentLaunchProfile.EnableDX12 ?? DXConfig.UseDX12ByDefault;
+                OnPropertyChanged(nameof(EnableDX12));
+            }
+        }
+        catch { }
+    }
+
+
+    #endregion
 
 
 
@@ -252,7 +324,8 @@ public sealed partial class GameLauncherPage : PageBase
         {
             if (SetProperty(ref _enableDX12, value))
             {
-                AppConfig.SetEnableDX12(CurrentGameId, value);
+                CurrentLaunchProfile.EnableDX12 = value;
+                GameLaunchProfileStore.Save(CurrentGameBiz);
             }
         }
     }
@@ -405,7 +478,7 @@ public sealed partial class GameLauncherPage : PageBase
                 if (DXConfig?.EnableDXSwitch is true && !DXConfig.AutoMode)
                 {
                     IsDX12OptionVisible = true;
-                    _enableDX12 = AppConfig.GetEnableDX12(CurrentGameId) ?? DXConfig.UseDX12ByDefault;
+                    // DX12 属于启动预设：null 表示跟随游戏本身的默认值（0.19 上游语义）
                     OnPropertyChanged(nameof(EnableDX12));
                 }
             }
@@ -922,6 +995,8 @@ public sealed partial class GameLauncherPage : PageBase
                 {
                     return;
                 }
+                CurrentLaunchProfile.CustomBg = name;
+                GameLaunchProfileStore.Save(CurrentGameBiz);
                 AppConfig.SetCustomBg(CurrentGameId, name);
                 await AppBackground.Current.UpdateBackgroundAsync();
             }
@@ -988,3 +1063,5 @@ public sealed partial class GameLauncherPage : PageBase
 
 
 }
+
+
