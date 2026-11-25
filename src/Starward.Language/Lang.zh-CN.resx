@@ -3332,4 +3332,10 @@
   <data name="ImaginariumTheaterPage_SupportingCastCharacter" xml:space="preserve">
     <value>助演</value>
   </data>
+  <data name="DeadlyAssaultPage_RankFetchTime" xml:space="preserve">
+    <value>排名数据获取时间：{0}</value>
+  </data>
+  <data name="ShiyuDefensePage_RankFetchTime" xml:space="preserve">
+    <value>排名数据获取时间：{0}</value>
+  </data>
 </root>

@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8" ?>
+<?xml version="1.0" encoding="utf-8" ?>
 <sf:PageBase x:Class="Starward.Features.GameRecord.ZZZ.ShiyuDefensePage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -901,7 +901,9 @@
                                 <TextBlock FontSize="28"
                                            FontWeight="Bold"
                                            Text="{x:Bind CurrentShiyuDefenseV2.Brief.Score}" />
-                                <Grid Margin="0,0,0,6" VerticalAlignment="Bottom">
+                                <Grid Margin="0,0,0,6"
+                                      ToolTipService.ToolTip="{x:Bind local:ShiyuDefensePage.RankFetchTimeToolTip(CurrentShiyuDefenseV2.RankFetchTime)}"
+                                      VerticalAlignment="Bottom">
                                     <Image Height="20"
                                            Source="{x:Bind local:ShiyuDefensePage.RankBackground(CurrentShiyuDefenseV2.Brief.RankPercent)}"
                                            Stretch="Uniform" />

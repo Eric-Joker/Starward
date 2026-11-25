@@ -274,6 +274,8 @@ internal class GameRecordZZZService : GameRecordServiceBase
                 var info = wrapper.InfoV2;
                 if (info.PassFifthFloor)
                 {
+                    // 全服排名没有独立接口，记录本次刷新（获取）的时刻；该值随 Value 一起序列化进数据表，不新增数据表列。
+                    info.RankFetchTime = DateTimeOffset.Now;
                     var obj = new
                     {
                         role.Uid,
@@ -354,6 +356,8 @@ internal class GameRecordZZZService : GameRecordServiceBase
         {
             return info;
         }
+        // 全服排名没有独立接口，记录本次刷新（获取）的时刻；该值随 Value 一起序列化进数据表，不新增数据表列。
+        info.RankFetchTime = DateTimeOffset.Now;
         var obj = new
         {
             role.Uid,
