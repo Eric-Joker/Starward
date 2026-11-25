@@ -150,6 +150,12 @@ public sealed partial class GameSwitcher : UserControl
         {
             PinnedGameIcons.CollectionChanged += PinnedGameIcons_CollectionChanged;
         }
+        // 图标补全后把「当前游戏」重新选上：冷启动时缓存里还没有图标，InitializeSwitcher 里选不到，
+        // 之前会导致即使 AppConfig.CurrentGameId 有值，第一次启动也停在「选择游戏」页。
+        if (CurrentGameIcon is null && PinnedGameIcons.FirstOrDefault(x => x.GameId.Id == AppConfig.CurrentGameId) is PinnedGameIcon currentGame)
+        {
+            SelectGameIcon(currentGame);
+        }
         // 图标补全后再试一次：启动时缓存里可能还没有目标游戏的信息
         TryApplyPendingSelectGameBiz(clearIfMissing: true);
     }

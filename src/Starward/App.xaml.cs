@@ -114,8 +114,11 @@ public partial class App : Application
         }
 
         // 程序挪过目录 / 应用更新过之后，把仍启用的开机自启快捷方式指回当前 exe；用户已关掉自启则不动。
-        AutoStartService.RepairIfNeeded();        if (Environment.GetCommandLineArgs().Contains("--hide"))
-        {
+        AutoStartService.RepairIfNeeded();
+
+        // 从 main 升级上来的设置迁移放在数据库 v26 迁移里做（必须早于任何窗口 / 任何旧进程写库）。
+
+        if (Environment.GetCommandLineArgs().Contains("--hide"))        {
             m_SystemTrayWindow = new SystemTrayWindow();
         }
         else

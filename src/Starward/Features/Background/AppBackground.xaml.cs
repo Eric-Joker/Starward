@@ -146,6 +146,12 @@ public sealed partial class AppBackground : UserControl
     {
         try
         {
+            // 冷启动时还没有当前游戏：先用占位图，等 CurrentGameId 真正赋值后这里会被再调用一次。
+            if (CurrentGameId is null)
+            {
+                BackgroundImageSource = new BitmapImage(new Uri("ms-appx:///Assets/Image/UI_CutScene_1130320101A.png"));
+                return;
+            }
             var file = BackgroundService.GetLastAppBackgroundFile(CurrentGameId);
             if (file != null)
             {

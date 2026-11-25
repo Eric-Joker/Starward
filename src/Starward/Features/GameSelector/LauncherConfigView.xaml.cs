@@ -251,7 +251,16 @@ public sealed partial class LauncherConfigView : UserControl
                     {
                         continue;
                     }
-                    GameInfo? gameInfo = await _hoYoPlayService.GetGameInfoAsync(gameId, cancellation);
+                    GameInfo? gameInfo = null;
+                    try
+                    {
+                        gameInfo = await _hoYoPlayService.GetGameInfoAsync(gameId, cancellation);
+                    }
+                    catch (NotSupportedException)
+                    {
+                        // 启动早期 client map 还没就绪（旧库升级后第一次启动最常见）：
+                        // 这一轮先按本地信息显示，等图标缓存补全后会自动刷新；不能让整个列表刷新中断。
+                    }
                     long size = new DirectoryInfo(item.InstallPath).EnumerateFiles("*", SearchOption.AllDirectories).Sum(x => x.Length);
                     InstalledGameModel model = new()
                     {

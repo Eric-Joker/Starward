@@ -351,9 +351,10 @@ public static partial class AppConfig
     }
 
 
-    public static string? GetBg(GameId gameId)
+    public static string? GetBg(GameId? gameId)
     {
-        return GetValue<string>(default, "Bg", gameId.ToString());
+        // 冷启动还没有当前游戏时调用方会传 null，这里必须当心：gameId.ToString() 会直接抛 NRE。
+        return gameId is null ? null : GetValue<string>(default, "Bg", gameId.ToString());
     }
 
     public static void SetBg(GameId gameId, string? value)
@@ -362,9 +363,9 @@ public static partial class AppConfig
     }
 
 
-    public static string? GetCustomBg(GameId gameId)
+    public static string? GetCustomBg(GameId? gameId)
     {
-        return GetValue<string>(default, "CustomBg", gameId.ToString());
+        return gameId is null ? null : GetValue<string>(default, "CustomBg", gameId.ToString());
     }
 
     public static void SetCustomBg(GameId gameId, string? value)
@@ -454,7 +455,9 @@ public static partial class AppConfig
     /// </summary>
     public static bool? GetEnableDX12(GameId gameId)
     {
-        return GetValue<bool>(default, "EnableDX12", gameId.ToString());
+        // 三态：null = 没记过（跟随游戏自己的默认值），false = 用户显式选了 DX11。
+        // 以前这里用 GetValue<bool>，缺键会被读成 false，等于把「没记过」当成「显式 DX11」。
+        return GetValue<bool?>((bool?)null, "EnableDX12", gameId.ToString());
     }
 
     /// <summary>

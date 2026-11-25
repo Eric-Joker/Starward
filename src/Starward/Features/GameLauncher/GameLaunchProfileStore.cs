@@ -64,6 +64,7 @@ public static class GameLaunchProfileStore
             _cache[gameBiz] = profiles;
             LoadInto(gameBiz, profiles);
             Normalize(profiles);
+            ResetMisSeededDX12(gameBiz, profiles);
             Save(gameBiz, profiles);
             return profiles;
         }
@@ -370,8 +371,11 @@ public static class GameLaunchProfileStore
         profile.Argument = AppConfig.GetStartArgument(gameId);
         profile.EnableThirdPartyTool = AppConfig.GetEnableThirdPartyTool(gameId);
         profile.ThirdPartyToolPath = AppConfig.GetThirdPartyToolPath(gameId);
+        // DX12 是三态：null = 跟随游戏本身默认值，false = 显式 DX11。
         profile.EnableDX12 = AppConfig.GetEnableDX12(gameId);
         profile.CustomBg = AppConfig.GetCustomBg(gameId);
+        // main 的自定义背景开关是全局的（enable_custom_bg_{GameBiz}），0.19 把它收进了启动预设。
+        profile.EnableCustomBg = AppConfig.GetValue<bool>(false, $"enable_custom_bg_{gameBiz.Value}", "");
         // 当前背景以前是全局键 Bg：迁移时把它读进这个预设，用户当前背景不丢。
         profile.Bg = AppConfig.GetBg(gameId);
         // 自动登录以前是全局开关，没有按游戏 / 按预设的旧键，迁移时直接取全局值。
@@ -439,6 +443,37 @@ public static class GameLaunchProfileStore
             profile.Index = i + 1;
         }
         NormalizeNumbers(profiles);
+    }
+
+
+
+    /// <summary>
+    /// 修正上一版迁移误播种的 DX12：那版把「没有记录」的三态读成了 <see langword="false"/>，
+    /// 于是每个游戏的预设都变成「显式 DX11」。这里把「存储里根本没有这个游戏的 EnableDX12 行」
+    /// 那种 false 还原成 null（跟随游戏默认），已经有记录的保持不动。
+    /// </summary>
+    private static void ResetMisSeededDX12(GameBiz gameBiz, List<GameLaunchProfile> profiles)
+    {
+        try
+        {
+            GameId? gameId = AppConfig.GetLegacyGameId(gameBiz);
+            if (gameId is null)
+            {
+                return;
+            }
+            if (AppConfig.GetValue<bool?>(null, "EnableDX12", gameId.ToString()) is not null)
+            {
+                return;
+            }
+            foreach (GameLaunchProfile profile in profiles)
+            {
+                if (profile.EnableDX12 is false)
+                {
+                    profile.EnableDX12 = null;
+                }
+            }
+        }
+        catch { }
     }
 
 

@@ -7,8 +7,9 @@ namespace Starward.Features.Account;
 /// <summary>
 /// 数据库里保存的一条通行证账号记录。
 /// <para>
-/// 存储方式与游戏账号（<c>GameAccount</c>）一致：账号本身只存在数据库里，
-/// 需要用到哪一个就把它写到“当前账号”的位置上。
+/// 收口之后的存储：身份与 SToken 在上游 <c>PassportUserInfo</c> 表（唯一 owner），
+/// 派生令牌只存在工具箱 Cookie（<c>GameRecordUser</c> / <c>GameRecordRole</c>）里。
+/// 这个类型只是把上游表投影成账号列表给界面和账号池逻辑用，不再单独落库。
 /// </para>
 /// <para>
 /// 本分支保留主分支（main）的账号池模型，同时吸收上游 0.19 的区域概念：

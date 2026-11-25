@@ -356,13 +356,11 @@ internal class PassportAccountService
             {
                 return _deviceInfo;
             }
-            // 0.19 已经保存过设备信息时，它就是账号登记过的那枚指纹，直接用，别再申请新的。
-            bool hadSavedDeviceInfo = !string.IsNullOrWhiteSpace(AppConfig.AndroidDeviceInfo);
             AndroidDeviceInfo info = await _gameRecordRoleService.GetDeviceInfoAsync(ServerRegion.miHoYo, cancellationToken);
-            if (!hadSavedDeviceInfo)
-            {
-                AdoptRegisteredDeviceFp(info);
-            }
+            // 旧 main 登记过的指纹优先：即使 0.19 已经先存过一份随机设备信息（工具箱请求可能早于这里初始化），
+            // 也要换回账号登记过的那枚，否则服务端的「账号-设备」绑定会被打破。
+            // 换完 AndroidDeviceInfo 里就是唯一一份，旧键同时删掉。
+            AdoptRegisteredDeviceFp(info);
             _deviceInfo = info;
             return info;
         }
@@ -402,6 +400,9 @@ internal class PassportAccountService
                 info.BbsDeviceId = deviceId!;
             }
             AppConfig.AndroidDeviceInfo = JsonSerializer.Serialize(info, DeviceFpJsonContext.Default.AndroidDeviceInfo);
+            // 设备信息现在只有 AndroidDeviceInfo 一个 owner：旧 main 的 Hyperion* 键只是迁移输入，
+            // 留着会和 AndroidDeviceInfo 变成两份互相不更新的副本。
+            DatabaseService.DeleteSettings("HyperionDeviceId", "HyperionDeviceFp", "HyperionDeviceFpLastUpdateTime", "HyperionDeviceAndroidId");
             _logger.LogInformation("Adopted the device fingerprint registered by the account ({deviceFp}).", deviceFp);
         }
         catch (Exception ex)

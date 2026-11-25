@@ -1,6 +1,8 @@
 ﻿using Dapper;
 using Microsoft.Data.Sqlite;
 using SharpSevenZip;
+using Starward.Core;
+using Starward.Core.HoYoPlay;
 using Starward.Features.Account;
 using System;
 using System.Collections.Generic;
@@ -80,8 +82,9 @@ internal static class DatabaseService
             }
             // 老 main 分支的数据库同样占用 user_version = 22，但内容是上游的 v21 结构 +
             // 通行证账号表（PassportAccount），而不是上游 v22 的 Setting 表拆分（Key, GameId, Value）。
-            // 这类库要从 21 开始重新执行上游的 v22 / v23，再把本分支的 v24 / v25 补上。
-            if (version >= 22 && !HasColumn(con, "Setting", "GameId"))
+            // 这类库要从 21 开始重新执行上游的 v22 / v23，再把本分支合并后的 v24 补上。
+            bool legacyMainDatabase = version >= 22 && !HasColumn(con, "Setting", "GameId");
+            if (legacyMainDatabase)
             {
                 Debug.WriteLine("Legacy main database detected (user_version 22 without Setting.GameId), rerunning migrations from v21.");
                 BackupLegacyDatabase();
@@ -91,15 +94,19 @@ internal static class DatabaseService
             {
                 con.Execute(sql);
             }
-            // v24 / v25 需要按列是否已存在决定要不要 ALTER，SQL 里做不到，因此单独执行。
+            // v24 需要按列是否已存在决定要不要 ALTER，SQL 里做不到，因此单独执行。
+            // 本分支自己的 v24 / v25 / v26 从未发布，合并成一个 v24。
             if (version <= 23)
             {
-                ApplyMigrationV24(con);
+                ApplyMigrationV24(con, legacyMainDatabase);
             }
-            if (version <= 24)
-            {
-                ApplyMigrationV25(con);
-            }
+            // 通行证账号存储收口（可重复执行）：把老账号池 PassportAccount 搬进上游表并删表。
+            // 放在版本判断之外，是因为本分支的 v24 迁移从未发布过、库里已经有 user_version = 24 的库
+            // 也需要补上这一步；做完之后每次启动都是空转。
+            PassportAccountMigration.Migrate(con, PassportService.ProtectStoken);
+            // 旧配置键清理（同样可重复执行）：这些数据已经搬进启动预设 / 其它表，旧键只会在迁移时读一次，
+            // 留着就等于同一份数据有两个 owner，改一个另一个不会变。
+            LegacySettingCleanup.Migrate(con);
         }
     }
 
@@ -122,19 +129,72 @@ internal static class DatabaseService
 
 
     /// <summary>
+    /// 删除若干全局设置行（GameId = ''）。用于迁移后清理旧键：数据已经搬进新表 / 新键，旧键只读一次。
+    /// </summary>
+    public static void DeleteSettings(params string[] keys)
+    {
+        if (keys is not { Length: > 0 })
+        {
+            return;
+        }
+        try
+        {
+            using var con = CreateConnection();
+            con.Execute("DELETE FROM Setting WHERE GameId = '' AND Key IN @keys;", new { keys });
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine(ex);
+        }
+    }
+
+
+
+    /// <summary>
+    /// 删除某个区服（所有地区 GameId，如 <c>bh3_global-*</c>）下的若干设置行，用于迁移后清理旧键。
+    /// </summary>
+    public static void DeleteSettingsForGameBiz(GameBiz gameBiz, params string[] keys)
+    {
+        if (string.IsNullOrWhiteSpace(gameBiz.Value) || keys is not { Length: > 0 })
+        {
+            return;
+        }
+        try
+        {
+            using var con = CreateConnection();
+            con.Execute("DELETE FROM Setting WHERE GameId GLOB @pattern AND Key IN @keys;", new { pattern = $"{gameBiz.Value}-*", keys });
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine(ex);
+        }
+    }
+
+
+    /// <summary>
     /// 老 main 的库要从 v22 回退重跑上游迁移，先留一份备份，避免迁移失败时用户数据没有退路。
     /// 只在一开始备份一次（文件已存在就跳过）。
+    /// <para>用 SQLite 的备份接口而不是复制文件：库可能是 WAL 模式，直接复制 .db 会漏掉还没合并的日志。</para>
     /// </summary>
     private static void BackupLegacyDatabase()
     {
         try
         {
             string backup = _databasePath + ".main-v22.bak";
-            if (!File.Exists(backup) && File.Exists(_databasePath))
+            if (File.Exists(backup) || !File.Exists(_databasePath))
             {
-                File.Copy(_databasePath, backup, false);
-                Debug.WriteLine($"Backed up the legacy main database to {backup}.");
+                return;
             }
+            using var backupCon = new SqliteConnection(new SqliteConnectionStringBuilder
+            {
+                DataSource = backup,
+                Mode = SqliteOpenMode.ReadWriteCreate,
+                Pooling = false,
+            }.ToString());
+            backupCon.Open();
+            using var con = CreateConnection();
+            con.BackupDatabase(backupCon);
+            Debug.WriteLine($"Backed up the legacy main database to {backup}.");
         }
         catch (Exception ex)
         {
@@ -145,34 +205,349 @@ internal static class DatabaseService
 
 
     /// <summary>
-    /// v24：给 GameRecordRole 加 Aid 列（对应上游 0.19 的数据库结构）。
+    /// v24：本分支在 0.19 基座上加的一次性迁移。
     /// <para>
-    /// 上游 v24 还会清空 GameRecordUser / GameRecordRole；本分支保留主分支的账号模型，
-    /// 工具箱账号行与角色行都要继续使用，所以这里去掉了那两条 DELETE。
+    /// 本分支原来的 v24 / v25 / v26 从未发布过，合并成这一步：
     /// </para>
+    /// <list type="number">
+    /// <item>给 <c>GameRecordRole</c> 补 <c>Aid</c> 列（对应上游 0.19 的数据库结构；上游还会清空角色表，
+    /// 本分支保留账号模型所以不做）；</item>
+    /// <item>通行证账号存储收口：SToken 只写上游 <c>PassportUserInfo</c> 表，派生令牌只存在工具箱 Cookie 里，
+    /// 老账号池表 <c>PassportAccount</c> 迁移后删除（见 <see cref="PassportAccountMigration"/>）；</item>
+    /// <item>把 main 的安装路径设置搬进 0.19 的 <c>GameEntry</c> 表，并按旧图标列表恢复固定图标；</item>
+    /// <item>从 main 升级上来的一次性设置迁移（当前游戏、工具箱上次选的角色、自动登录总开关）。</item>
+    /// </list>
     /// </summary>
-    private static void ApplyMigrationV24(SqliteConnection con)
+    private static void ApplyMigrationV24(SqliteConnection con, bool legacyMainDatabase)
     {
         if (!HasColumn(con, "GameRecordRole", "Aid"))
         {
             con.Execute("ALTER TABLE GameRecordRole ADD COLUMN Aid INTEGER NOT NULL DEFAULT 0;");
         }
+        con.Execute(Sql_v24_CreatePassportAccount);
+        if (!HasColumn(con, "PassportAccount", "Region"))
+        {
+            con.Execute("ALTER TABLE PassportAccount ADD COLUMN Region INTEGER NOT NULL DEFAULT 1;");
+        }
+        con.Execute(Sql_v24_CreatePassportAccountIndexes);
+        MigrateInstallPathsFromSettings(con);
+        MigrateLegacySettings(con, legacyMainDatabase);
         con.Execute("PRAGMA USER_VERSION = 24;");
     }
 
 
     /// <summary>
-    /// v25：本分支的通行证账号池表（老 main 的库已经存在该表时只补 Region 列与索引）。
+    /// 从 main（0.18）升级上来时补做的一次性设置迁移。
+    /// <para>
+    /// v22 保留了 main 的旧键，但 0.19 的键名 / 语义变了：当前游戏
+    /// （<c>CurrentGameBiz</c> → <c>CurrentGameId</c>）、工具箱上次选的角色、自动登录总开关。
+    /// 放在数据库迁移里做，是因为它必须早于任何窗口创建和任何旧进程写库；
+    /// 用 <c>LegacyMainDatabaseMigrated</c> 记录是否做过，之后用户在新版本里的选择就再也不会被覆盖。
+    /// </para>
+    /// <para>
+    /// 只对从 main 升级上来的库生效：判断依据是只有本分支 v22 才会保留的小写旧键
+    /// （上游 0.19 的 v22 只保留大写开头的键，全新安装也没有这些键），
+    /// 所以全新安装和上游 0.19 用户的库不会被误改。
+    /// </para>
     /// </summary>
-    private static void ApplyMigrationV25(SqliteConnection con)
+    private static void MigrateLegacySettings(SqliteConnection con, bool legacyMainDatabase)
     {
-        con.Execute(Sql_v25_CreatePassportAccount);
-        if (!HasColumn(con, "PassportAccount", "Region"))
+        try
         {
-            con.Execute("ALTER TABLE PassportAccount ADD COLUMN Region INTEGER NOT NULL DEFAULT 1;");
+            string? migrated = con.QueryFirstOrDefault<string>(
+                "SELECT Value FROM Setting WHERE Key = 'LegacyMainDatabaseMigrated' AND GameId = '' LIMIT 1;");
+            if (!string.Equals(migrated, "1", StringComparison.Ordinal)
+                && (legacyMainDatabase || IsLegacyMainDatabase(con)))
+            {
+                MigrateLegacyCurrentGame(con);
+                MigrateLegacyLastSelectGameRecordRole(con);
+                MigrateLegacyAuthLoginSetting(con);
+                con.Execute("INSERT OR REPLACE INTO Setting (Key, GameId, Value) VALUES ('LegacyMainDatabaseMigrated', '', '1');");
+            }
         }
-        con.Execute(Sql_v25_CreatePassportAccountIndexes);
-        con.Execute("PRAGMA USER_VERSION = 25;");
+        catch (Exception ex)
+        {
+            // 迁移属于升级便利功能，失败不能拦住数据库升级。
+            Debug.WriteLine(ex);
+        }
+    }
+
+
+
+    /// <summary>
+    /// 这个库是不是从 main 升级上来的：只有本分支的 v22 会保留这些非大写开头的旧键
+    /// （上游 v22 只保留大写开头的键，上游 0.18→0.19 的用户库里也没有它们）。
+    /// </summary>
+    private static bool IsLegacyMainDatabase(SqliteConnection con)
+    {
+        try
+        {
+            return con.ExecuteScalar<long>("""
+                SELECT COUNT(1) FROM Setting
+                WHERE GameId = '' AND (
+                       Key LIKE 'enable_custom_bg_%'
+                    OR Key LIKE 'game_background_ids_%'
+                    OR Key LIKE 'use_popup_window_%'
+                    OR Key LIKE 'version_poster_%'
+                    OR Key LIKE 'last_select_game_record_role_%'
+                    OR Key LIKE 'last_region_of_%');
+                """) > 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+
+    /// <summary>
+    /// 当前游戏：main 按区服记（<c>CurrentGameBiz</c>），0.19 按游戏 ID 记（<c>CurrentGameId</c>）。
+    /// <para>
+    /// 升级前的真值优先从 v22 迁移前留下的备份库读：用户可能用旧版 0.18 又打开过迁移后的库，
+    /// 把 <c>CurrentGameBiz</c> 改成了别的区服（旧版不认新表结构，但读写老键仍然“正常”）。
+    /// 没有备份时才退回读 Setting 里的旧键。
+    /// </para>
+    /// <para>
+    /// 只在「还没选过游戏」或「能从迁移前备份读到真值」时写，避免覆盖用户在新版本里的选择。
+    /// </para>
+    /// </summary>
+    private static void MigrateLegacyCurrentGame(SqliteConnection con)
+    {
+        try
+        {
+            string? currentGameId = con.QueryFirstOrDefault<string>(
+                "SELECT Value FROM Setting WHERE Key = 'CurrentGameId' AND GameId = '' LIMIT 1;");
+            string? fromBackup = ReadLegacyCurrentGameBizFromBackup();
+            string? legacyGameBiz = fromBackup;
+            if (string.IsNullOrWhiteSpace(legacyGameBiz))
+            {
+                legacyGameBiz = con.QueryFirstOrDefault<string>(
+                    "SELECT Value FROM Setting WHERE Key = 'CurrentGameBiz' AND GameId = '' LIMIT 1;");
+            }
+            if (string.IsNullOrWhiteSpace(legacyGameBiz) || !GameBiz.TryParse(legacyGameBiz, out GameBiz gameBiz))
+            {
+                return;
+            }
+            if (GameId.FromGameBiz(gameBiz) is not GameId gameId)
+            {
+                return;
+            }
+            if (!string.IsNullOrWhiteSpace(currentGameId) && string.IsNullOrWhiteSpace(fromBackup))
+            {
+                return;
+            }
+            con.Execute("INSERT OR REPLACE INTO Setting (Key, GameId, Value) VALUES ('CurrentGameId', '', @id);", new { id = gameId.Id });
+            // 让这个游戏在 GameEntry 里存在且固定，启动器才有图标可恢复（没装游戏时也先固定，图标上可以定位）。
+            string? launcherId = LauncherId.FromGameBiz(gameBiz);
+            if (!string.IsNullOrWhiteSpace(launcherId))
+            {
+                int order = con.ExecuteScalar<int>("SELECT IFNULL(MAX(PinnedOrder), 0) + 1 FROM GameEntry;");
+                con.Execute("""
+                    INSERT INTO GameEntry (GameId, GameBiz, LauncherId, InstallPath, Removable, IsPinned, PinnedOrder)
+                    VALUES (@id, @gameBiz, @launcherId, NULL, 0, 1, @order)
+                    ON CONFLICT(GameId) DO UPDATE SET IsPinned = 1;
+                    """, new { id = gameId.Id, gameBiz = gameBiz.Value, launcherId, order });
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine(ex);
+        }
+    }
+
+
+    /// <summary>
+    /// 读 v22 迁移前留下的备份库里的 main 当前游戏（<c>CurrentGameBiz</c>）。备份不存在或读不到时返回 null。
+    /// </summary>
+    private static string? ReadLegacyCurrentGameBizFromBackup()
+    {
+        try
+        {
+            string backup = _databasePath + ".main-v22.bak";
+            if (!File.Exists(backup))
+            {
+                return null;
+            }
+            using var con = new SqliteConnection(new SqliteConnectionStringBuilder
+            {
+                DataSource = backup,
+                Mode = SqliteOpenMode.ReadOnly,
+                Pooling = false,
+            }.ToString());
+            con.Open();
+            con.Execute("PRAGMA busy_timeout = 5000;");
+            return con.QueryFirstOrDefault<string>("SELECT Value FROM Setting WHERE Key = 'CurrentGameBiz' LIMIT 1;");
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+
+    /// <summary>
+    /// 工具箱「上次选的角色」：main 的键是 <c>last_select_game_record_role_{GameBiz}</c>（全局），
+    /// 0.19 改成 <c>LastSelectGameRecordRole</c> + <c>GameId = {GameBiz}</c>。
+    /// </summary>
+    private static void MigrateLegacyLastSelectGameRecordRole(SqliteConnection con)
+    {
+        try
+        {
+            con.Execute("""
+                INSERT OR REPLACE INTO Setting (Key, GameId, Value)
+                SELECT 'LastSelectGameRecordRole',
+                       substr(Key, length('last_select_game_record_role_') + 1),
+                       Value
+                FROM Setting
+                WHERE GameId = '' AND Key LIKE 'last_select_game_record_role_%';
+                """);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine(ex);
+        }
+    }
+
+
+    /// <summary>
+    /// 自动登录总开关：main 是默认开启的 <c>EnableAuthTicketLoginV2</c>，
+    /// 0.19 换成默认关闭的 <c>AuthLoginGameByPassportAccount</c>。新键已经有行时不动。
+    /// </summary>
+    private static void MigrateLegacyAuthLoginSetting(SqliteConnection con)
+    {
+        try
+        {
+            string? existing = con.QueryFirstOrDefault<string>(
+                "SELECT Value FROM Setting WHERE Key = 'AuthLoginGameByPassportAccount' AND GameId = '' LIMIT 1;");
+            if (existing is not null)
+            {
+                return;
+            }
+            string? legacy = con.QueryFirstOrDefault<string>(
+                "SELECT Value FROM Setting WHERE Key = 'EnableAuthTicketLoginV2' AND GameId = '' LIMIT 1;");
+            // 旧键没写过时旧版本的默认值是开启；明确写过 False 的按 False 迁移。
+            bool enabled = !string.Equals(legacy?.Trim(), "false", StringComparison.OrdinalIgnoreCase);
+            con.Execute("INSERT OR REPLACE INTO Setting (Key, GameId, Value) VALUES ('AuthLoginGameByPassportAccount', '', @value);",
+                new { value = enabled ? "True" : "False" });
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine(ex);
+        }
+    }
+
+
+
+    /// <summary>
+    /// 把 main 中按 <c>install_path_{GameBiz}</c> / <c>install_path_removable_{GameBiz}</c> 保存的安装路径
+    /// 迁移到 0.19 的 <c>GameEntry</c> 表（v22 已把它们重命名成 InstallPath / InstallPathRemovable 设置键）。
+    /// <para>
+    /// 只补全，不覆盖：<c>GameEntry</c> 里已经有安装路径的条目（用户自己在 0.19 里定位过的）保持原样。
+    /// 迁移完成后清掉这些过渡设置键。
+    /// </para>
+    /// </summary>
+    private static void MigrateInstallPathsFromSettings(SqliteConnection con)
+    {
+        try
+        {
+            var rows = con.Query<SettingRow>("""
+                SELECT GameId, Value FROM Setting
+                WHERE Key = 'InstallPath' AND Value IS NOT NULL AND Value <> '';
+                """).AsList();
+            foreach (SettingRow row in rows)
+            {
+                string settingGameId = row.GameId;
+                // 0.19 的 Setting.GameId 形如 "hk4e_cn-1Z8W5NHUQb"（GameBiz-Id），GameBiz 本身不含 '-'。
+                int index = settingGameId.IndexOf('-');
+                if (index <= 0 || index >= settingGameId.Length - 1)
+                {
+                    continue;
+                }
+                GameBiz gameBiz = new(settingGameId[..index]);
+                string id = settingGameId[(index + 1)..];
+                string? launcherId = LauncherId.FromGameBiz(gameBiz);
+                if (string.IsNullOrWhiteSpace(launcherId))
+                {
+                    continue;
+                }
+                SettingRow? removableRow = con.QueryFirstOrDefault<SettingRow>(
+                    "SELECT GameId, Value FROM Setting WHERE Key = 'InstallPathRemovable' AND GameId = @settingGameId LIMIT 1;",
+                    new { settingGameId });
+                bool removable = removableRow?.Value?.Trim().ToLowerInvariant() is "true" or "1";
+                // ON CONFLICT 只在原有 InstallPath 为空时写入，绝不覆盖用户手动定位过的路径。
+                con.Execute("""
+                    INSERT INTO GameEntry (GameId, GameBiz, LauncherId, InstallPath, Removable, IsPinned, PinnedOrder)
+                    VALUES (@id, @gameBiz, @launcherId, @installPath, @removable, 0, 0)
+                    ON CONFLICT(GameId) DO UPDATE SET LauncherId  = COALESCE(NULLIF(GameEntry.LauncherId, ''), excluded.LauncherId),
+                                              InstallPath = COALESCE(GameEntry.InstallPath, excluded.InstallPath),
+                                              Removable   = CASE WHEN GameEntry.InstallPath IS NULL
+                                                                 THEN excluded.Removable
+                                                                 ELSE GameEntry.Removable END;
+                    """, new { id, gameBiz = gameBiz.Value, launcherId, installPath = row.Value, removable });
+                con.Execute("DELETE FROM Setting WHERE Key IN ('InstallPath', 'InstallPathRemovable') AND GameId = @settingGameId;", new { settingGameId });
+            }
+            RestorePinnedGameIcons(con);
+        }
+        catch (Exception ex)
+        {
+            // 安装路径迁移属于升级便利功能，失败不能拦住数据库升级。
+            Debug.WriteLine(ex);
+        }
+    }
+
+
+    /// <summary>
+    /// main 里只有一个「固定游戏区服选择器」的全局开关。升级到 0.19 后它对应「把所有已安装的游戏图标固定住」，
+    /// 全局开关没有每个图标的顺序，这里按 GameBiz 排序给一个稳定顺序。
+    /// </summary>
+    private static void RestorePinnedGameIcons(SqliteConnection con)
+    {
+        try
+        {
+            string? pinned = con.QueryFirstOrDefault<string>("""
+                SELECT Value FROM Setting
+                WHERE Key IN ('IsGameBizSelectorPinned', 'is_game_biz_selector_pinned') AND GameId = ''
+                LIMIT 1;
+                """);
+            if (pinned is null || pinned.Trim().ToLowerInvariant() is not ("true" or "1"))
+            {
+                return;
+            }
+            var entries = con.Query<GameEntryRow>("""
+                SELECT GameId, GameBiz FROM GameEntry
+                WHERE InstallPath IS NOT NULL AND InstallPath <> ''
+                ORDER BY GameBiz, LauncherId, GameId;
+                """).AsList();
+            int order = 1;
+            foreach (GameEntryRow entry in entries)
+            {
+                con.Execute("UPDATE GameEntry SET IsPinned = 1, PinnedOrder = @order WHERE GameId = @gameId;", new { order, gameId = entry.GameId });
+                order++;
+            }
+            con.Execute("DELETE FROM Setting WHERE Key IN ('IsGameBizSelectorPinned', 'is_game_biz_selector_pinned');");
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine(ex);
+        }
+    }
+
+
+    /// <summary>迁移过程中读写 Setting 行用的临时模型。</summary>
+    private sealed class SettingRow
+    {
+        public string GameId { get; set; } = "";
+
+        public string Value { get; set; } = "";
+    }
+
+
+    /// <summary>迁移过程中读写 GameEntry 行用的临时模型。</summary>
+    private sealed class GameEntryRow
+    {
+        public string GameId { get; set; } = "";
+
+        public string GameBiz { get; set; } = "";
     }
 
 
@@ -1328,7 +1703,11 @@ internal static class DatabaseService
             ('external_screenshot_folder',   'ExternalScreenshotFolder'),
             ('enable_dx12',                  'EnableDX12'),
             ('last_gacha_uid',               'LastGachaUid'),
-            ('display_gacha_banners',        'DisplayGachaBanners');
+            ('display_gacha_banners',        'DisplayGachaBanners'),
+            -- 本 fork（main）的安装路径设置：旧键 install_path_{GameBiz} / install_path_removable_{GameBiz}
+            -- 按 GameId 拆分成 0.19 的 InstallPath / InstallPathRemovable，v24 再搬进 GameEntry 表。
+            ('install_path',                 'InstallPath'),
+            ('install_path_removable',       'InstallPathRemovable');
 
         INSERT OR REPLACE INTO Setting_dg_tmp (Key, GameId, Value)
         SELECT CASE
@@ -1346,10 +1725,18 @@ internal static class DatabaseService
         SET Key = (SELECT New FROM KeyRename_tmp WHERE Old = Key)
         WHERE Key IN (SELECT Old FROM KeyRename_tmp);
 
+        -- 上游原本只保留大写开头的键（Key GLOB '[A-Z]*'），会把 main 分支的小写设置键
+        -- （install_path_*、launch_profiles_*、daily_note_notify_* 等）直接丢掉。
+        -- 本 fork 保留所有没有被上面重命名掉的旧键，统一写到 GameId = '' 的行里，
+        -- 保证 main 已有功能升级后设置不丢；真正需要换表的键由 v24 再迁移。
         INSERT OR REPLACE INTO Setting_dg_tmp (Key, GameId, Value)
-        SELECT Key, '', Value
-        FROM Setting
-        WHERE Key GLOB '[A-Z]*';
+        SELECT s.Key, '', s.Value
+        FROM Setting AS s
+        WHERE s.Key NOT IN (SELECT Old FROM KeyRename_tmp)
+          AND NOT EXISTS (SELECT 1
+                          FROM GameBizSplit_tmp AS sp
+                          WHERE substr(s.Key, -length(sp.Suffix)) = sp.Suffix
+                            AND substr(s.Key, 1, length(s.Key) - length(sp.Suffix)) IN (SELECT Old FROM KeyRename_tmp));
 
         DROP TABLE GameBizSplit_tmp;
         DROP TABLE KeyRename_tmp;
@@ -1400,18 +1787,18 @@ internal static class DatabaseService
         COMMIT TRANSACTION;
         """;
     /// <summary>
-    /// v25 使用：本分支的通行证账号池表。
+    /// v24 使用：本分支的通行证账号池表。
     /// <para>
     /// 与老 main 的 <c>PassportAccount</c> 表字段保持一致，另外补上 <c>Region</c>
     /// （<see cref="Starward.Core.ServerRegion"/> 的整数值，1 = 国服 miHoYo），
     /// 为后续把国际服 HYP 登录的账号也并入账号池做准备。
     /// </para>
     /// <para>
-    /// 老 main 的库里这张表已经存在且没有 Region，<see cref="ApplyMigrationV25"/> 会补列；
+    /// 老 main 的库里这张表已经存在且没有 Region，<see cref="ApplyMigrationV24"/> 会补列；
     /// 这里必须带 Region 定义，保证全新安装一次到位。
     /// </para>
     /// </summary>
-    private const string Sql_v25_CreatePassportAccount = """
+    private const string Sql_v24_CreatePassportAccount = """
         CREATE TABLE IF NOT EXISTS PassportAccount
         (
             Key         TEXT    NOT NULL PRIMARY KEY,
@@ -1427,7 +1814,7 @@ internal static class DatabaseService
         );
         """;
 
-    private const string Sql_v25_CreatePassportAccountIndexes = """
+    private const string Sql_v24_CreatePassportAccountIndexes = """
         CREATE INDEX IF NOT EXISTS IX_PassportAccount_Aid ON PassportAccount (Aid);
         CREATE INDEX IF NOT EXISTS IX_PassportAccount_Time ON PassportAccount (Time);
         CREATE INDEX IF NOT EXISTS IX_PassportAccount_Region ON PassportAccount (Region);

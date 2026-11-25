@@ -312,6 +312,9 @@ public sealed partial class MainView : UserControl
         if (message.GameId is not null)
         {
             CurrentGameId = message.GameId;
+            // 首次从「选择游戏」页进入时也要记住当前游戏：以前只有点顶部游戏图标才写，
+            // 于是重启后「当前启动器页」又丢了。
+            AppConfig.CurrentGameId = message.GameId.Id;
             UpdateNavigationView();
             var launcher = _hoYoPlayService.GetLauncherConfig(message.GameId);
             if (launcher is not null)

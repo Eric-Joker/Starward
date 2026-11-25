@@ -725,8 +725,9 @@ public sealed partial class GameLauncherSettingDialog : ContentDialogBase
     {
         try
         {
-            string path = Path.Join(AppConfig.UserDataFolder, "bg", CustomBg);
-            if (File.Exists(path))
+            // 0.18 的自定义背景在缓存目录、0.19 在用户数据目录：两个都找，升级上来的旧文件也能打开。
+            string? path = Starward.Features.Background.BackgroundService.GetCustomBgFilePath(CustomBg);
+            if (path is not null)
             {
                 await Launcher.LaunchUriAsync(new Uri(path));
             }

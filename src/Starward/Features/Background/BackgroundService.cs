@@ -77,17 +77,64 @@ public class BackgroundService
     }
 
 
-    public static bool TryGetCustomBgFilePath(GameId gameId, [NotNullWhen(true)] out string? path)
+    public static bool TryGetCustomBgFilePath(GameId? gameId, [NotNullWhen(true)] out string? path)
     {
         path = null;
         if (gameId is null)
         {
             return false;
         }
-        // 自定义背景属于启动预设：先读当前预设，没记过时回退到上游按 GameId 记的旧键
-        string? name = GetProfileCustomBgName(gameId);
-        path = Path.Join(AppConfig.UserDataFolder, "bg", name);
-        return File.Exists(path);
+        try
+        {
+            // 自定义背景属于启动预设：先读当前预设，没记过时回退到上游按 GameId 记的旧键
+            string? name = GetProfileCustomBgName(gameId) ?? AppConfig.GetCustomBg(gameId);
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return false;
+            }
+            // main（0.18）的自定义背景开关：明确关掉过的，升级上来继续不显示自定义背景。
+            if (AppConfig.GetValue<bool?>(default, $"enable_custom_bg_{gameId.GameBiz}", "") is false)
+            {
+                return false;
+            }
+            // 0.18 把自定义背景放在缓存目录，0.19 改成了用户数据目录且没有搬文件：两个目录都找。
+            foreach (string folder in new[] { Path.Join(AppConfig.UserDataFolder, "bg"), Path.Join(AppConfig.CacheFolder, "bg") })
+            {
+                string candidate = Path.Join(folder, name);
+                if (File.Exists(candidate))
+                {
+                    path = candidate;
+                    return true;
+                }
+            }
+            return false;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+
+    /// <summary>
+    /// 自定义背景文件的完整路径（用户数据目录优先，回退到 main 时代的缓存目录）。
+    /// 只用于「打开 / 删除」这类需要路径的界面操作。
+    /// </summary>
+    public static string? GetCustomBgFilePath(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return null;
+        }
+        foreach (string folder in new[] { Path.Join(AppConfig.UserDataFolder, "bg"), Path.Join(AppConfig.CacheFolder, "bg") })
+        {
+            string candidate = Path.Join(folder, name);
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+        return null;
     }
 
 
@@ -111,8 +158,12 @@ public class BackgroundService
     /// </summary>
     /// <param name="gameId"></param>
     /// <returns></returns>
-    public static string? GetLastAppBackgroundFile(GameId gameId)
+    public static string? GetLastAppBackgroundFile(GameId? gameId)
     {
+        if (gameId is null)
+        {
+            return null;
+        }
         // 当前背景属于启动预设：先读当前预设，没记过时回退到上游按 GameId 记的旧键
         string? name = GetProfileBgName(gameId) ?? AppConfig.GetBg(gameId);
         if (string.IsNullOrWhiteSpace(name))
