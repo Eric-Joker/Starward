@@ -3212,97 +3212,97 @@
   <data name="GameLauncherSettingDialog_ProfileNameFormat" xml:space="preserve">
     <value>预设 {0}</value>
   </data>
-<data name="TimeNode_Section_CurrentLimitedWish" xml:space="preserve">
+  <data name="TimeNode_Section_CurrentLimitedWish" xml:space="preserve">
     <value>当前祈愿</value>
   </data>
-<data name="TimeNode_Section_CurrentEventWarp" xml:space="preserve">
+  <data name="TimeNode_Section_CurrentEventWarp" xml:space="preserve">
     <value>当前跃迁</value>
   </data>
-<data name="TimeNode_Section_CurrentSignalSearch" xml:space="preserve">
+  <data name="TimeNode_Section_CurrentSignalSearch" xml:space="preserve">
     <value>当前调频</value>
   </data>
-<data name="ZZZGachaService_GettingOfficialGachaStats" xml:space="preserve">
+  <data name="ZZZGachaService_GettingOfficialGachaStats" xml:space="preserve">
     <value>正在获取官方抽卡统计</value>
   </data>
-<data name="ZZZGachaService_FillResult" xml:space="preserve">
+  <data name="ZZZGachaService_FillResult" xml:space="preserve">
     <value>{0}：补全 {1} 抽，其中 S 级 {2} 个</value>
   </data>
-<data name="ZZZGachaService_FillNothingMissing" xml:space="preserve">
+  <data name="ZZZGachaService_FillNothingMissing" xml:space="preserve">
     <value>本地记录已完整，无需补全</value>
   </data>
-<data name="ZZZGachaService_FillLocalBehind" xml:space="preserve">
+  <data name="ZZZGachaService_FillLocalBehind" xml:space="preserve">
     <value>{0}：最近的记录还没同步到，请稍后再试</value>
   </data>
-<data name="ZZZGachaService_FillOfficialBehind" xml:space="preserve">
+  <data name="ZZZGachaService_FillOfficialBehind" xml:space="preserve">
     <value>{0}：官方统计还没更新到最近几抽（约有 1 小时延迟），请稍后再试</value>
   </data>
-<data name="ZZZGachaService_FillSkipped" xml:space="preserve">
+  <data name="ZZZGachaService_FillSkipped" xml:space="preserve">
     <value>{0}：本地记录与官方统计对不上，已跳过</value>
   </data>
-<data name="GachaLogPage_FillFromMiyoushe" xml:space="preserve">
+  <data name="GachaLogPage_FillFromMiyoushe" xml:space="preserve">
     <value>从米游社补全缺失</value>
   </data>
-<data name="GachaLogPage_FillFromHoYoLAB" xml:space="preserve">
+  <data name="GachaLogPage_FillFromHoYoLAB" xml:space="preserve">
     <value>从 HoYoLAB 补全缺失</value>
   </data>
-<data name="GachaLogPage_FillMissingRecordsConfirm" xml:space="preserve">
+  <data name="GachaLogPage_FillMissingRecordsConfirm" xml:space="preserve">
     <value>不影响原有记录，只补充展示缺失的 S 级记录</value>
   </data>
-<data name="AutoRecordRefresh_DayOfMonthFormat" xml:space="preserve">
+  <data name="AutoRecordRefresh_DayOfMonthFormat" xml:space="preserve">
     <value>{0} 号</value>
   </data>
-<data name="AutoRecordRefresh_Days" xml:space="preserve">
+  <data name="AutoRecordRefresh_Days" xml:space="preserve">
     <value>天数</value>
   </data>
-<data name="AutoRecordRefresh_Enable" xml:space="preserve">
+  <data name="AutoRecordRefresh_Enable" xml:space="preserve">
     <value>启用自动更新</value>
   </data>
-<data name="AutoRecordRefresh_EnableCurrentMonth" xml:space="preserve">
+  <data name="AutoRecordRefresh_EnableCurrentMonth" xml:space="preserve">
     <value>更新当月</value>
   </data>
-<data name="AutoRecordRefresh_EnablePreviousMonth" xml:space="preserve">
+  <data name="AutoRecordRefresh_EnablePreviousMonth" xml:space="preserve">
     <value>更新上月</value>
   </data>
-<data name="AutoRecordRefresh_Errors" xml:space="preserve">
+  <data name="AutoRecordRefresh_Errors" xml:space="preserve">
     <value>异常记录</value>
   </data>
-<data name="AutoRecordRefresh_ErrorsDescription" xml:space="preserve">
+  <data name="AutoRecordRefresh_ErrorsDescription" xml:space="preserve">
     <value>自动更新时被跳过的账号与数据板块。返回码与提示为米游社原文。</value>
   </data>
-<data name="AutoRecordRefresh_Frequency" xml:space="preserve">
+  <data name="AutoRecordRefresh_Frequency" xml:space="preserve">
     <value>更新频率</value>
   </data>
-<data name="AutoRecordRefresh_LastUpdate" xml:space="preserve">
+  <data name="AutoRecordRefresh_LastUpdate" xml:space="preserve">
     <value>上次更新</value>
   </data>
-<data name="AutoRecordRefresh_ModeEveryDays" xml:space="preserve">
+  <data name="AutoRecordRefresh_ModeEveryDays" xml:space="preserve">
     <value>每隔几天</value>
   </data>
-<data name="AutoRecordRefresh_ModeMonthly" xml:space="preserve">
+  <data name="AutoRecordRefresh_ModeMonthly" xml:space="preserve">
     <value>每月</value>
   </data>
-<data name="AutoRecordRefresh_ModeWeekly" xml:space="preserve">
+  <data name="AutoRecordRefresh_ModeWeekly" xml:space="preserve">
     <value>每周</value>
   </data>
-<data name="AutoRecordRefresh_MonthCurrent" xml:space="preserve">
+  <data name="AutoRecordRefresh_MonthCurrent" xml:space="preserve">
     <value>当月</value>
   </data>
-<data name="AutoRecordRefresh_MonthPrevious" xml:space="preserve">
+  <data name="AutoRecordRefresh_MonthPrevious" xml:space="preserve">
     <value>上月</value>
   </data>
-<data name="AutoRecordRefresh_MonthTarget" xml:space="preserve">
+  <data name="AutoRecordRefresh_MonthTarget" xml:space="preserve">
     <value>月份</value>
   </data>
-<data name="AutoRecordRefresh_NeverUpdated" xml:space="preserve">
+  <data name="AutoRecordRefresh_NeverUpdated" xml:space="preserve">
     <value>从未更新</value>
   </data>
-<data name="AutoRecordRefresh_NextUpdate" xml:space="preserve">
+  <data name="AutoRecordRefresh_NextUpdate" xml:space="preserve">
     <value>下次更新</value>
   </data>
-<data name="AutoRecordRefresh_NoErrors" xml:space="preserve">
+  <data name="AutoRecordRefresh_NoErrors" xml:space="preserve">
     <value>暂无异常</value>
   </data>
-<data name="AutoRecordRefresh_Title" xml:space="preserve">
+  <data name="AutoRecordRefresh_Title" xml:space="preserve">
     <value>自动更新</value>
   </data>
   <data name="DailyNoteButton_Genshin_StoredEncounterPoints" xml:space="preserve">
@@ -3325,5 +3325,11 @@
   </data>
   <data name="TimeNode_RemainingMinutes" xml:space="preserve">
     <value>还剩{0}分钟</value>
+  </data>
+  <data name="ImaginariumTheaterPage_TrialCharacter" xml:space="preserve">
+    <value>试用</value>
+  </data>
+  <data name="ImaginariumTheaterPage_SupportingCastCharacter" xml:space="preserve">
+    <value>助演</value>
   </data>
 </root>
