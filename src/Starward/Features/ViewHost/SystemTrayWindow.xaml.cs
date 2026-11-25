@@ -4,9 +4,11 @@ using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Starward.Features.GameRecord.DailyNote.Notify;
+using Starward.Features.PlayTime;
 using Starward.Features.Setting;
 using Starward.Features.Startup;
 using Starward.Helpers;
+using System.Threading.Tasks;
 using Vanara.PInvoke;
 using Windows.Foundation;
 
@@ -35,6 +37,9 @@ public sealed partial class SystemTrayWindow : WindowBase
         ResidentInstanceMessenger.StartListening();
         // 实时便笺提醒：常驻检查各账号便笺，达到阈值时发 Windows 系统通知。
         _dailyNoteNotifyService.StartResident();
+        // 安装更新时安装器会结束安装目录下的 Starward 进程（含记录时长的子进程）；游戏还在运行时接续记录。
+        // 托盘窗口在每种启动方式下都会创建且只创建一次，放在这里保证每次启动只检查一次。
+        _ = Task.Run(() => AppConfig.GetService<PlayTimeRecordService>().ResumeInterruptedRecordings());
     }
 
 

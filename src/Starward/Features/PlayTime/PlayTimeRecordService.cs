@@ -11,6 +11,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace Starward.Features.PlayTime;
@@ -58,7 +59,7 @@ internal class PlayTimeRecordService
                 {
                     var now = DateTimeOffset.Now;
                     Log(biz, pid, PlayTimeState.Stop, now.ToUnixTimeMilliseconds(), $"{process.ProcessName} [{now}]");
-                    SavePlayTimeStats(biz, pid, process.StartTime, now.DateTime);
+                    SavePlayTimeStats(biz, pid, new DateTimeOffset(process.StartTime), now);
                     break;
                 }
                 else
@@ -70,7 +71,7 @@ internal class PlayTimeRecordService
                     }
                 }
             }
-            DatabaseService.SetValue($"playtime_total_{biz}", _playTimeStatsService.GetPlayTimeTotal(biz));
+            DatabaseService.SetValue(PlayTimeStatsService.TotalPlayTimeKey(biz), _playTimeStatsService.GetPlayTimeTotal(biz));
             _logger.LogInformation("End log playtime ({biz}, {pid})", biz, pid);
         }
         catch (Exception ex)
@@ -95,7 +96,7 @@ internal class PlayTimeRecordService
         }
 
         var now = DateTimeOffset.Now;
-        if (now - time >= TimeSpan.FromSeconds(60))
+        if (now - time >= TimeSpan.FromSeconds(10))
         {
             // 补全从开始游戏到开始记录游戏时间之间的记录
             List<PlayTimeItem> list = new List<PlayTimeItem>();
@@ -117,6 +118,15 @@ internal class PlayTimeRecordService
                     break;
                 }
             }
+            // 末尾补一条当前时刻的：第一条正式心跳在约 30 秒后才写，不补的话两者间隔可能超过 60 秒，
+            // 统计时会被当成睡眠空档切断，少算这段时间
+            list.Add(new PlayTimeItem
+            {
+                TimeStamp = now.ToUnixTimeMilliseconds(),
+                GameBiz = biz,
+                Pid = process.Id,
+                State = PlayTimeState.Play,
+            });
             using var t = dapper.BeginTransaction();
             dapper.Execute("INSERT OR REPLACE INTO PlayTimeItem (TimeStamp, GameBiz, Pid, State, CursorPos, Message) VALUES (@TimeStamp, @GameBiz, @Pid, @State, @CursorPos, @Message);", list, t);
             t.Commit();
@@ -148,27 +158,40 @@ internal class PlayTimeRecordService
 
 
 
-    private void SavePlayTimeStats(GameBiz biz, int pid, DateTime startTime, DateTime endTime)
+    /// <summary>
+    /// 游戏正常退出后，把这次进程的心跳记录按间隔切成会话写入 PlayTimeStats，并删除这些心跳。
+    /// 电脑睡眠/休眠期间没有心跳，这段空档不计入游戏时长，与未正常退出时由心跳归档的结果一致。
+    /// </summary>
+    /// <param name="biz">游戏区服（已归一化）。</param>
+    /// <param name="pid">游戏进程 ID。</param>
+    /// <param name="startTime">游戏进程启动时间。</param>
+    /// <param name="endTime">检测到游戏退出的时间，与 Stop 心跳的时间戳一致。</param>
+    private void SavePlayTimeStats(GameBiz biz, int pid, DateTimeOffset startTime, DateTimeOffset endTime)
     {
         try
         {
+            long start = startTime.ToUnixTimeMilliseconds();
+            long end = endTime.ToUnixTimeMilliseconds();
             using var dapper = DatabaseService.CreateConnection();
-            var stats = new PlayTimeStats
+            List<PlayTimeItemStruct> items = dapper.Query<PlayTimeItemStruct>(
+                "SELECT * FROM PlayTimeItem WHERE GameBiz = @biz AND Pid = @pid AND TimeStamp >= @start AND TimeStamp <= @end ORDER BY TimeStamp;",
+                new { biz = biz.ToString(), pid, start, end }).ToList();
+            List<PlayTimeStats> stats = _playTimeStatsService.GetPlayTimeStats(items).Where(x => x.EndTime > x.StartTime).ToList();
+            if (items.Count == 0)
             {
-                GameBiz = biz,
-                Pid = pid,
-                StartTime = new DateTimeOffset(startTime).ToUnixTimeMilliseconds(),
-                EndTime = new DateTimeOffset(endTime).ToUnixTimeMilliseconds(),
-            };
+                // 心跳一条都没写进去时只能按进程起止时间记，总比整次游戏丢掉好
+                stats = [new PlayTimeStats { GameBiz = biz, Pid = pid, StartTime = start, EndTime = end }];
+            }
             using var t = dapper.BeginTransaction();
-            dapper.Execute("INSERT OR REPLACE INTO PlayTimeStats (GameBiz, Pid, StartTime, EndTime, Interruption, Type) VALUES (@GameBiz, @Pid, @StartTime, @EndTime, @Interruption, @Type);", stats);
-            dapper.Execute("DELETE FROM PlayTimeItem WHERE GameBiz = @GameBiz AND Pid = @Pid AND TimeStamp >= @StartTime AND TimeStamp <= @EndTime;", stats);
+            dapper.Execute("INSERT OR REPLACE INTO PlayTimeStats (GameBiz, Pid, StartTime, EndTime, Interruption, Type) VALUES (@GameBiz, @Pid, @StartTime, @EndTime, @Interruption, @Type);", stats, t);
+            dapper.Execute("DELETE FROM PlayTimeItem WHERE GameBiz = @biz AND Pid = @pid AND TimeStamp >= @start AND TimeStamp <= @end;", new { biz = biz.ToString(), pid, start, end }, t);
             t.Commit();
-            _logger.LogInformation("Save play time stats: GameBiz {biz}, Pid {pid}, StartTime {startTime}, EndTime {endTime}, Interruption {interruption}", biz, pid, startTime, endTime, false);
+            _logger.LogInformation("Save play time stats: GameBiz {biz}, Pid {pid}, StartTime {startTime}, EndTime {endTime}, Sessions {count}, PlayTime {playTime}",
+                biz, pid, startTime, endTime, stats.Count, TimeSpan.FromMilliseconds(stats.Sum(x => x.EndTime - x.StartTime)));
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Save play time stats: GameBiz {biz}, Pid {pid}, StartTime {startTime}, EndTime {endTime}, Interruption {interruption}", biz, pid, startTime, endTime, false);
+            _logger.LogError(ex, "Save play time stats: GameBiz {biz}, Pid {pid}, StartTime {startTime}, EndTime {endTime}", biz, pid, startTime, endTime);
         }
     }
 
@@ -444,6 +467,85 @@ internal class PlayTimeRecordService
 
 
     #endregion
+
+
+
+
+    /// <summary>
+    /// 给「记录进程中途没了、游戏还在运行」的会话重新拉起记录进程，例如安装更新时安装器结束了记录进程。
+    /// 新的记录进程会在 <see cref="LogStartState"/> 里补齐中断期间的心跳。
+    /// <para>
+    /// 只接续心跳表里还留着记录的进程：正常结束的会话心跳已归档删除，不是本程序拉起的游戏也不会被接管。
+    /// </para>
+    /// </summary>
+    public void ResumeInterruptedRecordings()
+    {
+        try
+        {
+            using var dapper = DatabaseService.CreateConnection();
+            List<PlayTimeItemStruct> sessions = dapper.Query<PlayTimeItemStruct>("SELECT GameBiz, Pid, MAX(TimeStamp) AS TimeStamp FROM PlayTimeItem GROUP BY GameBiz, Pid;").ToList();
+            int sessionId = Process.GetCurrentProcess().SessionId;
+            foreach (PlayTimeItemStruct session in sessions)
+            {
+                using Process? process = TryGetRunningProcess(session.Pid);
+                if (process is null || process.SessionId != sessionId)
+                {
+                    continue;
+                }
+                // PID 会被复用：最后一条心跳之后才启动的进程不是当时记录的那个游戏
+                if (new DateTimeOffset(process.StartTime).ToUnixTimeMilliseconds() > session.TimeStamp)
+                {
+                    continue;
+                }
+                string? exeName = GameLauncherService.GetGameExeName(session.GameBiz);
+                if (!string.IsNullOrWhiteSpace(exeName) && !string.Equals(process.ProcessName, Path.GetFileNameWithoutExtension(exeName), StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+                if (App.FindInstanceForKey($"Starward.PlayTime.{session.Pid}") is not null)
+                {
+                    continue;
+                }
+                Process? p = Process.Start(new ProcessStartInfo
+                {
+                    FileName = AppConfig.StarwardExecutePath,
+                    Arguments = $"playtime --biz {session.GameBiz} --pid {session.Pid}",
+                    CreateNoWindow = true,
+                });
+                _logger.LogInformation("Resume interrupted play time recording: GameBiz {biz}, Pid {pid}, LastHeartbeat {last}, ProcessId {processId}",
+                    session.GameBiz, session.Pid, DateTimeOffset.FromUnixTimeMilliseconds(session.TimeStamp).ToLocalTime(), p?.Id);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Resume interrupted play time recording");
+        }
+    }
+
+
+
+    /// <summary>
+    /// 按 PID 取仍在运行的进程。
+    /// </summary>
+    /// <param name="pid">进程 ID。</param>
+    /// <returns>进程在运行且可查询启动时间时返回该进程，否则返回 <see langword="null"/>。</returns>
+    private static Process? TryGetRunningProcess(int pid)
+    {
+        Process? process = null;
+        try
+        {
+            process = Process.GetProcessById(pid);
+            // 先取一次启动时间：无权限查询的进程在这里就排除，记录进程拿不到启动时间也接续不了
+            _ = process.StartTime;
+            if (!process.HasExited)
+            {
+                return process;
+            }
+        }
+        catch { }
+        process?.Dispose();
+        return null;
+    }
 
 
 
