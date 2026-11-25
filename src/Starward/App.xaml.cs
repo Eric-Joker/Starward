@@ -1,4 +1,4 @@
-using CommunityToolkit.Mvvm.Messaging;
+﻿using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.Windows.AppLifecycle;
@@ -118,7 +118,8 @@ public partial class App : Application
 
         // 从 main 升级上来的设置迁移放在数据库 v26 迁移里做（必须早于任何窗口 / 任何旧进程写库）。
 
-        if (Environment.GetCommandLineArgs().Contains("--hide"))        {
+        if (Environment.GetCommandLineArgs().Contains("--hide"))
+        {
             m_SystemTrayWindow = new SystemTrayWindow();
         }
         else

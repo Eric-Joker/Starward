@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Logging;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -10,6 +11,7 @@ using Starward.Core.GameRecord.Genshin.DailyNote;
 using Starward.Core.GameRecord.StarRail.DailyNote;
 using Starward.Core.GameRecord.ZZZ.DailyNote;
 using Starward.Core.HoYoPlay;
+using Starward.Features.Account;
 using Starward.Features.GameRecord.BH3;
 using Starward.Features.GameRecord.DailyNote.Notify;
 using Starward.Features.GameRecord.Genshin;
@@ -42,9 +44,83 @@ public sealed partial class DailyNoteButton : UserControl
     private readonly DailyNoteNotifyService _dailyNoteNotifyService = AppConfig.GetService<DailyNoteNotifyService>();
 
 
+    private readonly PassportAccountService _passportAccountService = AppConfig.GetService<PassportAccountService>();
+
+
     public DailyNoteButton()
     {
         this.InitializeComponent();
+        this.Visibility = Visibility.Collapsed;
+        // 登录 / 新增角色后 GameRecordRoleChangedMessage 会到达，此时必须重新解析角色并重算可见性：
+        // 本控件只在 Loaded 时刷新一次，而登录完成可能发生在它已经加载之后（那时它还是 Collapsed）。
+        WeakReferenceMessenger.Default.Register<GameRecordRoleChangedMessage>(this, (_, _) => RefreshForRoleChanged());
+        // 账号选择器切号后跟上当前账号在这个游戏的角色；令牌刷新等其它账号消息不会引发请求。
+        WeakReferenceMessenger.Default.Register<PassportAccountChangedMessage>(this, (_, _) => RefreshForRoleChanged());
+    }
+
+
+
+    /// <summary>
+    /// 角色或当前账号变了：重新解析这个游戏应该用的角色，真的换了 UID 才刷新。
+    /// 切号过程中会收到多条消息（账号变化 + 角色变化），这里按 UID 去重，不会连着发几次请求。
+    /// </summary>
+    private void RefreshForRoleChanged()
+    {
+        try
+        {
+            if (!IsLoaded || CurrentGameId is null)
+            {
+                return;
+            }
+            if (!GameFeatureConfig.FromGameId(CurrentGameId).SupportDailyNote)
+            {
+                return;
+            }
+            // 消息可能从后台线程发出来，解析角色、动界面都回到 UI 线程做。
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                try
+                {
+                    if (!IsLoaded || CurrentGameId is null)
+                    {
+                        return;
+                    }
+                    GameRecordRole? role = _passportAccountService.GetAccountCenterGameRole(CurrentGameId.GameBiz);
+                    if (role?.Uid == GameRecordRole?.Uid)
+                    {
+                        return;
+                    }
+                    if (role is null)
+                    {
+                        // 当前账号在这个游戏没有角色：按钮收起，别继续显示上一个账号的数据。
+                        ClearDailyNote();
+                        return;
+                    }
+                    RefreshDailyNoteCommand.Execute(true);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Refresh daily note from role change (Biz: {GameBiz})", CurrentGameId?.GameBiz);
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Handle daily note role change");
+        }
+    }
+
+
+
+    /// <summary>收起按钮并清掉上一个账号留下的数据。</summary>
+    private void ClearDailyNote()
+    {
+        GameRecordRole = null;
+        BH3DailyNote = null!;
+        GenshinDailyNote = null!;
+        StarRailDailyNote = null!;
+        ZZZDailyNote = null!;
+        ErrorMessage = null;
         this.Visibility = Visibility.Collapsed;
     }
 
@@ -109,6 +185,8 @@ public sealed partial class DailyNoteButton : UserControl
 
     private void Button_DailyNote_Unloaded(object sender, RoutedEventArgs e)
     {
+        // 取消还没回来的请求：切页之后旧数据不能再盖回来
+        _refreshVersion++;
         GameRecordRole = null;
         BH3DailyNote = null!;
         GenshinDailyNote = null!;
@@ -118,45 +196,74 @@ public sealed partial class DailyNoteButton : UserControl
 
 
 
+    /// <summary>最近一次刷新请求的版本号：切号时旧请求晚回来，不能把新账号的数据盖掉。</summary>
+    private int _refreshVersion;
+
+
+
     [RelayCommand]
     private async Task RefreshDailyNoteAsync(bool? forceUpdate)
     {
+        int version = ++_refreshVersion;
         try
         {
             if (!forceUpdate.HasValue)
             {
                 forceUpdate = true;
             }
-            GameBiz gameBiz = CurrentGameId.GameBiz;
-            GameRecordRole = GameRecordRoleService.GetLastSelectGameRecordRoleOrTheFirstOne(gameBiz);
-            if (GameRecordRole is not null)
+            // 角色统一按账号解析：国服跟着账号中心选中的账号走，国际服 / B 服沿用最近选择的角色。
+            GameRecordRole? role = _passportAccountService.GetAccountCenterGameRole(CurrentGameId.GameBiz);
+            GameRecordRole = role;
+            if (role is null)
             {
-                GameRecordRole role = GameRecordRole;
-                this.Visibility = Visibility.Visible;
-                ErrorMessage = null;
-                if (IsBH3Enabled)
-                {
-                    BH3DailyNote = await GetDailyNoteWithRetryAsync(role, () => _gameRecordBH3Service.GetBH3DailyNoteAsync(role, forceUpdate.Value));
-                }
-                if (IsGenshinEnabled)
-                {
-                    GenshinDailyNote = await GetDailyNoteWithRetryAsync(role, () => _gameRecordGenshinService.GetGenshinDailyNoteAsync(role, forceUpdate.Value));
-                }
-                if (IsStarRailEnabled)
-                {
-                    StarRailDailyNote = await GetDailyNoteWithRetryAsync(role, () => _gameRecordStarRailService.GetStarRailDailyNoteAsync(role, forceUpdate.Value));
-                }
-                if (IsZZZEnabled)
-                {
-                    ZZZDailyNote = await GetDailyNoteWithRetryAsync(role, () => _gameRecordZZZService.GetZZZDailyNoteAsync(role, forceUpdate.Value));
-                }
-                // 交给便笺提醒判定，免得后台为同一份数据再请求一次
-                _dailyNoteNotifyService.ReportSnapshot(GameRecordRole, GetCurrentDailyNote());
+                // 当前账号在这个游戏里没有角色：入口收起。
+                ClearDailyNote();
+                return;
             }
+            this.Visibility = Visibility.Visible;
+            ErrorMessage = null;
+            if (IsBH3Enabled)
+            {
+                var note = await GetDailyNoteWithRetryAsync(role, () => _gameRecordBH3Service.GetBH3DailyNoteAsync(role, forceUpdate.Value));
+                if (version != _refreshVersion)
+                {
+                    return;
+                }
+                BH3DailyNote = note;
+            }
+            if (IsGenshinEnabled)
+            {
+                var note = await GetDailyNoteWithRetryAsync(role, () => _gameRecordGenshinService.GetGenshinDailyNoteAsync(role, forceUpdate.Value));
+                if (version != _refreshVersion)
+                {
+                    return;
+                }
+                GenshinDailyNote = note;
+            }
+            if (IsStarRailEnabled)
+            {
+                var note = await GetDailyNoteWithRetryAsync(role, () => _gameRecordStarRailService.GetStarRailDailyNoteAsync(role, forceUpdate.Value));
+                if (version != _refreshVersion)
+                {
+                    return;
+                }
+                StarRailDailyNote = note;
+            }
+            if (IsZZZEnabled)
+            {
+                var note = await GetDailyNoteWithRetryAsync(role, () => _gameRecordZZZService.GetZZZDailyNoteAsync(role, forceUpdate.Value));
+                if (version != _refreshVersion)
+                {
+                    return;
+                }
+                ZZZDailyNote = note;
+            }
+            // 交给便笺提醒判定，免得后台为同一份数据再请求一次
+            _dailyNoteNotifyService.ReportSnapshot(role, GetCurrentDailyNote());
         }
         catch (Exception ex)
         {
-            if (ex is miHoYoApiException)
+            if (version == _refreshVersion && ex is miHoYoApiException)
             {
                 ErrorMessage = $"Error Code: {ex.Message}";
             }

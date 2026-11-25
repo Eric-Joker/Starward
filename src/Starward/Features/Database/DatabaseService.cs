@@ -497,13 +497,20 @@ internal static class DatabaseService
 
 
     /// <summary>
-    /// main 里只有一个「固定游戏区服选择器」的全局开关。升级到 0.19 后它对应「把所有已安装的游戏图标固定住」，
-    /// 全局开关没有每个图标的顺序，这里按 GameBiz 排序给一个稳定顺序。
+    /// main 里「游戏选择器里的图标列表」是全局设置 <c>SelectedGameBizs</c>（逗号分隔的区服），
+    /// 「固定」开关 <c>IsGameBizSelectorPinned</c> 只决定那列图标是否常驻展开。
+    /// 0.19 把这两件事合并成 <c>GameEntry.IsPinned</c>，所以优先按旧列表逐一把对应条目固定住，
+    /// 顺序沿用旧列表；旧列表里有、但还没定位安装路径的游戏也建条目（0.19 的图标上可以直接定位/安装）。
+    /// 读不到旧列表时，退回「旧固定开关打开就把所有已定位的游戏固定住」的行为。
     /// </summary>
     private static void RestorePinnedGameIcons(SqliteConnection con)
     {
         try
         {
+            if (TryRestorePinnedGameIconsFromSelectedList(con))
+            {
+                return;
+            }
             string? pinned = con.QueryFirstOrDefault<string>("""
                 SELECT Value FROM Setting
                 WHERE Key IN ('IsGameBizSelectorPinned', 'is_game_biz_selector_pinned') AND GameId = ''
@@ -530,6 +537,61 @@ internal static class DatabaseService
         {
             Debug.WriteLine(ex);
         }
+    }
+
+
+    /// <summary>
+    /// 按 main 的「已选游戏区服」列表固定 0.19 的游戏图标；没有这份旧列表时返回 <see langword="false"/>。
+    /// </summary>
+    /// <param name="con">数据库连接。</param>
+    /// <returns>是否读到了可用的旧列表（读到即已迁移完成）。</returns>
+    private static bool TryRestorePinnedGameIconsFromSelectedList(SqliteConnection con)
+    {
+        string? selected = con.QueryFirstOrDefault<string>("""
+            SELECT Value FROM Setting
+            WHERE Key IN ('SelectedGameBizs', 'selected_game_bizs') AND GameId = ''
+            LIMIT 1;
+            """);
+        if (string.IsNullOrWhiteSpace(selected))
+        {
+            return false;
+        }
+        var gameBizs = new List<GameBiz>();
+        foreach (string str in selected.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (GameBiz.TryParse(str, out GameBiz biz) && !gameBizs.Contains(biz))
+            {
+                gameBizs.Add(biz);
+            }
+        }
+        if (gameBizs.Count == 0)
+        {
+            return false;
+        }
+        int order = 1;
+        foreach (GameBiz gameBiz in gameBizs)
+        {
+            if (GameId.FromGameBiz(gameBiz) is not GameId gameId)
+            {
+                continue;
+            }
+            string? launcherId = LauncherId.FromGameBiz(gameBiz);
+            if (string.IsNullOrWhiteSpace(launcherId))
+            {
+                continue;
+            }
+            // 只补顺序与固定标记：已有安装路径的条目保持原样，用户之后在 0.19 里调整过顺序也不受影响。
+            con.Execute("""
+                INSERT INTO GameEntry (GameId, GameBiz, LauncherId, InstallPath, Removable, IsPinned, PinnedOrder)
+                VALUES (@gameId, @gameBiz, @launcherId, NULL, 0, 1, @order)
+                ON CONFLICT(GameId) DO UPDATE SET IsPinned    = 1,
+                                                 PinnedOrder  = @order,
+                                                 LauncherId   = COALESCE(NULLIF(GameEntry.LauncherId, ''), excluded.LauncherId);
+                """, new { gameId = gameId.Id, gameBiz = gameBiz.Value, launcherId, order });
+            order++;
+        }
+        con.Execute("DELETE FROM Setting WHERE Key IN ('SelectedGameBizs', 'selected_game_bizs', 'IsGameBizSelectorPinned', 'is_game_biz_selector_pinned');");
+        return true;
     }
 
 

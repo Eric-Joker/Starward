@@ -10,6 +10,7 @@ using Microsoft.UI.Xaml.Media;
 using Starward.Core;
 using Starward.Core.Passport;
 using Starward.Features.GameRecord;
+using Starward.Features.Passport;
 using Starward.Features.ViewHost;
 using Starward.Helpers;
 using System;
@@ -23,7 +24,11 @@ using System.Threading.Tasks;
 namespace Starward.Features.Account;
 
 /// <summary>
-/// 账号中心。挂在左侧导航栏的账号入口上，以弹出的浮窗形式显示。
+/// 原账号中心。【已停用】账号中心已经换成上游 0.19 的 HYP 账号浮窗（<c>MainView</c> 左侧栏），
+/// 这个面板不再挂到任何界面上；代码保留备查（登录方式本身照旧可用）。
+/// <para>
+/// 原行为：挂在左侧导航栏的账号入口上，以弹出的浮窗形式显示。
+/// </para>
 /// <para>
 /// 未登录时是登录界面：支持账号密码、短信验证码、扫码三种登录方式，并可以导入已有的令牌。
 /// 已登录时是账号池：列出所有保存过的账号，可以拖动排序、添加、删除，
@@ -1792,13 +1797,19 @@ public sealed partial class AccountCenterPanel : UserControl
         }
         try
         {
-            if (MainView.Current is not MainView mainView)
-            {
-                return;
-            }
             IsBusy = true;
             StatusMessage = Lang.PassportLogin_HypLoginOpening;
-            var model = await mainView.HypLoginForRegionAsync(ServerRegion.HoYoverse);
+            // 【已停用】账号中心已换成上游 MainView 的 HYP 浮窗；这里保留面板内的国际服登录实现备查，
+            // 不再依赖 MainView 的扩展方法，直接开上游的 HYP 网页登录。
+            var model = await new HypLoginWindow
+            {
+                ParentWindowHandle = MainWindow.Current.WindowHandle,
+                ServerRegion = ServerRegion.HoYoverse,
+            }.LoginAsync();
+            if (model is not null)
+            {
+                PassportService.SavePassportUserInfo(model);
+            }
             if (model is null)
             {
                 StatusMessage = null;

@@ -1,4 +1,5 @@
 ﻿using CommunityToolkit.HighPerformance;
+using CommunityToolkit.Mvvm.Messaging;
 using Dapper;
 using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
@@ -7,6 +8,7 @@ using Starward.Core.DeviceFp;
 using Starward.Core.GameRecord;
 using Starward.Core.HoYoPlay;
 using Starward.Core.Passport;
+using Starward.Features.Account;
 using Starward.Features.Database;
 using Starward.Features.GameSelector;
 using Starward.GameInstall;
@@ -23,6 +25,9 @@ internal class PassportService
 {
 
     private readonly ILogger<PassportService> _logger;
+
+    /// <summary>读账号表的那几个方法都是静态的，这里给它们一个惰性日志实例。</summary>
+    private static readonly Lazy<ILogger<PassportService>> _sharedLogger = new(AppConfig.GetLogger<PassportService>);
 
     private readonly PassportClient _passportClient;
 
@@ -54,8 +59,12 @@ internal class PassportService
             await UpdateBbsUserInfoAsync(model, cancellation);
             if (!string.IsNullOrWhiteSpace(result.NewSToken))
             {
+                // refresh = true 时服务端会换发一枚新的 SToken，旧的那枚随时可能作废。
+                // 账号池（<see cref="PassportAccountService"/>）里存的是另一份副本，不同步过去的话
+                // 它下次写入账号表就会把旧令牌盖回来，账号中心随即又显示「登录已过期」。
                 model.Stoken = result.NewSToken;
                 SavePassportUserInfo(model);
+                WeakReferenceMessenger.Default.Send(new PassportStokenRotatedMessage(model.Region, model.Aid, model.Mid, model.Stoken));
             }
             else
             {
@@ -63,10 +72,28 @@ internal class PassportService
             }
             model.ErrorType = PassportErrorType.Success;
         }
-        catch (miHoYoApiException)
+        catch (miHoYoApiException ex) when (IsSessionExpired(ex.ReturnCode))
         {
+            _logger.LogWarning("Passport session of account {aid} is no longer valid: {retcode} {message}", model.Aid, ex.ReturnCode, ex.Message);
             model.ErrorType = PassportErrorType.NeedLogin;
         }
+        catch (Exception ex)
+        {
+            // 网络抖动、风控（10035 / 10041 之类）、服务端临时故障都不代表登录失效，
+            // 之前这里一律按「需要重新登录」处理，账号中心因此会显示假的红色警告点。
+            // 这类失败只记日志，保持上一次的结论。
+            _logger.LogWarning(ex, "Verify the passport session of account {aid}", model.Aid);
+        }
+    }
+
+
+    /// <summary>
+    /// 返回码是否表示会话本身已经失效（需要用户重新登录）。
+    /// 其余错误（风控、限流、网络）只是这一轮请求失败，不能据此判定账号过期。
+    /// </summary>
+    private static bool IsSessionExpired(int retcode)
+    {
+        return retcode is -100 or -111 or 10001 or -10001;
     }
 
 
@@ -170,16 +197,16 @@ internal class PassportService
             list.Add(model);
             if (item.Stoken is null || item.Stoken.Length <= 28)
             {
-                model.ErrorType = PassportErrorType.NeedLogin;
+                MarkUnreadableStoken(model, item.Aid, null);
                 continue;
             }
             try
             {
                 model.Stoken = DecryptStoken(item.Stoken);
             }
-            catch
+            catch (Exception ex)
             {
-                model.ErrorType = PassportErrorType.NeedLogin;
+                MarkUnreadableStoken(model, item.Aid, ex);
             }
         }
         return list;
@@ -197,16 +224,16 @@ internal class PassportService
             list.Add(model);
             if (item.Stoken is null || item.Stoken.Length <= 28)
             {
-                model.ErrorType = PassportErrorType.NeedLogin;
+                MarkUnreadableStoken(model, item.Aid, null);
                 continue;
             }
             try
             {
                 model.Stoken = DecryptStoken(item.Stoken);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                model.ErrorType = PassportErrorType.NeedLogin;
+                MarkUnreadableStoken(model, item.Aid, ex);
             }
         }
         return list;
@@ -225,18 +252,43 @@ internal class PassportService
         var model = info.ToModel();
         if (info.Stoken is null || info.Stoken.Length <= 28)
         {
-            model.ErrorType = PassportErrorType.NeedLogin;
+            MarkUnreadableStoken(model, info.Aid, null);
             return model;
         }
         try
         {
             model.Stoken = DecryptStoken(info.Stoken);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            model.ErrorType = PassportErrorType.NeedLogin;
+            MarkUnreadableStoken(model, info.Aid, ex);
         }
         return model;
+    }
+
+
+    /// <summary>
+    /// 账号表里的 SToken 读不出来：标注为「需要重新登录」，并留下日志。
+    /// <para>
+    /// 这是账号中心红色警告点的另一个来源（另一个是 <see cref="VerifySessionAsync"/> 校验失败）。
+    /// 以前这里静默处理，界面上只看到一个红点，看不出是解密失败还是令牌真的失效。
+    /// </para>
+    /// </summary>
+    private static void MarkUnreadableStoken(PassportUserInfoModel model, long aid, Exception? ex)
+    {
+        model.ErrorType = PassportErrorType.NeedLogin;
+        try
+        {
+            if (ex is null)
+            {
+                _sharedLogger.Value.LogWarning("The stored stoken of account {aid} is empty or truncated.", aid);
+            }
+            else
+            {
+                _sharedLogger.Value.LogWarning(ex, "Can not decrypt the stored stoken of account {aid}.", aid);
+            }
+        }
+        catch { }
     }
 
 

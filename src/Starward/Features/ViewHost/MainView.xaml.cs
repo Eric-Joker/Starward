@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Logging;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media.Animation;
 using NuGet.Versioning;
 using Starward.Core;
@@ -69,14 +70,10 @@ public sealed partial class MainView : UserControl
     private void InitializeMainView()
     {
         this.Loaded += MainView_Loaded;
-        // 主界面的账号中心是 XAML 里常驻的浮窗，也要挂上宿主：
-        // 登录过程中拦下“点外面自动收起”，登录成功时 Host?.Hide() 才能真的把它收起来。
-        Panel_AccountCenter.AttachHost(Flyout_Account);
         WeakReferenceMessenger.Default.Register<MainViewNavigateMessage>(this, OnMainViewNavigateMessageReceived);
         WeakReferenceMessenger.Default.Register<BH3GlobalGameServerChangedMessage>(this, OnBH3GlobalGameServerChanged);
-        WeakReferenceMessenger.Default.Register<MainWindowStateChangedMessage>(this, OnMainWindowStateChanged);
+        WeakReferenceMessenger.Default.Register<MainWindowStateChangedMessage>(this, (_, _) => _ = CheckUpdateOrShowRecentUpdateContentAsync());
         WeakReferenceMessenger.Default.Register<EnabledLauncherConfigChangedMessage>(this, OnEnabledLauncherConfigChanged);
-        WeakReferenceMessenger.Default.Register<PassportAccountChangedMessage>(this, (_, _) => UpdateAccountEntry());
         GameId? gameId = GameSwitcher.CurrentGameIcon?.GameId;
         if (gameId?.GameBiz == GameBiz.bh3_global)
         {
@@ -104,7 +101,6 @@ public sealed partial class MainView : UserControl
         CheckSystemProxy();
         HotkeyManager.InitializeHotkey(this.XamlRoot.GetWindowHandle());
         _ = CheckUpdateOrShowRecentUpdateContentAsync();
-        UpdateAccountEntry();
 
         if (AppConfig.EnableGamepadController)
         {
@@ -149,7 +145,6 @@ public sealed partial class MainView : UserControl
             InitializePassportUser();
         }
         UpdateNavigationView();
-        UpdateAccountEntry();
         HideLauncherConfigView();
         UpdateDragableArea();
     }
@@ -167,97 +162,6 @@ public sealed partial class MainView : UserControl
 
 
     #region UI
-
-
-    /// <summary>
-    /// 刷新左侧导航栏里的账号中心入口：外显是账号池里至多三个账号头像的叠影，
-    /// 一个账号都没有时退回通用图标。入口只在当前启动器配置支持通行证登录时显示。
-    /// </summary>
-    private void UpdateAccountEntry()
-    {
-        try
-        {
-            bool visible = CurrentLauncherConfig?.CanLogin ?? false;
-            Button_Account.Visibility = visible.ToVisibility();
-            if (!visible)
-            {
-                return;
-            }
-            var accounts = AppConfig.GetService<PassportAccountService>().GetAccounts();
-            var images = new[] { Image_AccountAvatar_1, Image_AccountAvatar_2, Image_AccountAvatar_3 };
-            int count = Math.Min(accounts.Count, images.Length);
-            // 头像从左到右排在「左 / 中 / 右」三个位置上，整体在按钮里居中：
-            // 三个账号占满三位，两个账号居中排在中间，只有一个账号时它就在中间那一层。
-            const int step = 8;
-            int start = step * (images.Length - count) / 2;
-            for (int i = 0; i < images.Length; i++)
-            {
-                if (i < count)
-                {
-                    images[i].Source = accounts[i].AvatarUrl;
-                    images[i].Margin = new Thickness(start + step * i, 0, 0, 0);
-                    images[i].Visibility = Visibility.Visible;
-                }
-                else
-                {
-                    images[i].Visibility = Visibility.Collapsed;
-                }
-            }
-            Glyph_Account.Visibility = count == 0 ? Visibility.Visible : Visibility.Collapsed;
-            ToolTipService.SetToolTip(Button_Account, Lang.PassportLogin_Accounts);
-            // 上游 HYP 账号浮窗的入口，提示里写清楚它是网页登录、国际服也走它。
-            ToolTipService.SetToolTip(Button_HypAccount, Lang.PassportLogin_HypAccount);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Update the account center entry");
-        }
-    }
-
-
-
-
-    private void Flyout_Account_Opening(object? sender, object e)
-    {
-        try
-        {
-            Panel_AccountCenter.Refresh();
-        }
-        catch { }
-    }
-
-
-
-
-    private void Flyout_Account_Closed(object? sender, object e)
-    {
-        try
-        {
-            Panel_AccountCenter.Cleanup();
-        }
-        catch { }
-    }
-
-
-
-
-    private void OnMainWindowStateChanged(object recipient, MainWindowStateChangedMessage message)
-    {
-        try
-        {
-            // 窗口收托盘/关闭是程序化关闭路径：必须允许账号中心浮窗正常收起，
-            // 否则会被“登录中禁止自动收起”挡住，表现为浮窗挂在托盘窗口上关不掉。
-            if (message.Hide)
-            {
-                Panel_AccountCenter.AllowHostHide();
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Handle main window state change for account center");
-        }
-        _ = CheckUpdateOrShowRecentUpdateContentAsync();
-    }
 
 
     [RelayCommand]
@@ -330,7 +234,6 @@ public sealed partial class MainView : UserControl
             ToolTipService.SetToolTip(NavigationViewItem_HoyolabToolbox, Lang.HoYoLABToolbox);
             TextBlock_HoyolabToolbox.Text = Lang.HoYoLABToolbox;
         }
-        UpdateAccountEntry();
 
         if (CurrentGameId is null)
         {
@@ -564,6 +467,7 @@ public sealed partial class MainView : UserControl
             {
                 _ = _windowsDeviceFpService.InitializeDeviceFpAsync(CurrentLauncherConfig.Region);
                 PassportUsers = new(PassportService.GetPassportUserInfos(CurrentLauncherConfig.Region));
+                ApplyPassportUserOrder();
                 if (PassportUsers.Count > 0)
                 {
                     CurrentPassportUser = PassportUsers.FirstOrDefault(x => x.Aid == AppConfig.GetLastPassportUserAid(CurrentLauncherConfig.Region));
@@ -599,66 +503,39 @@ public sealed partial class MainView : UserControl
         if (value is not null)
         {
             AppConfig.SetLastPassportUserAid(value.Region, value.Aid);
+            // 账号中心切到哪个账号，首页的米游社工具（体力 / 签到等）就用哪个账号；
+            // 这个「当前通行证账号」不再跟着启动页的游戏账号切换器走。
+            AppConfig.GetService<PassportAccountService>().UseAccountCenterAccount(value.Region, value.Aid, value.Mid);
         }
     }
 
 
     [RelayCommand]
-    public Task<PassportUserInfoModel?> HypLoginAsync()
-    {
-        return HypLoginForRegionAsync(CurrentLauncherConfig?.Region ?? ServerRegion.HoYoverse);
-    }
-
-
-
-
-    /// <summary>
-    /// HYP 网页登录指定的服务器区域。账号中心里的“国际服登录”直接调用它，
-    /// 登录成功后账号会同时写进账号池（<see cref="PassportAccountService"/>），
-    /// 所以账号中心、启动器自动登录和米游社工具箱看到的始终是同一份账号。
-    /// </summary>
-    /// <param name="region">服务器区域：国服或国际服。</param>
-    /// <returns>登录成功的账号；用户取消或失败时返回 null。</returns>
-    public async Task<PassportUserInfoModel?> HypLoginForRegionAsync(ServerRegion region)
+    public async Task<PassportUserInfoModel?> HypLoginAsync()
     {
         try
         {
-            if (region is not ServerRegion.miHoYo and not ServerRegion.HoYoverse)
+            if (CurrentLauncherConfig?.CanLogin ?? false)
             {
-                return null;
-            }
-            var model = await new HypLoginWindow
-            {
-                ParentWindowHandle = MainWindow.Current.WindowHandle,
-                ServerRegion = region
-            }.LoginAsync();
-            if (model is not null)
-            {
-                // 这个区域正好是当前启动器配置的区域时，才把它放进 MainView 的 HYP 账号列表；
-                // 从账号中心登录另一个区域的账号只写账号池，不顶掉当前区域的 HYP 账号展示。
-                if (CurrentLauncherConfig?.Region == region)
+                var model = await new HypLoginWindow
                 {
-                    PassportUsers ??= new();
-                    if (PassportUsers.FirstOrDefault(x => x.Aid == model.Aid) is PassportUserInfoModel oldModel)
-                    {
-                        int index = PassportUsers.IndexOf(oldModel);
-                        PassportUsers.Remove(oldModel);
-                        PassportUsers.Insert(index, model);
-                    }
-                    else
-                    {
-                        PassportUsers.Add(model);
-                    }
+                    ParentWindowHandle = MainWindow.Current.WindowHandle,
+                    ServerRegion = CurrentLauncherConfig.Region
+                }.LoginAsync();
+                if (model is not null)
+                {
+                    AddPassportUser(model);
                     CurrentPassportUser = model;
                     UpdateHypFlyoutLayout();
+                    PassportService.SavePassportUserInfo(model);
+                    MainWindow.Current.Show();
+                    // 统一账号模型：HYP 登录得到的账号同时放进账号池（国际服账号也支持），
+                    // 启动页自动登录和米游社工具箱都从账号池取账号。
+                    await AppConfig.GetService<PassportAccountService>().ImportPassportUserInfoAsync(model);
+                    WeakReferenceMessenger.Default.Send(new PassportAccountChangedMessage(true));
+                    await AppConfig.GetService<GameRecordRoleService>().UpdateGameRolesByPassportAsync(model);
+                    return model;
                 }
-                PassportService.SavePassportUserInfo(model);
-                MainWindow.Current.Show();
-                // 统一账号模型：HYP 登录得到的账号同时放进账号池（国际服账号也支持）。
-                await AppConfig.GetService<PassportAccountService>().ImportPassportUserInfoAsync(model);
-                WeakReferenceMessenger.Default.Send(new PassportAccountChangedMessage(true));
-                await AppConfig.GetService<GameRecordRoleService>().UpdateGameRolesByPassportAsync(model);
-                return model;
             }
         }
         catch (Exception ex)
@@ -670,16 +547,161 @@ public sealed partial class MainView : UserControl
     }
 
 
-
-
-    /// <summary>当前 HYP 账号浮窗显示的服务器区域文字：国服 / 国际服。</summary>
-    public string? CurrentPassportRegionText => CurrentLauncherConfig?.Region switch
+    /// <summary>
+    /// 把登录 / 导入得到的账号放进账号列表：已经存在时在原位置替换，否则追加到末尾。
+    /// </summary>
+    private void AddPassportUser(PassportUserInfoModel model)
     {
-        ServerRegion.HoYoverse => Lang.PassportLogin_RegionGlobal,
-        ServerRegion.miHoYo => Lang.PassportLogin_RegionChina,
-        _ => null,
-    };
+        PassportUsers ??= new();
+        if (PassportUsers.FirstOrDefault(x => x.Aid == model.Aid) is PassportUserInfoModel oldModel)
+        {
+            int index = PassportUsers.IndexOf(oldModel);
+            PassportUsers.Remove(oldModel);
+            PassportUsers.Insert(index, model);
+        }
+        else
+        {
+            PassportUsers.Add(model);
+        }
+    }
 
+
+
+    #region 右键「添加账号」走 main 的 Cookie 导入登录
+
+
+    /// <summary>
+    /// 右键「+」：打开 main 原来的 Cookie / 令牌导入登录。
+    /// 单击仍然是上游的 HYP 网页登录，右键只是额外的入口。
+    /// <para>
+    /// 之前用的是长按（Holding）：触屏 / 触控板以外的设备（尤其鼠标）基本触发不了，
+    /// 改成右键后各种输入设备都能用。
+    /// </para>
+    /// </summary>
+    private void Button_HypAddAccount_RightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        // 别再让右键继续冒泡成上下文菜单或触发按钮的 Click。
+        e.Handled = true;
+        _ = ShowCookieImportDialogAsync();
+    }
+
+
+    private async void Button_HypAddAccount_Click(object sender, RoutedEventArgs e)
+    {
+        await HypLoginAsync();
+    }
+
+
+    private async Task ShowCookieImportDialogAsync()
+    {
+        try
+        {
+            var dialog = new PassportCookieImportDialog { XamlRoot = this.XamlRoot };
+            // 导入成功后对话框会自己 Hide()，ShowAsync 的返回值不一定是 Primary，只认导入结果。
+            _ = await dialog.ShowAsync();
+            if (dialog.LoginModel is PassportUserInfoModel model)
+            {
+                AddPassportUser(model);
+                CurrentPassportUser = model;
+                UpdateHypFlyoutLayout();
+                // 账号池、上游账号表、工具箱 Cookie 在导入流程（ImportStokenAsync）里已经全部写好了，
+                // 这里不能再走一遍 ImportPassportUserInfoAsync：它会用一份不含派生令牌的令牌集合
+                // 覆盖刚登录好的记录，让账号池退回到「只有 SToken」的状态。
+                WeakReferenceMessenger.Default.Send(new PassportAccountChangedMessage(true));
+                try
+                {
+                    // 上游这里用 SToken 走 getGameRolesByStoken 拉角色，浏览器导出的 SToken 不一定会被
+                    // 这个接口接受（实测返回 -100 登录状态失效）。角色在导入时已经按工具箱 Cookie 同步过，
+                    // 这一步失败不能算登录失败，否则登录成功也会弹一条「登录失败」。
+                    await AppConfig.GetService<GameRecordRoleService>().UpdateGameRolesByPassportAsync(model);
+                }
+                catch (miHoYoApiException ex)
+                {
+                    _logger.LogWarning(ex, "Refresh the game roles of the imported passport account (aid: {aid})", model.Aid);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Import passport cookie");
+            InAppToast.MainWindow?.Error(ex, Lang.MainView_LoginFailed);
+        }
+    }
+
+
+    #endregion
+
+
+
+    #region 账号列表拖动排序
+
+
+    private const string PassportUserOrderKey = "PassportUserOrder";
+
+
+    /// <summary>
+    /// 按保存下来的顺序重排账号列表；没有记录过顺序的账号保持数据库返回的相对顺序排在后面。
+    /// 账号中心（上游 HYP 浮窗）里的列表和 main 的账号中心一样支持拖动排序。
+    /// </summary>
+    private void ApplyPassportUserOrder()
+    {
+        try
+        {
+            if (PassportUsers is null || CurrentLauncherConfig is null)
+            {
+                return;
+            }
+            string region = CurrentLauncherConfig.Region.ToString();
+            string? order = AppConfig.GetValue<string>(null, PassportUserOrderKey, region);
+            if (string.IsNullOrWhiteSpace(order))
+            {
+                return;
+            }
+            var aids = order.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                            .Select(x => long.TryParse(x, out long aid) ? aid : 0)
+                            .Where(x => x > 0)
+                            .ToList();
+            if (aids.Count == 0)
+            {
+                return;
+            }
+            var ordered = new List<PassportUserInfoModel>(PassportUsers.Count);
+            foreach (long aid in aids)
+            {
+                if (PassportUsers.FirstOrDefault(x => x.Aid == aid) is PassportUserInfoModel model && !ordered.Contains(model))
+                {
+                    ordered.Add(model);
+                }
+            }
+            ordered.AddRange(PassportUsers.Where(x => !ordered.Contains(x)));
+            PassportUsers = new(ordered);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Apply passport user order");
+        }
+    }
+
+
+    /// <summary>拖动排序结束后把顺序保存下来（按服务器区域各存一份）。</summary>
+    private void ListView_HypAccunt_DragItemsCompleted(ListViewBase sender, DragItemsCompletedEventArgs args)
+    {
+        try
+        {
+            if (PassportUsers is null || CurrentLauncherConfig is null || PassportUsers.Count == 0)
+            {
+                return;
+            }
+            AppConfig.SetValue(string.Join(',', PassportUsers.Select(x => x.Aid)), PassportUserOrderKey, CurrentLauncherConfig.Region.ToString());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Save passport user order");
+        }
+    }
+
+
+    #endregion
 
     private void Button_HypLogout_Click(object sender, RoutedEventArgs e)
     {

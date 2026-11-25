@@ -3419,6 +3419,12 @@
   <data name="PassportLogin_CredentialsRefreshed" xml:space="preserve">
     <value>已刷新 {0} 个账号的凭据</value>
   </data>
+  <data name="PassportLogin_DeviceFp" xml:space="preserve">
+    <value>设备指纹（x-rpc-device_fp）</value>
+  </data>
+  <data name="PassportLogin_DeviceFpInvalid" xml:space="preserve">
+    <value>设备指纹格式不正确，已取消写入。</value>
+  </data>
   <data name="PassportLogin_DeviceId" xml:space="preserve">
     <value>设备标识（x-rpc-device_id）</value>
   </data>

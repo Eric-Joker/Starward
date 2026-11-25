@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<sf:ContentDialogBase x:Class="Starward.Features.Account.PassportCookieImportDialog"
+                      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                      xmlns:lang="using:Starward.Language"
+                      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                      xmlns:sf="using:Starward.Features"
+                      x:DefaultBindMode="OneWay"
+                      mc:Ignorable="d">
+
+    <sf:ContentDialogBase.Resources>
+        <!--
+            四个输入框都是同一套样式：空的 / 只有一行时就是普通单行输入框的高度，
+            粘进来多行内容（整段 Cookie / 请求头）时按内容自动长高，最多 120，
+            再长就在框内滚动。解析器会读所有输入框，所以不需要专门留一个大框。
+        -->
+        <Style x:Key="CookieImportBoxStyle" TargetType="TextBox">
+            <Setter Property="MinHeight" Value="32" />
+            <Setter Property="MaxHeight" Value="120" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="IsSpellCheckEnabled" Value="False" />
+            <Setter Property="AcceptsReturn" Value="True" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+    </sf:ContentDialogBase.Resources>
+
+    <!--  main 账号中心的「令牌导入」登录：账号中心换成上游 HYP 浮窗后，右键「+」仍然可以走这条手工登录  -->
+    <StackPanel Width="380"
+                Margin="24,20,24,20"
+                Spacing="10">
+        <TextBlock FontSize="20"
+                   IsTextScaleFactorEnabled="False"
+                   Text="{x:Bind lang:Lang.PassportLogin_TabToken}" />
+
+        <TextBlock FontSize="12"
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                   Text="{x:Bind lang:Lang.PassportLogin_TokenTip}"
+                   TextWrapping="Wrap" />
+
+        <TextBox x:Name="TextBox_Stoken"
+                 PlaceholderText="{x:Bind lang:Lang.PassportLogin_Stoken}"
+                 Style="{StaticResource CookieImportBoxStyle}" />
+
+        <TextBox x:Name="TextBox_Mid"
+                 PlaceholderText="{x:Bind lang:Lang.PassportLogin_Mid}"
+                 Style="{StaticResource CookieImportBoxStyle}" />
+
+        <TextBlock FontSize="12"
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                   TextWrapping="Wrap">
+            <Run Text="{x:Bind lang:Lang.PassportLogin_DeviceIdHintPrefix}" />
+            <Hyperlink NavigateUri="https://github.com/PaiGramTeam/GetToken" UnderlineStyle="None">
+                <Run FontWeight="Bold"
+                     Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                     Text="{x:Bind lang:Lang.PassportLogin_GetToken}" />
+            </Hyperlink>
+            <Run Text="{x:Bind lang:Lang.PassportLogin_DeviceIdHintSuffix}" />
+        </TextBlock>
+
+        <TextBox x:Name="TextBox_DeviceId"
+                 PlaceholderText="{x:Bind lang:Lang.PassportLogin_DeviceId}"
+                 Style="{StaticResource CookieImportBoxStyle}" />
+
+        <TextBox x:Name="TextBox_DeviceFp"
+                 PlaceholderText="{x:Bind lang:Lang.PassportLogin_DeviceFp}"
+                 Style="{StaticResource CookieImportBoxStyle}" />
+
+        <TextBlock x:Name="TextBlock_Status"
+                   FontSize="12"
+                   Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                   TextWrapping="Wrap"
+                   Visibility="Collapsed" />
+
+        <StackPanel Margin="0,4,0,0"
+                    HorizontalAlignment="Right"
+                    Orientation="Horizontal"
+                    Spacing="8">
+            <Button Click="Button_Cancel_Click" Content="{x:Bind lang:Lang.Common_Cancel}" />
+            <Button Click="Button_Import_Click" Style="{ThemeResource AccentButtonStyle}">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <ProgressRing x:Name="ProgressRing_Import"
+                                  Width="16"
+                                  Height="16"
+                                  IsActive="False"
+                                  Visibility="Collapsed" />
+                    <TextBlock Text="{x:Bind lang:Lang.PassportLogin_Import}" />
+                </StackPanel>
+            </Button>
+        </StackPanel>
+    </StackPanel>
+
+</sf:ContentDialogBase>

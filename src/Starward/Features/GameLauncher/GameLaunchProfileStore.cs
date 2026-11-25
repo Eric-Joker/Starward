@@ -378,10 +378,26 @@ public static class GameLaunchProfileStore
         profile.EnableCustomBg = AppConfig.GetValue<bool>(false, $"enable_custom_bg_{gameBiz.Value}", "");
         // 当前背景以前是全局键 Bg：迁移时把它读进这个预设，用户当前背景不丢。
         profile.Bg = AppConfig.GetBg(gameId);
-        // 自动登录以前是全局开关，没有按游戏 / 按预设的旧键，迁移时直接取全局值。
-        profile.EnableAuthTicketLogin = AppConfig.AuthLoginGameByPassportAccount;
+        // 自动登录以前是全局开关（main 默认开启，键 EnableAuthTicketLoginV2），游戏设置页里还能按游戏单独覆盖；
+        // 迁移时按游戏取旧的按游戏值，没记过就沿用全局（总闸已由 AppConfig.MigrateLegacySettings 从旧键迁移过来）。
+        profile.EnableAuthTicketLogin = GetLegacyEnableAuthTicketLogin(gameBiz) ?? AppConfig.AuthLoginGameByPassportAccount;
         // 显示游戏公告以前也是全局开关，迁移时直接取全局值。
         profile.EnableBannerAndPost = AppConfig.EnableBannerAndPost;
+    }
+
+
+    /// <summary>
+    /// main 里按游戏保存的自动登录开关（<c>EnableAuthTicketLogin_{GameBiz}</c>，游戏设置页改过才有这一行）。
+    /// </summary>
+    /// <param name="gameBiz">游戏区服。</param>
+    /// <returns>旧版本里这个游戏的值；没记过时返回 <see langword="null"/>。</returns>
+    private static bool? GetLegacyEnableAuthTicketLogin(GameBiz gameBiz)
+    {
+        if (string.IsNullOrWhiteSpace(gameBiz.Value))
+        {
+            return null;
+        }
+        return AppConfig.GetValue<bool?>(null, $"EnableAuthTicketLogin_{gameBiz.Value}", "");
     }
 
 

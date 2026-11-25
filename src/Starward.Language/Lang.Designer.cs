@@ -9864,6 +9864,24 @@ namespace Starward.Language {
         }
         
         /// <summary>
+        ///   查找类似 Device fingerprint (x-rpc-device_fp) 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_DeviceFp {
+            get {
+                return ResourceManager.GetString("PassportLogin_DeviceFp", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 The device fingerprint format is invalid. Nothing was saved. 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_DeviceFpInvalid {
+            get {
+                return ResourceManager.GetString("PassportLogin_DeviceFpInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   查找类似 Device id (x-rpc-device_id) 的本地化字符串。
         /// </summary>
         public static string PassportLogin_DeviceId {

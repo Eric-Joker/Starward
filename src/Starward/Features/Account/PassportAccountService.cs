@@ -71,6 +71,9 @@ internal class PassportAccountService
         _logger = logger;
         _gameRecordRoleService = gameRecordRoleService;
         _client = client;
+        // 上游账号中心（HYP 浮窗）校验会话时服务端会换发新的 SToken，账号池里的副本要跟着换，
+        // 否则下一次写账号表就会把死令牌盖回去，账号中心随即显示「登录已过期」。
+        WeakReferenceMessenger.Default.Register<PassportStokenRotatedMessage>(this, OnPassportStokenRotated);
     }
 
 
@@ -1397,6 +1400,76 @@ internal class PassportAccountService
 
 
 
+    /// <summary>
+    /// 保存用户在导入令牌时提供的设备指纹（<c>x-rpc-device_fp</c>）。
+    /// <para>
+    /// 和 <see cref="SaveDeviceId"/> 一样，只接受用户从浏览器请求头 / Cookie 里抄来的那一枚，
+    /// 写入后立即对后续请求生效。通行证和工具箱共用同一枚指纹，
+    /// 所以 <see cref="AndroidDeviceInfo.BbsDeviceFp"/> 也一并更新。
+    /// </para>
+    /// </summary>
+    /// <returns>写入成功返回 true；格式不合法返回 false。</returns>
+    public bool SaveDeviceFp(string? deviceFp)
+    {
+        deviceFp = deviceFp?.Trim();
+        if (!IsValidDeviceFp(deviceFp))
+        {
+            return false;
+        }
+        try
+        {
+            AndroidDeviceInfo? info = _deviceInfo;
+            if (info is null && !string.IsNullOrWhiteSpace(AppConfig.AndroidDeviceInfo))
+            {
+                try
+                {
+                    info = JsonSerializer.Deserialize<AndroidDeviceInfo>(AppConfig.AndroidDeviceInfo, DeviceFpJsonContext.Default.AndroidDeviceInfo);
+                }
+                catch { }
+            }
+            info ??= AndroidDeviceInfo.CreateRandom();
+            info.DeviceFp = deviceFp!;
+            info.BbsDeviceFp = deviceFp!;
+            AppConfig.AndroidDeviceInfo = JsonSerializer.Serialize(info, DeviceFpJsonContext.Default.AndroidDeviceInfo);
+            _deviceInfo = info;
+            _client.DeviceFp = deviceFp!;
+            _logger.LogInformation("Device fingerprint (x-rpc-device_fp) set to {DeviceFp}.", deviceFp);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Save the device fingerprint");
+            return false;
+        }
+    }
+
+
+
+
+    /// <summary>
+    /// 设备指纹的格式：服务端下发的是 13 位左右的数字 / 十六进制串，这里只做宽松校验，
+    /// 拒绝空值、带分隔符或明显不是一整段字母数字的文本。
+    /// </summary>
+    internal static bool IsValidDeviceFp(string? deviceFp)
+    {
+        // 全 0 是服务端下发的「没有指纹」占位值，写进去反而会破坏账号-设备绑定。
+        if (string.IsNullOrWhiteSpace(deviceFp) || deviceFp is "0000000000000" || deviceFp.Length is < 6 or > 64)
+        {
+            return false;
+        }
+        foreach (char c in deviceFp)
+        {
+            if (!char.IsAsciiLetterOrDigit(c))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+
+
+
     #endregion
 
 
@@ -2095,6 +2168,108 @@ internal class PassportAccountService
 
 
     /// <summary>
+    /// 账号中心（上游 HYP 浮窗）切换账号时调用：把米游社这一侧的当前会话切到这个账号。
+    /// <para>
+    /// 这样首页的体力 / 签到等米游社工具跟着账号中心走，而不是跟着启动页的游戏账号切换器走。
+    /// 只改会话，不写游戏注册表、不改启动预设。
+    /// </para>
+    /// </summary>
+    /// <param name="region">服务器区域。</param>
+    /// <param name="aid">通行证账号 ID。</param>
+    /// <param name="mid">通行证 Mid，优先用它拼账号标识。</param>
+    public void UseAccountCenterAccount(ServerRegion region, long aid, string? mid)
+    {
+        try
+        {
+            string? key = GetAccountKeyOfPassportUser(aid, mid);
+            if (key is null)
+            {
+                return;
+            }
+            if (TokenSet is PassportTokenSet current && PassportAccountRecord.GetKey(current) == key)
+            {
+                return;
+            }
+            RestoreAccountSession(key);
+            _logger.LogInformation("Use the account selected in the account center (aid: {aid}).", aid);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Use the account center account ({aid})", aid);
+        }
+    }
+
+
+
+
+    /// <summary>
+    /// 上游账号中心的账号在账号池里的标识，与 <see cref="PassportAccountRecord.GetKey"/> 保持一致。
+    /// </summary>
+    private static string? GetAccountKeyOfPassportUser(long aid, string? mid)
+    {
+        if (!string.IsNullOrWhiteSpace(mid))
+        {
+            return $"mid:{mid}";
+        }
+        return aid > 0 ? $"aid:{aid}" : null;
+    }
+
+
+
+
+    /// <summary>
+    /// 账号中心当前选中的通行证账号在某个游戏里对应的角色，供首页的米游社工具（体力 / 签到等）使用。
+    /// <para>
+    /// 与 <see cref="GetCurrentAccountGameRole"/> 的区别：这里认的是账号中心选中的账号
+    /// （<see cref="AppConfig.GetLastPassportUserAid"/>），不认游戏账号切换器切出来的会话。
+    /// </para>
+    /// </summary>
+    public GameRecordRole? GetAccountCenterGameRole(GameBiz gameBiz)
+    {
+        try
+        {
+            GameBiz roleBiz = gameBiz.Server is "bilibili" ? $"{gameBiz.Game}_cn" : gameBiz;
+            if (gameBiz.IsChinaServer())
+            {
+                long aid = AppConfig.GetLastPassportUserAid(ServerRegion.miHoYo);
+                if (aid > 0 && GetGameRoleOfAccountId(aid, roleBiz) is GameRecordRole role)
+                {
+                    return role;
+                }
+            }
+            return GetCurrentAccountGameRole(gameBiz);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Get the account center game role ({biz})", gameBiz);
+            return null;
+        }
+    }
+
+
+
+
+    /// <summary>按通行证账号 ID 找它在某个游戏里的角色；Cookie 里的 account_id 就是这个 ID。</summary>
+    private static GameRecordRole? GetGameRoleOfAccountId(long aid, GameBiz gameBiz)
+    {
+        try
+        {
+            if (aid <= 0 || string.IsNullOrWhiteSpace(gameBiz.Value))
+            {
+                return null;
+            }
+            return GameRecordRoleService.GetGameRoles(gameBiz)
+                .FirstOrDefault(x => x.Uid > 0 && GameRecordRoleService.GetCookieAccountId(x.Cookie) == aid);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+
+
+    /// <summary>
     /// 当前通行证账号在某个游戏里的角色。绝区零这类游戏的注册表里只有一份登录凭据、
     /// 读不到 uid，界面上只能按当前通行证账号的角色来显示这个游戏账号。
     /// </summary>
@@ -2466,6 +2641,59 @@ internal class PassportAccountService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Sync passport accounts to PassportUserInfo");
+        }
+    }
+
+
+
+
+    /// <summary>
+    /// 上游账号中心换发了新的 SToken：把账号池里的副本换成同一枚。
+    /// <para>
+    /// SToken 在本机存了两份（账号池与上游 <c>PassportUserInfo</c> 表），服务端换发之后旧的那枚
+    /// 随时作废。两边不同步的话，账号池留着旧令牌，下一次写账号表又把它盖回上游表，
+    /// 再校验时服务端只认新的那一枚，账号中心就会显示「登录已过期」——
+    /// 而此时体力 / 签到用的工具箱 Cookie 仍然是好的，所以表现为「功能都能用，账号却显示过期」。
+    /// </para>
+    /// </summary>
+    private void OnPassportStokenRotated(object recipient, PassportStokenRotatedMessage message)
+    {
+        try
+        {
+            if (message.Aid <= 0 || string.IsNullOrWhiteSpace(message.Stoken))
+            {
+                return;
+            }
+            string? key = GetAccountKeyOfPassportUser(message.Aid, message.Mid);
+            PassportAccountRecord? record = QueryAccountRecords().FirstOrDefault(x => x.Key == key && x.Region == message.Region);
+            if (record is null)
+            {
+                // 只存在于上游账号表（例如网页登录进来但没进账号池的国际服账号），不用管。
+                return;
+            }
+            PassportTokenSet? tokenSet = DecryptTokenSet(record);
+            if (tokenSet?.HasStoken is not true || string.Equals(tokenSet.Stoken, message.Stoken, StringComparison.Ordinal))
+            {
+                return;
+            }
+            tokenSet.Stoken = message.Stoken;
+            tokenSet.StokenVersion = message.Stoken.StartsWith("v2_", StringComparison.Ordinal) ? 2 : 1;
+            tokenSet.StokenVerifyTime = DateTimeOffset.Now;
+            var current = TokenSet;
+            if (current?.HasStoken is true && PassportAccountRecord.GetKey(current) == record.Key)
+            {
+                // 就是当前会话：连会话一起换（SaveTokenSet 会同时写账号池与上游账号表）。
+                SaveTokenSet(tokenSet);
+            }
+            else
+            {
+                TrySaveAccountRecord(tokenSet);
+            }
+            _logger.LogInformation("Synced the rotated stoken into the account pool (aid: {aid}).", message.Aid);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Sync the rotated passport stoken ({aid})", message.Aid);
         }
     }
 

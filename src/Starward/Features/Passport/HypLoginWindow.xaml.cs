@@ -316,23 +316,22 @@ public sealed partial class HypLoginWindow : WindowBase
         if (action is "getSettings")
         {
             string lang = LanguageUtil.FilterLanguage(CultureInfo.CurrentUICulture.NativeName);
-            reply = $$"""
-                {
-                    "kind": "resolve",
-                    "id": "{{id}}",
-                    "json": "{"language":"{{lang}}"}"
-                }
-                """;
+            reply = new JsonObject
+            {
+                ["kind"] = "resolve",
+                ["id"] = id,
+                // 这里的 json 是「内容为 JSON 的字符串」，页面那边会自己再解析一次。
+                ["json"] = new JsonObject { ["language"] = lang }.ToJsonString(),
+            }.ToJsonString();
         }
         else
         {
-            reply = $$"""
-                {
-                    "kind": "resolve",
-                    "id": "{{id}}",
-                    "json": "{}"
-                }
-                """;
+            reply = new JsonObject
+            {
+                ["kind"] = "resolve",
+                ["id"] = id,
+                ["json"] = "{}",
+            }.ToJsonString();
         }
         sender.PostWebMessageAsJson(reply);
     }

@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Logging;
@@ -8,6 +8,7 @@ using Starward.Core;
 using Starward.Core.GameRecord;
 using Starward.Core.GameRecord.SignIn;
 using Starward.Core.HoYoPlay;
+using Starward.Features.Account;
 using Starward.Features.Setting;
 using Starward.Features.ViewHost;
 using Starward.Helpers;
@@ -32,6 +33,9 @@ public sealed partial class SignInButton : UserControl
     private readonly AutoSignInService _autoSignInService = AppConfig.GetService<AutoSignInService>();
 
 
+    private readonly PassportAccountService _passportAccountService = AppConfig.GetService<PassportAccountService>();
+
+
     /// <summary>最近一次拉取的补签信息，补签确认弹窗展示消耗用。</summary>
     private SignInResignInfo? _resignInfo;
 
@@ -54,8 +58,11 @@ public sealed partial class SignInButton : UserControl
         this.InitializeComponent();
         this.Visibility = Visibility.Collapsed;
         WeakReferenceMessenger.Default.Register<LanguageChangedMessage>(this, OnLanguageChanged);
-        // TODO(账号中心): 0.19 还没有「账号 / 角色变化」的全局消息，登录完成时不会自动刷新本控件；
-        // 账号中心模块迁移后，除发消息外也可以直接调用 <see cref="RefreshForRoleChanged"/>。
+        // 登录 / 新增角色后 GameRecordRoleChangedMessage 会到达：本控件只在 Loaded 时解析一次角色，
+        // 而登录完成可能发生在它已经加载之后，那时它还停在 Collapsed，必须在这里重新解析并重算可见性。
+        WeakReferenceMessenger.Default.Register<GameRecordRoleChangedMessage>(this, (_, _) => RefreshForRoleChanged());
+        // 账号选择器切号后跟着当前账号在这个游戏的角色；令牌刷新等其它账号消息不会引发多余计算。
+        WeakReferenceMessenger.Default.Register<PassportAccountChangedMessage>(this, (_, _) => RefreshForRoleChanged());
     }
 
 
@@ -103,14 +110,20 @@ public sealed partial class SignInButton : UserControl
 
 
     /// <summary>
-    /// 签到入口按钮上的图标。
+    /// 签到入口按钮上的图标：按当前游戏取对应的一张（原 / 铁 / 绝 / 崩）。
     /// <para>
-    /// 主干按游戏用 signin_ys / signin_sr / signin_zzz / signin_bh3 区分，但那几张图随
-    /// Starward.Assets 资源包发布，0.19 使用的资源包版本里还没有它们，这里先用通用签到图标；
-    /// 资源包升级到含 signin_*.png 的版本后改回按游戏映射即可。
+    /// 0.19 的 Starward.Assets 资源包里没有这几张 main 时代的图，所以它们随仓库一起放在
+    /// <c>src/Starward/Assets/Image</c> 下（Assets 目录本身在 .gitignore 里，这几张是强制跟踪的）。
     /// </para>
     /// </summary>
-    public string SignInIcon => "ms-appx:///Assets/Image/Sign.png";
+    public string SignInIcon => _signInGameBiz.Game switch
+    {
+        GameBiz.hk4e => "ms-appx:///Assets/Image/signin_ys.png",
+        GameBiz.hkrpg => "ms-appx:///Assets/Image/signin_sr.png",
+        GameBiz.nap => "ms-appx:///Assets/Image/signin_zzz.png",
+        GameBiz.bh3 => "ms-appx:///Assets/Image/signin_bh3.png",
+        _ => "ms-appx:///Assets/Image/Sign.png",
+    };
 
 
     /// <summary>「本月已签 X 天」提示文案。</summary>
@@ -201,9 +214,9 @@ public sealed partial class SignInButton : UserControl
             OnPropertyChanged(nameof(SignInIcon));
             _autoSignInEnabled = _autoSignInService.IsEnabled(signInBiz);
             OnPropertyChanged(nameof(AutoSignInEnabled));
-            // B 服角色可能记在原始的 *_bilibili biz 下，先按原始 biz 找，找不到再按归一化 biz 兜底
-            GameRecordRole = GameRecordRoleService.GetLastSelectGameRecordRoleOrTheFirstOne(gameBiz)
-                             ?? (signInBiz.Value != gameBiz.Value ? GameRecordRoleService.GetLastSelectGameRecordRoleOrTheFirstOne(signInBiz) : null);
+            // 角色统一按账号解析：国服跟着当前通行证账号走，国际服 / B 服沿用最近选择的角色
+            // （B 服的角色由账号池服务折算到同名国服区服上）。
+            GameRecordRole = _passportAccountService.GetAccountCenterGameRole(CurrentGameId.GameBiz);
             if (GameRecordRole is null)
             {
                 this.Visibility = Visibility.Collapsed;
@@ -214,6 +227,11 @@ public sealed partial class SignInButton : UserControl
             ErrorMessage = null;
             IsLoading = false;
             // 自动签到由常驻循环统一调度，切换游戏只同步开关状态，不在这里触发。
+            // 卡片正开着时换了角色：直接刷新卡片，不然还显示上一个账号的签到状态。
+            if (Flyout_SignIn.IsOpen)
+            {
+                RefreshSignInStatusCommand.Execute(null);
+            }
         }
         catch (Exception ex)
         {
@@ -240,16 +258,22 @@ public sealed partial class SignInButton : UserControl
 
 
     /// <summary>
-    /// 角色或当前账号变化后重新解析这个游戏的角色（供账号中心模块在登录、切号后调用）。
-    /// <para>
-    /// 0.19 目前没有账号 / 角色变化的全局消息，登录完成可能发生在本控件已加载之后，
-    /// 那时它还停在 Collapsed；账号中心模块迁移后应在其登录 / 切号成功处调用本方法。
-    /// </para>
+    /// 角色或当前账号变了：重新解析这个游戏应该用的角色，真的换了 UID 才重新初始化。
+    /// 切号过程中会收到多条消息（账号变化 + 角色变化），这里按 UID 去重。
     /// </summary>
-    public void RefreshForRoleChanged()
+    private void RefreshForRoleChanged()
     {
-        if (!IsLoaded)
+        try
         {
+            if (!IsLoaded || CurrentGameId is null)
+            {
+                return;
+            }
+        }
+        catch
+        {
+            // 控件已经销毁（窗口关闭 / 切页面）时访问 IsLoaded 会抛 ObjectDisposedException，
+            // 账号变化消息又可能在此时到达，直接忽略。
             return;
         }
         // 消息可能从后台线程发出来，解析角色、动界面都回到 UI 线程做
@@ -257,11 +281,20 @@ public sealed partial class SignInButton : UserControl
         {
             try
             {
+                if (!IsLoaded || CurrentGameId is null)
+                {
+                    return;
+                }
+                GameRecordRole? role = _passportAccountService.GetAccountCenterGameRole(CurrentGameId.GameBiz);
+                if (role?.Uid == GameRecordRole?.Uid)
+                {
+                    return;
+                }
                 InitializeForCurrentGame();
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Refresh sign-in button for role change (Biz: {GameBiz})", CurrentGameId?.GameBiz);
+                _logger.LogError(ex, "Refresh sign-in button from role change (Biz: {GameBiz})", CurrentGameId?.GameBiz);
             }
         }))
         {

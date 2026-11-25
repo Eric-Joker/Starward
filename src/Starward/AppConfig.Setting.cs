@@ -83,6 +83,7 @@ public static partial class AppConfig
         set => SetValue(value);
     }
 
+
     public static bool ShownFindGamesTip
     {
         get => GetValue<bool>();

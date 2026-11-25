@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Logging;
@@ -66,6 +66,7 @@ public sealed partial class GameLauncherPage : PageBase
         WeakReferenceMessenger.Default.Register<RemovableStorageDeviceChangedMessage>(this, OnRemovableStorageDeviceChanged);
         WeakReferenceMessenger.Default.Register<GameInstallTaskStartedMessage>(this, OnGameInstallTaskStarted);
         WeakReferenceMessenger.Default.Register<GameLaunchProfileChangedMessage>(this, OnGameLaunchProfileChanged);
+
     }
 
 
@@ -86,8 +87,10 @@ public sealed partial class GameLauncherPage : PageBase
         {
             Button_CloudGame.Visibility = Visibility.Visible;
         }
+
         InitializeLaunchProfile();
     }
+
 
 
 
@@ -136,10 +139,6 @@ public sealed partial class GameLauncherPage : PageBase
     /// <summary>
     /// 预设被改名 / 新增 / 删除 / 排序，或者当前预设被换掉之后刷新：
     /// 右下角的预设名、DX12 这类跟着预设走的开关都要重新读一遍。
-    /// <para>
-    /// 账号绑定（<see cref="GameLaunchProfile.AccountKey"/>）的运行时换号逻辑由通行证模块后续接入，
-    /// 本分支只保留数据字段，不在这里切号。
-    /// </para>
     /// </summary>
     private void OnGameLaunchProfileChanged(object _, GameLaunchProfileChangedMessage message)
     {
@@ -152,11 +151,15 @@ public sealed partial class GameLauncherPage : PageBase
                 _enableDX12 = CurrentLaunchProfile.EnableDX12 ?? DXConfig.UseDX12ByDefault;
                 OnPropertyChanged(nameof(EnableDX12));
             }
-            // 新预设里显式设置过 DX12 时，即使这张显卡不支持切换也要把选项露出来
-            IsDX12OptionAvailable = IsDX12OptionAvailable || CurrentLaunchProfile.EnableDX12.HasValue;
+            // 新预设里显式开启过 DX12 时，即使这张显卡不支持切换也要把选项露出来
+            IsDX12OptionAvailable = IsDX12OptionAvailable || CurrentLaunchProfile.EnableDX12 is true;
         }
         catch { }
     }
+
+
+
+
 
 
     #endregion
@@ -483,8 +486,9 @@ public sealed partial class GameLauncherPage : PageBase
     {
         try
         {
-            // 当前预设里显式设置过 DX12 时，即使接口暂时拿不到配置也要给用户看到这个选项
-            bool configured = CurrentLaunchProfile.EnableDX12.HasValue;
+            // 当前预设里显式开启过 DX12 时，即使接口暂时拿不到配置也要给用户看到这个选项。
+            // 注意只能认 true：null 是「跟随游戏默认」，而被误播种成 false 的预设不该被当成用户配置过。
+            bool configured = CurrentLaunchProfile.EnableDX12 is true;
             // 先按上次接口的结果显示，接口慢或断网时选项也不会缺席
             IsDX12OptionAvailable = configured || AppConfig.GetDX12SwitchAvailable(CurrentGameId);
 
@@ -507,6 +511,12 @@ public sealed partial class GameLauncherPage : PageBase
             {
                 AppConfig.SetDX12SwitchAvailable(CurrentGameId, false);
                 IsDX12OptionAvailable = configured;
+                if (configured)
+                {
+                    // 按显式配置显示时勾选状态也要跟着预设走，否则会出现一个「可见但没勾」的复选框。
+                    _enableDX12 = CurrentLaunchProfile.EnableDX12 is true;
+                    OnPropertyChanged(nameof(EnableDX12));
+                }
             }
         }
         catch (Exception ex)

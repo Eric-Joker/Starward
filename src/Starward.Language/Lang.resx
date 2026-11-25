@@ -3419,6 +3419,12 @@ You are welcome to submit the exported data to the following repository:</value>
   <data name="PassportLogin_CredentialsRefreshed" xml:space="preserve">
     <value>Refreshed credentials for {0} account(s)</value>
   </data>
+  <data name="PassportLogin_DeviceFp" xml:space="preserve">
+    <value>Device fingerprint (x-rpc-device_fp)</value>
+  </data>
+  <data name="PassportLogin_DeviceFpInvalid" xml:space="preserve">
+    <value>The device fingerprint format is invalid. Nothing was saved.</value>
+  </data>
   <data name="PassportLogin_DeviceId" xml:space="preserve">
     <value>Device id (x-rpc-device_id)</value>
   </data>

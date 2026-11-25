@@ -17,6 +17,9 @@ public class PassportCookieParseResult
     /// <summary>通行证账号 ID（stuid / ltuid / account_id），0 表示没解析到。</summary>
     public long Aid { get; init; }
 
+    /// <summary>设备号（<c>x-rpc-device_id</c> 请求头）。</summary>
+    public string? DeviceId { get; init; }
+
     /// <summary>设备指纹（<c>x-rpc-device_fp</c> 请求头或 <c>DEVICEFP</c> Cookie）。</summary>
     public string? DeviceFp { get; init; }
 
@@ -42,6 +45,9 @@ public class PassportCookieParseResult
 /// </summary>
 public class PassportDeviceInfo
 {
+    /// <summary>设备号（<c>x-rpc-device_id</c>）。</summary>
+    public string? DeviceId { get; set; }
+
     /// <summary>设备指纹（<c>x-rpc-device_fp</c> 或 <c>DEVICEFP</c>）。</summary>
     public string? DeviceFp { get; set; }
 
@@ -65,6 +71,7 @@ public class PassportDeviceInfo
     {
         var current = new PassportDeviceInfo
         {
+            DeviceId = DeviceId,
             DeviceFp = DeviceFp,
             DeviceName = DeviceName,
             SystemVersion = SystemVersion,
@@ -102,6 +109,7 @@ public class PassportDeviceInfo
 /// <item><c>stoken=v1_xxx; stuid=123</c>（V1 的 SToken 配 stuid）</item>
 /// <item><c>{"stoken":"v2_xxx","mid":"yyy"}</c>（JSON）</item>
 /// <item>直接是一段 <c>v2_</c> 开头的 SToken</item>
+/// <item><c>x-rpc-device_id=d5c54418-09ce-3b92-bd97-47729d496077</c>（设备号）</item>
 /// <item><c>x-rpc-device_fp=38d81d0fa2274</c> 或 <c>DEVICEFP=38d81d0fa2274</c>（设备指纹）</item>
 /// <item>整个请求头区块，冒号分隔的 <c>名字: 值</c> 那种（含 User-Agent、Cookie 等）</item>
 /// </list>
@@ -117,6 +125,9 @@ public static class PassportCookieParser
 
     /// <summary>账号 ID（stuid / ltuid / account_id）可能的键名。</summary>
     private static readonly string[] AidKeys = ["stuid", "uid", "account_id", "ltuid", "account_id_v2", "ltuid_v2", "stuid_v2", "accountid", "ltuidv2"];
+
+    /// <summary>设备号可能的键名（请求头 <c>x-rpc-device_id</c>）。</summary>
+    private static readonly string[] DeviceIdKeys = ["x-rpc-device_id", "x_rpc_device_id", "x-rpc-device-id", "device_id", "deviceid"];
 
     /// <summary>设备指纹可能的键名（请求头 <c>x-rpc-device_fp</c> 与 Cookie <c>DEVICEFP</c>）。</summary>
     private static readonly string[] DeviceFpKeys = ["x-rpc-device_fp", "x_rpc_device_fp", "x-rpc-device-fp", "device_fp", "devicefp", "deviceFp"];
@@ -163,6 +174,12 @@ public static class PassportCookieParser
                     {
                         string key = part[..index].Trim().Trim('"');
                         string value = part[(index + 1)..].Trim().Trim('"');
+                        // 整段请求头里的「Cookie: stoken=...」写法：只保留冒号后面最后一段名字。
+                        int colon = key.LastIndexOf(':');
+                        if (colon > 0)
+                        {
+                            key = key[(colon + 1)..].Trim();
+                        }
                         if (!string.IsNullOrWhiteSpace(key) && !string.IsNullOrWhiteSpace(value))
                         {
                             values[key] = value;
@@ -189,6 +206,7 @@ public static class PassportCookieParser
             Stoken = stoken,
             Mid = mid,
             Aid = aid,
+            DeviceId = GetFirst(values, DeviceIdKeys),
             DeviceFp = GetFirst(values, DeviceFpKeys),
             DeviceName = GetFirst(values, DeviceNameKeys),
             SystemVersion = GetFirst(values, SystemVersionKeys),
@@ -232,7 +250,11 @@ public static class PassportCookieParser
                 {
                     continue;
                 }
-                if (Contains(DeviceFpKeys, key))
+                if (Contains(DeviceIdKeys, key))
+                {
+                    headerInfo.DeviceId ??= value;
+                }
+                else if (Contains(DeviceFpKeys, key))
                 {
                     headerInfo.DeviceFp ??= value;
                 }
@@ -258,6 +280,7 @@ public static class PassportCookieParser
         var parsed = Parse(text);
         var info = new PassportDeviceInfo
         {
+            DeviceId = fallback?.DeviceId ?? headerInfo.DeviceId ?? parsed.DeviceId,
             DeviceFp = fallback?.DeviceFp ?? headerInfo.DeviceFp ?? parsed.DeviceFp,
             DeviceName = fallback?.DeviceName ?? headerInfo.DeviceName ?? parsed.DeviceName,
             SystemVersion = fallback?.SystemVersion ?? headerInfo.SystemVersion ?? parsed.SystemVersion,
