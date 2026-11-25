@@ -9242,5 +9242,32 @@ namespace Starward.Language {
             }
         }
 
+        /// <summary>
+        ///   查找类似 Current Wish 的本地化字符串。
+        /// </summary>
+        public static string TimeNode_Section_CurrentLimitedWish {
+            get {
+                return ResourceManager.GetString("TimeNode_Section_CurrentLimitedWish", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Current Warp 的本地化字符串。
+        /// </summary>
+        public static string TimeNode_Section_CurrentEventWarp {
+            get {
+                return ResourceManager.GetString("TimeNode_Section_CurrentEventWarp", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Current Signal Search 的本地化字符串。
+        /// </summary>
+        public static string TimeNode_Section_CurrentSignalSearch {
+            get {
+                return ResourceManager.GetString("TimeNode_Section_CurrentSignalSearch", resourceCulture);
+            }
+        }
+
     }
 }

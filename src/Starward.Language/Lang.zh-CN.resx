@@ -3212,4 +3212,13 @@
   <data name="GameLauncherSettingDialog_ProfileNameFormat" xml:space="preserve">
     <value>预设 {0}</value>
   </data>
+<data name="TimeNode_Section_CurrentLimitedWish" xml:space="preserve">
+    <value>当前祈愿</value>
+  </data>
+<data name="TimeNode_Section_CurrentEventWarp" xml:space="preserve">
+    <value>当前跃迁</value>
+  </data>
+<data name="TimeNode_Section_CurrentSignalSearch" xml:space="preserve">
+    <value>当前调频</value>
+  </data>
 </root>

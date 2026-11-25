@@ -2,6 +2,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
+using Starward.Core.Blackboard;
 using Starward.Core.DeviceFp;
 using Starward.Core.Gacha.Genshin;
 using Starward.Core.Gacha.StarRail;
@@ -13,6 +14,7 @@ using Starward.Core.GameRecord.SignIn;
 using Starward.Core.GameRecord.StarRail;
 using Starward.Core.GameRecord.ZZZ;
 using Starward.Core.HoYoPlay;
+using Starward.Core.MiyoLive;
 using Starward.Core.Passport;
 using Starward.Core.SelfQuery;
 using Starward.Features.Background;
@@ -31,6 +33,8 @@ using Starward.Features.GameRecord.StarRail;
 using Starward.Features.GameRecord.ZZZ;
 using Starward.Features.Passport;
 using Starward.Features.PlayTime;
+using Starward.Features.RedeemCode;
+using Starward.Features.TimeNode;
 using Starward.Features.Screenshot;
 using Starward.Features.SelfQuery;
 using Starward.Features.Update;
@@ -157,6 +161,14 @@ public static partial class AppConfig
         sc.AddSingleton<GameAccountService>();
 
         sc.AddSingleton<ScreenCaptureService>();
+
+        // 首页时间节点与前瞻直播兑换码：启动器右侧的两个按钮各自取用；
+        // 百科客户端同时也给后续好感壁纸之类的百科数据用。
+        sc.AddSingleton<BlackboardClient>();
+        sc.AddSingleton<MiyoLiveClient>();
+        sc.AddSingleton<TimeNodeService>();
+        sc.AddSingleton<RedeemCodeService>();
+
     }
 
 

@@ -3212,4 +3212,13 @@ You are welcome to submit the exported data to the following repository:</value>
   <data name="GameLauncherSettingDialog_ProfileNameFormat" xml:space="preserve">
     <value>Profile {0}</value>
   </data>
+<data name="TimeNode_Section_CurrentLimitedWish" xml:space="preserve">
+    <value>Current Wish</value>
+  </data>
+<data name="TimeNode_Section_CurrentEventWarp" xml:space="preserve">
+    <value>Current Warp</value>
+  </data>
+<data name="TimeNode_Section_CurrentSignalSearch" xml:space="preserve">
+    <value>Current Signal Search</value>
+  </data>
 </root>
