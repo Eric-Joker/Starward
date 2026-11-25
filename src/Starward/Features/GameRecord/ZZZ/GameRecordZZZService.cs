@@ -8,6 +8,7 @@ using Starward.Core.GameRecord.ZZZ;
 using Starward.Core.GameRecord.ZZZ.DailyNote;
 using Starward.Core.GameRecord.ZZZ.DeadlyAssault;
 using Starward.Core.GameRecord.ZZZ.GachaRecord;
+using Starward.Core.GameRecord.ZZZ.GachaStat;
 using Starward.Core.GameRecord.ZZZ.InterKnotReport;
 using Starward.Core.GameRecord.ZZZ.ShiyuDefense;
 using Starward.Features.Database;
@@ -205,6 +206,24 @@ internal class GameRecordZZZService : GameRecordServiceBase
             client.Language = language;
         }
         return await client.GetZZZGachaRecordAsync(role, gachaType, endId, language, cancellationToken);
+    }
+
+
+
+    /// <summary>
+    /// 拉取绝区零官方抽卡统计（米游社 / HoYoLAB 抽卡记录活动页）：总览 + 各频段全部历史 S 级记录。
+    /// </summary>
+    /// <param name="role">已登录的绝区零角色。</param>
+    /// <param name="language">期望语言；国服名称固定中文，国际服随此语言。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>官方统计。</returns>
+    public async Task<ZZZOfficialGachaStat> GetZZZOfficialGachaStatAsync(GameRecordRole role, string? language = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(role);
+        string lang = LanguageUtil.FilterLanguage(language);
+        // 按角色解析 client 并注入设备信息；语言由 badge 登录与统计请求自行使用，避免共享 client 上的语言竞态
+        var client = await GetClientAsync(role.GameBiz, cancellationToken);
+        return await client.GetZZZOfficialGachaStatAsync(role, lang, cancellationToken);
     }
 
 

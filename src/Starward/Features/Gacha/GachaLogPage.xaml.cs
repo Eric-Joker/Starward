@@ -113,11 +113,13 @@ public sealed partial class GachaLogPage : PageBase
             {
                 MenuFlyoutItem_SyncFromMiyoushe.Visibility = Visibility.Visible;
                 MenuFlyoutItem_SyncFromMiyousheAll.Visibility = Visibility.Visible;
+                MenuFlyoutItem_FillFromMiyoushe.Visibility = Visibility.Visible;
             }
             if (CurrentGameBiz == GameBiz.nap_global)
             {
                 MenuFlyoutItem_SyncFromHoYoLAB.Visibility = Visibility.Visible;
                 MenuFlyoutItem_SyncFromHoYoLABAll.Visibility = Visibility.Visible;
+                MenuFlyoutItem_FillFromHoYoLAB.Visibility = Visibility.Visible;
             }
         }
         if (CurrentGameBiz.IsGlobalServer())
@@ -927,29 +929,9 @@ public sealed partial class GachaLogPage : PageBase
                 throw new InvalidOperationException($"Current gacha service type is {_gachaLogService.GetType().Name}.");
             }
             GameBiz roleGameBiz = CurrentGameBiz == GameBiz.nap_bilibili ? GameBiz.nap_cn : CurrentGameBiz;
-            var roles = GameRecordRoleService.GetGameRoles(roleGameBiz);
-            if (roles.Count == 0)
+            GameRecordRole? role = await PickGachaSyncRoleAsync(roleGameBiz);
+            if (role is null)
             {
-                InAppToast.MainWindow?.Warning(null, Lang.GachaLogPage_PleaseLoginMiyousheAndAddZZZRole);
-                WeakReferenceMessenger.Default.Send(new MainViewNavigateMessage(typeof(GameRecordPage)));
-                return;
-            }
-            GameRecordRole? role;
-            if (roles.Count == 1)
-            {
-                role = roles[0];
-            }
-            else
-            {
-                role = await SelectMiyousheRoleAsync(roles, roleGameBiz);
-                if (role is null)
-                {
-                    return;
-                }
-            }
-            if (string.IsNullOrWhiteSpace(role.Cookie))
-            {
-                InAppToast.MainWindow?.Warning(null, Lang.GachaLogPage_CurrentAccountMissingCookiePleaseReloginMiyoushe);
                 return;
             }
             AppConfig.SetLastSelectGameRecordRole(roleGameBiz, role.Uid);
@@ -979,18 +961,7 @@ public sealed partial class GachaLogPage : PageBase
             infoBar.Title = $"Uid {uid}";
             infoBar.Severity = InfoBarSeverity.Success;
             infoBar.ActionButton = null;
-            if (SelectUid == uid)
-            {
-                UpdateGachaTypeStats(uid);
-            }
-            else
-            {
-                if (!UidList.Contains(uid))
-                {
-                    UidList.Add(uid);
-                }
-                SelectUid = uid;
-            }
+            ApplyFetchedGachaUid(uid);
         }
         catch (OperationCanceledException)
         {
@@ -1012,6 +983,221 @@ public sealed partial class GachaLogPage : PageBase
             InAppToast.MainWindow?.Error(ex);
         }
     }
+
+
+    /// <summary>
+    /// 绝区零：先增量同步，再用米游社 / HoYoLAB 官方抽卡统计补全超出记录保留期的老记录
+    /// （S 级按官方物品与时间写入，A/B 级只补数量），完成后按频段展示补全结果。
+    /// </summary>
+    [RelayCommand]
+    private async Task FillFromOfficialStatsAsync()
+    {
+        InfoBar? progressInfoBar = null;
+        bool keepProgressInfoBar = false;
+        GameBiz roleGameBiz = CurrentGameBiz;
+        try
+        {
+            if (CurrentGameBiz.Game != GameBiz.nap || _gachaLogService is not ZZZGachaService zzzGachaService)
+            {
+                return;
+            }
+            var confirmDialog = new ContentDialog
+            {
+                Title = CurrentGameBiz == GameBiz.nap_global ? Lang.GachaLogPage_FillFromHoYoLAB : Lang.GachaLogPage_FillFromMiyoushe,
+                Content = new TextBlock
+                {
+                    Text = Lang.GachaLogPage_FillMissingRecordsConfirm,
+                    TextWrapping = TextWrapping.Wrap,
+                },
+                PrimaryButtonText = Lang.Common_Confirm,
+                SecondaryButtonText = Lang.Common_Cancel,
+                DefaultButton = ContentDialogButton.Primary,
+                XamlRoot = this.XamlRoot,
+            };
+            if (await confirmDialog.ShowAsync() is not ContentDialogResult.Primary)
+            {
+                return;
+            }
+            // B 服角色在米游社绑定表中仍记为 _cn
+            roleGameBiz = CurrentGameBiz.Value == GameBiz.nap_bilibili ? GameBiz.nap_cn : CurrentGameBiz;
+            GameRecordRole? role = await PickGachaSyncRoleAsync(roleGameBiz);
+            if (role is null)
+            {
+                return;
+            }
+            // 与同步入口一致，记住本次使用的战绩角色
+            AppConfig.SetLastSelectGameRecordRole(roleGameBiz, role.Uid);
+            var cancelSource = new CancellationTokenSource();
+            var infoBar = ShowCancelableProgressInfoBar(cancelSource);
+            progressInfoBar = infoBar;
+            IProgress<string> progress = new Progress<string>((str) => infoBar.Message = str);
+
+            ZZZGachaFillSummary summary = await zzzGachaService.FillMissingFromOfficialStatsAsync(role, GachaLanguage, progress, cancelSource.Token);
+
+            infoBar.Title = $"Uid {summary.Uid}";
+            infoBar.Message = summary.Message;
+            infoBar.Severity = summary.HasWarning ? InfoBarSeverity.Warning : InfoBarSeverity.Success;
+            infoBar.ActionButton = null;
+            keepProgressInfoBar = true;
+            // 多个频段的结果要多留一会儿
+            _ = CloseInfoBarAfterAsync(infoBar, summary.HasWarning ? 15000 : 8000);
+            ApplyFetchedGachaUid(summary.Uid);
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogInformation("Fill gacha records from official stats canceled");
+            MarkProgressInfoBarCanceled(progressInfoBar);
+            keepProgressInfoBar = true;
+            _ = CloseInfoBarAfterAsync(progressInfoBar, 5000);
+        }
+        catch (miHoYoApiException ex)
+        {
+            _logger.LogWarning(ex, "Fill gacha records from official stats error ({retcode})", ex.ReturnCode);
+            InAppToast.MainWindow?.Warning(null, ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Fill gacha records from official stats");
+            InAppToast.MainWindow?.Error(ex);
+        }
+        finally
+        {
+            if (!keepProgressInfoBar)
+            {
+                DismissProgressInfoBar(progressInfoBar);
+            }
+        }
+    }
+
+
+    /// <summary>
+    /// 取米游社 / HoYoLAB 同步用的战绩角色：没有角色时提示并跳到战绩页，多个时弹窗选择，Cookie 为空时提示。
+    /// </summary>
+    /// <param name="roleGameBiz">角色对应的 GameBiz（B 服已换成 _cn）。</param>
+    /// <returns>选中的角色；无可用角色或用户取消返回 null。</returns>
+    private async Task<GameRecordRole?> PickGachaSyncRoleAsync(GameBiz roleGameBiz)
+    {
+        var roles = GameRecordRoleService.GetGameRoles(roleGameBiz);
+        if (roles.Count == 0)
+        {
+            InAppToast.MainWindow?.Warning(null, Lang.GachaLogPage_PleaseLoginMiyousheAndAddZZZRole);
+            WeakReferenceMessenger.Default.Send(new MainViewNavigateMessage(typeof(GameRecordPage)));
+            return null;
+        }
+        GameRecordRole? role = roles.Count == 1 ? roles[0] : await SelectMiyousheRoleAsync(roles, roleGameBiz);
+        if (role is null)
+        {
+            return null;
+        }
+        if (string.IsNullOrWhiteSpace(role.Cookie))
+        {
+            InAppToast.MainWindow?.Warning(null, Lang.GachaLogPage_CurrentAccountMissingCookiePleaseReloginMiyoushe);
+            return null;
+        }
+        return role;
+    }
+
+
+    /// <summary>
+    /// 拉取到记录后切换/刷新页面显示的 UID。
+    /// </summary>
+    /// <param name="uid">拉取到的 UID。</param>
+    private void ApplyFetchedGachaUid(long uid)
+    {
+        if (SelectUid == uid)
+        {
+            UpdateGachaTypeStats(uid);
+        }
+        else
+        {
+            if (!UidList.Contains(uid))
+            {
+                UidList.Add(uid);
+            }
+            SelectUid = uid;
+        }
+    }
+
+
+    /// <summary>
+    /// 弹出带「取消」按钮的进度 InfoBar；点取消会触发 <paramref name="cancelSource"/> 并改为「操作已取消」。
+    /// </summary>
+    /// <param name="cancelSource">取消令牌源。</param>
+    /// <returns>已显示的 InfoBar。</returns>
+    private static InfoBar ShowCancelableProgressInfoBar(CancellationTokenSource cancelSource)
+    {
+        var button = new Button
+        {
+            // 取消
+            Content = Lang.Common_Cancel,
+            HorizontalAlignment = HorizontalAlignment.Right,
+        };
+        var infoBar = new InfoBar
+        {
+            Severity = InfoBarSeverity.Informational,
+            Background = Application.Current.Resources["CustomAcrylicBrush"] as Brush,
+            ActionButton = button,
+        };
+        button.Click += (_, _) =>
+        {
+            cancelSource.Cancel();
+            // 操作已取消
+            infoBar.Message = Lang.GachaLogPage_OperationCanceled;
+            infoBar.ActionButton = null;
+        };
+        InAppToast.MainWindow?.Show(infoBar);
+        return infoBar;
+    }
+
+
+    /// <summary>
+    /// 关闭进度 InfoBar（失败路径用），避免常驻。
+    /// </summary>
+    /// <param name="infoBar">进度 InfoBar；可为 null。</param>
+    private static void DismissProgressInfoBar(InfoBar? infoBar)
+    {
+        if (infoBar is not null)
+        {
+            infoBar.IsOpen = false;
+        }
+    }
+
+
+    /// <summary>
+    /// 把进度 InfoBar 标记为「操作已取消」并移除取消按钮（非按钮触发的取消路径用）。
+    /// </summary>
+    /// <param name="infoBar">进度 InfoBar；可为 null。</param>
+    private static void MarkProgressInfoBarCanceled(InfoBar? infoBar)
+    {
+        if (infoBar is not null)
+        {
+            infoBar.Message = Lang.GachaLogPage_OperationCanceled;
+            infoBar.ActionButton = null;
+        }
+    }
+
+
+    /// <summary>
+    /// 一段时间后自动关闭 InfoBar。主窗口的 <see cref="InAppToast"/> 会在计时器里清掉已关闭的项。
+    /// </summary>
+    /// <param name="infoBar">要关闭的 InfoBar；可为 null。</param>
+    /// <param name="duration">停留毫秒数。</param>
+    private static async Task CloseInfoBarAfterAsync(InfoBar? infoBar, int duration)
+    {
+        if (infoBar is null)
+        {
+            return;
+        }
+        try
+        {
+            await Task.Delay(duration);
+            infoBar.IsOpen = false;
+        }
+        catch
+        {
+        }
+    }
+
 
     private async Task<GameRecordRole?> SelectMiyousheRoleAsync(List<GameRecordRole> roles, GameBiz roleGameBiz)
     {

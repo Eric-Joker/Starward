@@ -1,6 +1,7 @@
 using Starward.Core.GameRecord.ZZZ.DailyNote;
 using Starward.Core.GameRecord.ZZZ.DeadlyAssault;
 using Starward.Core.GameRecord.ZZZ.GachaRecord;
+using Starward.Core.GameRecord.ZZZ.GachaStat;
 using Starward.Core.GameRecord.ZZZ.InterKnotReport;
 using Starward.Core.GameRecord.ZZZ.ShiyuDefense;
 using Starward.Core.GameRecord.ZZZ.ThresholdSimulation;
@@ -335,6 +336,81 @@ public class HoyolabZZZClient : GameRecordClientBase, IGameRecordClient, IGameRe
             return Regex.Replace(cookie, @"mi18nLang=[^;]*", $"mi18nLang={lang}", RegexOptions.IgnoreCase);
         }
         return cookie.TrimEnd(' ', ';') + $"; mi18nLang={lang}";
+    }
+
+
+    /// <summary>
+    /// 拉取官方抽卡统计（HoYoLAB「抽卡记录」活动页）：总览 + 各频段全部历史 S 级记录。
+    /// </summary>
+    /// <param name="role">已登录的绝区零角色。</param>
+    /// <param name="language">期望语言；国际服随 Cookie 的 mi18nLang。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>官方统计。</returns>
+    public Task<ZZZOfficialGachaStat> GetZZZOfficialGachaStatAsync(GameRecordRole role, string? language = null, CancellationToken cancellationToken = default)
+    {
+        return ZZZOfficialGachaStatFetcher.FetchAsync(this, role, language, cancellationToken);
+    }
+
+
+    /// <summary>
+    /// 官方抽卡统计总览（国际服 sg-act-public-api）。
+    /// </summary>
+    /// <param name="role">绝区零角色。</param>
+    /// <param name="cookie">含 <c>e_nap_token</c> 的 Cookie。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>总览数据。</returns>
+    public Task<ZZZGachaStatIndex> GetZZZGachaStatIndexAsync(GameRecordRole role, string cookie, CancellationToken cancellationToken = default)
+    {
+        var url = $"https://sg-act-public-api.hoyolab.com/event/nap_gacha_record/api/zzz/index?uid={role.Uid}&region={role.Region}";
+        return SendZZZGachaStatRequestAsync<ZZZGachaStatIndex>(url, cookie, cancellationToken);
+    }
+
+
+    /// <summary>
+    /// 官方抽卡统计当前版本卡池（国际服 sg-act-public-api）。
+    /// </summary>
+    /// <param name="role">绝区零角色。</param>
+    /// <param name="cookie">含 <c>e_nap_token</c> 的 Cookie。</param>
+    /// <param name="gachaType">ZZZGachaType 整数值。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>当前版本卡池。</returns>
+    public Task<ZZZGachaPoolStatData> GetZZZGachaCurrentPoolStatAsync(GameRecordRole role, string cookie, int gachaType, CancellationToken cancellationToken = default)
+    {
+        var url = $"https://sg-act-public-api.hoyolab.com/event/nap_gacha_record/api/zzz/cur_pool_stat?uid={role.Uid}&region={role.Region}&gacha_type={gachaType}";
+        return SendZZZGachaStatRequestAsync<ZZZGachaPoolStatData>(url, cookie, cancellationToken);
+    }
+
+
+    /// <summary>
+    /// 官方抽卡统计历史版本（国际服 sg-act-public-api）。
+    /// </summary>
+    /// <param name="role">绝区零角色。</param>
+    /// <param name="cookie">含 <c>e_nap_token</c> 的 Cookie。</param>
+    /// <param name="gachaType">ZZZGachaType 整数值。</param>
+    /// <param name="versions">要查询的版本号，调用方保证每次不超过 8 个。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>历史版本的 S 级记录。</returns>
+    public Task<ZZZGachaPoolStatData> GetZZZGachaHistoryPoolStatAsync(GameRecordRole role, string cookie, int gachaType, IReadOnlyList<string> versions, CancellationToken cancellationToken = default)
+    {
+        var url = $"https://sg-act-public-api.hoyolab.com/event/nap_gacha_record/api/zzz/hist_pool_stat?uid={role.Uid}&region={role.Region}&gacha_type={gachaType}&vers={string.Join(',', versions)}";
+        return SendZZZGachaStatRequestAsync<ZZZGachaPoolStatData>(url, cookie, cancellationToken);
+    }
+
+
+    /// <summary>
+    /// 发送官方抽卡统计请求：只靠 Cookie（国际服 Cookie 自带 DEVICEFP），不带 DS 与 x-rpc 头。
+    /// </summary>
+    /// <typeparam name="T">响应数据类型。</typeparam>
+    /// <param name="url">完整请求地址。</param>
+    /// <param name="cookie">badge 登录后合并的 Cookie。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>响应 data。</returns>
+    private Task<T> SendZZZGachaStatRequestAsync<T>(string url, string cookie, CancellationToken cancellationToken) where T : class
+    {
+        var request = new HttpRequestMessage(HttpMethod.Get, url);
+        AddHeader(request, Cookie, ApplyMi18nLangToCookie(cookie, Language));
+        AddHeader(request, Referer, "https://act.hoyolab.com/");
+        return CommonSendCultivateAsync<T>(request, cancellationToken);
     }
 
 }

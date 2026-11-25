@@ -1,6 +1,7 @@
 using Starward.Core.GameRecord.ZZZ.DailyNote;
 using Starward.Core.GameRecord.ZZZ.DeadlyAssault;
 using Starward.Core.GameRecord.ZZZ.GachaRecord;
+using Starward.Core.GameRecord.ZZZ.GachaStat;
 using Starward.Core.GameRecord.ZZZ.InterKnotReport;
 using Starward.Core.GameRecord.ZZZ.ShiyuDefense;
 using Starward.Core.GameRecord.ZZZ.ThresholdSimulation;
@@ -113,5 +114,49 @@ public interface IGameRecordZZZClient : IGameRecordClient
     /// <param name="cancellationToken">取消令牌。</param>
     /// <returns>合并 <c>e_nap_token</c> 后的 Cookie 串。</returns>
     public abstract Task<string> LoginZZZCultivateBadgeAsync(GameRecordRole role, string language, CancellationToken cancellationToken = default);
+
+
+    /// <summary>
+    /// 拉取绝区零官方抽卡统计（米游社 / HoYoLAB「抽卡记录」活动页）：总览 + 各频段全部历史 S 级记录。
+    /// 覆盖账号全部历史，含超出记录接口保留期的部分；但只有 S 级、没有记录 Id。
+    /// </summary>
+    /// <param name="role">已登录的绝区零角色。</param>
+    /// <param name="language">期望语言；国服记录名称固定中文，国际服随 Cookie 的 mi18nLang。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>总览、当前卡池与按频段分组的 S 级记录。</returns>
+    public abstract Task<ZZZOfficialGachaStat> GetZZZOfficialGachaStatAsync(GameRecordRole role, string? language = null, CancellationToken cancellationToken = default);
+
+
+    /// <summary>
+    /// 官方抽卡统计总览（<c>nap_gacha_record/api/zzz/index</c>）。
+    /// </summary>
+    /// <param name="role">绝区零角色。</param>
+    /// <param name="cookie">含 <c>e_nap_token</c> 的 Cookie。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>总览数据。</returns>
+    public abstract Task<ZZZGachaStatIndex> GetZZZGachaStatIndexAsync(GameRecordRole role, string cookie, CancellationToken cancellationToken = default);
+
+
+    /// <summary>
+    /// 官方抽卡统计当前版本卡池（<c>cur_pool_stat</c>），按上下半拆分并带 S 级记录。
+    /// </summary>
+    /// <param name="role">绝区零角色。</param>
+    /// <param name="cookie">含 <c>e_nap_token</c> 的 Cookie。</param>
+    /// <param name="gachaType">ZZZGachaType 整数值。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>当前版本卡池。</returns>
+    public abstract Task<ZZZGachaPoolStatData> GetZZZGachaCurrentPoolStatAsync(GameRecordRole role, string cookie, int gachaType, CancellationToken cancellationToken = default);
+
+
+    /// <summary>
+    /// 官方抽卡统计历史版本（<c>hist_pool_stat</c>），每个版本一条，只返回出过 S 级的版本。
+    /// </summary>
+    /// <param name="role">绝区零角色。</param>
+    /// <param name="cookie">含 <c>e_nap_token</c> 的 Cookie。</param>
+    /// <param name="gachaType">ZZZGachaType 整数值。</param>
+    /// <param name="versions">要查询的版本号（如 3.2），调用方保证每次不超过 8 个。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>历史版本的 S 级记录。</returns>
+    public abstract Task<ZZZGachaPoolStatData> GetZZZGachaHistoryPoolStatAsync(GameRecordRole role, string cookie, int gachaType, IReadOnlyList<string> versions, CancellationToken cancellationToken = default);
 
 }

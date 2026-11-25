@@ -1,6 +1,7 @@
 using Starward.Core.GameRecord.ZZZ.DailyNote;
 using Starward.Core.GameRecord.ZZZ.DeadlyAssault;
 using Starward.Core.GameRecord.ZZZ.GachaRecord;
+using Starward.Core.GameRecord.ZZZ.GachaStat;
 using Starward.Core.GameRecord.ZZZ.InterKnotReport;
 using Starward.Core.GameRecord.ZZZ.ShiyuDefense;
 using Starward.Core.GameRecord.ZZZ.ThresholdSimulation;
@@ -319,6 +320,126 @@ public class HyperionZZZClient : GameRecordClientBase, IGameRecordClient, IGameR
             throw new miHoYoApiException(wrapper.Retcode, wrapper.Message);
         }
         return MergeCookieFromSetCookie(role.Cookie, response);
+    }
+
+
+    /// <summary>
+    /// 拉取官方抽卡统计（米游社「抽卡记录」活动页）：总览 + 各频段全部历史 S 级记录。
+    /// </summary>
+    /// <param name="role">已登录的绝区零角色。</param>
+    /// <param name="language">期望语言；国服记录名称固定中文。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>官方统计。</returns>
+    public Task<ZZZOfficialGachaStat> GetZZZOfficialGachaStatAsync(GameRecordRole role, string? language = null, CancellationToken cancellationToken = default)
+    {
+        return ZZZOfficialGachaStatFetcher.FetchAsync(this, role, language, cancellationToken);
+    }
+
+
+    /// <summary>
+    /// 官方抽卡统计总览（国服 act-api-takumi）。
+    /// </summary>
+    /// <param name="role">绝区零角色。</param>
+    /// <param name="cookie">含 <c>e_nap_token</c> 的 Cookie。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>总览数据。</returns>
+    public Task<ZZZGachaStatIndex> GetZZZGachaStatIndexAsync(GameRecordRole role, string cookie, CancellationToken cancellationToken = default)
+    {
+        var url = $"https://act-api-takumi.mihoyo.com/event/nap_gacha_record/api/zzz/index?uid={role.Uid}&region={role.Region}";
+        return SendZZZGachaStatRequestAsync<ZZZGachaStatIndex>(url, cookie, cancellationToken);
+    }
+
+
+    /// <summary>
+    /// 官方抽卡统计当前版本卡池（国服 act-api-takumi）。
+    /// </summary>
+    /// <param name="role">绝区零角色。</param>
+    /// <param name="cookie">含 <c>e_nap_token</c> 的 Cookie。</param>
+    /// <param name="gachaType">ZZZGachaType 整数值。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>当前版本卡池。</returns>
+    public Task<ZZZGachaPoolStatData> GetZZZGachaCurrentPoolStatAsync(GameRecordRole role, string cookie, int gachaType, CancellationToken cancellationToken = default)
+    {
+        var url = $"https://act-api-takumi.mihoyo.com/event/nap_gacha_record/api/zzz/cur_pool_stat?uid={role.Uid}&region={role.Region}&gacha_type={gachaType}";
+        return SendZZZGachaStatRequestAsync<ZZZGachaPoolStatData>(url, cookie, cancellationToken);
+    }
+
+
+    /// <summary>
+    /// 官方抽卡统计历史版本（国服 act-api-takumi）。
+    /// </summary>
+    /// <param name="role">绝区零角色。</param>
+    /// <param name="cookie">含 <c>e_nap_token</c> 的 Cookie。</param>
+    /// <param name="gachaType">ZZZGachaType 整数值。</param>
+    /// <param name="versions">要查询的版本号，调用方保证每次不超过 8 个。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>历史版本的 S 级记录。</returns>
+    public Task<ZZZGachaPoolStatData> GetZZZGachaHistoryPoolStatAsync(GameRecordRole role, string cookie, int gachaType, IReadOnlyList<string> versions, CancellationToken cancellationToken = default)
+    {
+        var url = $"https://act-api-takumi.mihoyo.com/event/nap_gacha_record/api/zzz/hist_pool_stat?uid={role.Uid}&region={role.Region}&gacha_type={gachaType}&vers={string.Join(',', versions)}";
+        return SendZZZGachaStatRequestAsync<ZZZGachaPoolStatData>(url, cookie, cancellationToken);
+    }
+
+
+    /// <summary>
+    /// 发送官方抽卡统计请求。与米游社 App 内活动页一致只靠 Cookie（e_nap_token + 设备指纹），
+    /// 不带 DS 与 x-rpc 头；桌面浏览器 UA 实测可用。
+    /// </summary>
+    /// <typeparam name="T">响应数据类型。</typeparam>
+    /// <param name="url">完整请求地址。</param>
+    /// <param name="cookie">badge 登录后合并的 Cookie。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>响应 data。</returns>
+    private Task<T> SendZZZGachaStatRequestAsync<T>(string url, string cookie, CancellationToken cancellationToken) where T : class
+    {
+        var request = new HttpRequestMessage(HttpMethod.Get, url);
+        AddHeader(request, Cookie, MergeDeviceFpCookies(cookie));
+        AddHeader(request, Referer, "https://act.mihoyo.com/");
+        return CommonSendCultivateAsync<T>(request, cancellationToken);
+    }
+
+
+    /// <summary>
+    /// 把设备指纹写入 Cookie，对齐官方活动页携带的 <c>DEVICEFP</c> / <c>DEVICEFP_SEED_ID</c> / <c>DEVICEFP_SEED_TIME</c> / <c>_MHYUUID</c>。
+    /// </summary>
+    /// <param name="cookie">原始 Cookie；可为 null。</param>
+    /// <returns>合并设备指纹后的 Cookie。</returns>
+    private string MergeDeviceFpCookies(string? cookie)
+    {
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (!string.IsNullOrWhiteSpace(cookie))
+        {
+            foreach (string part in cookie.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                int eq = part.IndexOf('=');
+                if (eq > 0)
+                {
+                    map[part[..eq].Trim()] = part[(eq + 1)..].Trim();
+                }
+            }
+        }
+        if (DeviceInfo is { } info)
+        {
+            // 与 badge 登录的 x-rpc-device_fp 用同一枚指纹；getFp 失败时两者都已退化为本地随机值
+            string? deviceFp = !string.IsNullOrWhiteSpace(info.DeviceFp) ? info.DeviceFp : info.BbsDeviceFp;
+            if (!string.IsNullOrWhiteSpace(deviceFp))
+            {
+                map["DEVICEFP"] = deviceFp;
+            }
+            if (!string.IsNullOrWhiteSpace(info.SeedId))
+            {
+                map["DEVICEFP_SEED_ID"] = info.SeedId;
+            }
+            if (!string.IsNullOrWhiteSpace(info.SeedTime))
+            {
+                map["DEVICEFP_SEED_TIME"] = info.SeedTime;
+            }
+            if (!string.IsNullOrWhiteSpace(info.BbsDeviceId))
+            {
+                map["_MHYUUID"] = info.BbsDeviceId;
+            }
+        }
+        return string.Join("; ", map.Select(static kv => $"{kv.Key}={kv.Value}"));
     }
 
 }
