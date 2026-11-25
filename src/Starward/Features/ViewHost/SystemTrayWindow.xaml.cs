@@ -10,6 +10,7 @@ using Starward.Features.GameRecord.SignIn;
 using Microsoft.UI.Xaml.Controls;
 using Starward.Core;
 using Starward.Core.HoYoPlay;
+using Starward.Features.CloudGame;
 using Starward.Features.GameLauncher;
 using Starward.Features.GameSelector;
 using Starward.Features.GameRecord.AutoRefresh;
@@ -44,6 +45,12 @@ public sealed partial class SystemTrayWindow : WindowBase
 
 
     private readonly AutoSignInService _autoSignInService = AppConfig.GetService<AutoSignInService>();
+
+    /// <summary>
+    /// 云游戏每日免费时长自动领取：由托盘窗口拉起常驻循环，实例来自 <c>AppConfig.ServiceProvider.cs</c>。
+    /// </summary>
+    private readonly AutoCloudGameFreeTimeService _autoCloudGameFreeTimeService = AppConfig.GetService<AutoCloudGameFreeTimeService>();
+
     private readonly ILogger<SystemTrayWindow> _logger = AppConfig.GetLogger<SystemTrayWindow>();
 
     private readonly GameLauncherService _gameLauncherService = AppConfig.GetService<GameLauncherService>();
@@ -90,18 +97,20 @@ public sealed partial class SystemTrayWindow : WindowBase
         WeakReferenceMessenger.Default.Register<LanguageChangedMessage>(this, (_, _) => this.Bindings.Update());
         // 常驻实例的对外通道：开着它，点击系统通知的协议进程才能找到本实例并转交「打开主窗口」请求。
         ResidentInstanceMessenger.StartListening();
-        // 实时便笺提醒：常驻检查各账号便笺，达到阈值时发 Windows 系统通知。
-        _dailyNoteNotifyService.StartResident();
         // 安装更新时安装器会结束安装目录下的 Starward 进程（含记录时长的子进程）；游戏还在运行时接续记录。
         // 托盘窗口在每种启动方式下都会创建且只创建一次，放在这里保证每次启动只检查一次。
         _ = Task.Run(() => AppConfig.GetService<PlayTimeRecordService>().ResumeInterruptedRecordings());
-        // 托盘窗口是常驻状态下唯一必然存在且不会销毁的窗口，每日自动签到挂在这里：
-        // 启动后先签一轮，之后跨日再签。
+        // 托盘窗口是常驻状态下唯一必然存在且不会销毁的窗口，启动期批量任务都挂在这里：
+        // 先自动签到，云游戏免费时长排在签到首轮之后，便笺检查同样排在签到首轮之后，
+        // 自动更新战绩最后跑——各自错开，不在同一时刻抢请求。
         _autoSignInService.StartResident();
+        _autoCloudGameFreeTimeService.StartResident(_autoSignInService.StartupBatchCompleted);
+        _dailyNoteNotifyService.StartResident(_autoSignInService.StartupBatchCompleted);
         WeakReferenceMessenger.Default.Register<InstalledGameRefreshedMessage>(this, (_, _) => UpdateInstalledGames());
         WeakReferenceMessenger.Default.Register<GameInstallPathChangedMessage>(this, (_, _) => _ = InitializeInstalledGamesAsync());
         // 战绩自动更新挂在唯一常驻的托盘窗口上：启动后判一次到期，窗口销毁时取消。
-        _autoRecordRefreshService.StartResident();
+        // 等云游戏免费时长那轮启动批量打完（它自己又排在签到首轮之后）再检查一次到期板块。
+        _autoRecordRefreshService.StartResident(_autoCloudGameFreeTimeService.StartupBatchCompleted);
     }
 
 
@@ -232,7 +241,9 @@ public sealed partial class SystemTrayWindow : WindowBase
             // PBT_APMRESUMESUSPEND = 7 / PBT_APMRESUMEAUTOMATIC = 0x12 / PBT_APMRESUMECRITICAL = 3
             if (wParam is 7 or 0x12 or 3)
             {
-                // 睡眠期间计时器不走，恢复后让常驻循环按墙上时钟重算到期时刻（便笺提醒等）
+                // 睡眠期间计时器不走，恢复后让常驻循环按墙上时钟重算到期时刻（签到、云游戏免费时长、便笺提醒等）
+                _autoSignInService.NotifySystemResumed();
+                _autoCloudGameFreeTimeService.NotifySystemResumed();
                 _dailyNoteNotifyService.NotifySystemResumed();
             }
         }

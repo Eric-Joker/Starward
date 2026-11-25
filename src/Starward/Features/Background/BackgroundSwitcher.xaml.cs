@@ -56,7 +56,21 @@ public sealed partial class BackgroundSwitcher : UserControl
 
 
 
-    public GameId CurrentGameId { get; set; }
+    private GameId? _currentGameId;
+
+    /// <summary>当前游戏；背景切换条按它决定要不要显示好感壁纸入口。</summary>
+    public GameId? CurrentGameId
+    {
+        get => _currentGameId;
+        set
+        {
+            _currentGameId = value;
+            ShowFavorWallpaper = GameFeatureConfig.FromGameId(value).SupportFavorWallpaper;
+        }
+    }
+
+    /// <summary>当前游戏是否支持好感壁纸（只有绝区零有）。</summary>
+    public bool ShowFavorWallpaper { get; set => SetProperty(ref field, value); }
 
     public int GameBackgroundCount { get; set => SetProperty(ref field, value); }
 
@@ -173,6 +187,31 @@ public sealed partial class BackgroundSwitcher : UserControl
         catch (Exception ex)
         {
             _logger.LogError(ex, "Open background view window.");
+        }
+    }
+
+
+    /// <summary>
+    /// 打开好感壁纸对话框：从米游社百科取绝区零的好感/满影画壁纸，可预览、下载、设为自定义背景。
+    /// </summary>
+    [RelayCommand]
+    private async Task OpenFavorWallpaperDialogAsync()
+    {
+        try
+        {
+            if (CurrentGameId is null)
+            {
+                return;
+            }
+            await new FavorWallpaperDialog
+            {
+                CurrentGameId = CurrentGameId,
+                XamlRoot = this.XamlRoot,
+            }.ShowAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Open favor wallpaper dialog.");
         }
     }
 

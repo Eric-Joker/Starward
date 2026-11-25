@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
 using Starward.Core.Blackboard;
+using Starward.Core.CloudGame;
 using Starward.Core.DeviceFp;
 using Starward.Core.Gacha.Genshin;
 using Starward.Core.Gacha.StarRail;
@@ -19,6 +20,7 @@ using Starward.Core.Passport;
 using Starward.Core.SelfQuery;
 using Starward.Features.Account;
 using Starward.Features.Background;
+using Starward.Features.CloudGame;
 using Starward.Features.Database;
 using Starward.Features.Gacha;
 using Starward.Features.Gacha.UIGF;
@@ -104,6 +106,8 @@ public static partial class AppConfig
         sc.AddSingleton<HoYoPlayBetaClient>();
         sc.AddSingleton<GameNoticeClient>();
         sc.AddSingleton<BackgroundService>();
+        // 好感壁纸（仅绝区零）：启动页背景切换条里的入口与切换游戏时的随机壁纸都取它。
+        sc.AddSingleton<FavorWallpaperService>();
         sc.AddSingleton<GameLauncherService>();
         sc.AddSingleton<PlayTimeRecordService>();
         sc.AddSingleton<PlayTimeStatsService>();
@@ -169,6 +173,13 @@ public static partial class AppConfig
         sc.AddSingleton<GameAccountService>();
 
         sc.AddSingleton<ScreenCaptureService>();
+
+        // 云游戏：钱包查询与每日免费时长自动领取。凭证只从本机云游戏客户端读取，
+        // 不经过米游社账号池（见 CloudGameClientCredentialProvider）。
+        sc.AddHttpClient<CloudGameClient>().ConfigStarwardHttpClient();
+        sc.AddSingleton<CloudGameClientCredentialProvider>();
+        sc.AddSingleton<CloudGameWalletService>();
+        sc.AddSingleton<AutoCloudGameFreeTimeService>();
 
         // 首页时间节点与前瞻直播兑换码：启动器右侧的两个按钮各自取用；
         // 百科客户端同时也给后续好感壁纸之类的百科数据用。

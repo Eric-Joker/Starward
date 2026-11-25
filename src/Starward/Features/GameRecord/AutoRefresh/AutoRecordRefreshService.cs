@@ -9,6 +9,7 @@ using Starward.Features.GameRecord.Genshin;
 using Starward.Features.GameRecord.StarRail;
 using Starward.Features.GameRecord.ZZZ;
 using Starward.Features.ViewHost;
+using Starward.Helpers;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -249,6 +250,15 @@ internal class AutoRecordRefreshService
     /// <returns>更新成功的板块数。</returns>
     private async Task<int> RunBatchAsync(CancellationToken cancellationToken)
     {
+        // 当前网络被用户或运营商声明为按流量计费时不发任何请求：整轮跳过，
+        // 排期（lastRun / enabledAt）原样保留，等下次在非计费网络上启动时自然会到期重跑。
+        // 这里不做任何提示：用户随时可以在界面里手动刷新。
+        if (NetworkHelper.IsMeteredConnection())
+        {
+            _logger.LogInformation("Auto record refresh skipped: the current connection is metered.");
+            return 0;
+        }
+
         List<GameRecordRole> roles;
         try
         {

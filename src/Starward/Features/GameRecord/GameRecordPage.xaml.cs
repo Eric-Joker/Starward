@@ -11,6 +11,7 @@ using Starward.Features.GameRecord.AutoRefresh;
 using Starward.Features.GameRecord.Genshin;
 using Starward.Features.GameRecord.StarRail;
 using Starward.Features.GameRecord.ZZZ;
+using Starward.Features.MapTool;
 using Starward.Features.Passport;
 using Starward.Features.ViewHost;
 using Starward.Helpers;
@@ -58,6 +59,23 @@ public sealed partial class GameRecordPage : PageBase
         {
             DispatcherQueue.TryEnqueue(() => _ = InitializeGameRoleAsync());
         });
+        // 账号中心登录 / 切号之后，角色行与 Cookie 已经由账号池服务同步进库，这里重新加载一次；
+        // 登录完成可能发生在页面已经打开之后（之前 CurrentRole 还是空的）。
+        WeakReferenceMessenger.Default.Register<GameRecordRoleChangedMessage>(this, (r, m) =>
+        {
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                LoadGameRoles(m.GameRole);
+                // 已经打开的战绩窗口跟着换成新的角色，登录之后不用再点一次。
+                if (_battleChronicleWindow?.AppWindow is not null && CurrentRole is not null)
+                {
+                    _battleChronicleWindow.CurrentRole = CurrentRole;
+                    _battleChronicleWindow.Activate();
+                }
+                // 账号池刚刷新过工具箱数据，当前子页面重新导航一次，直接显示新记录。
+                ReloadCurrentPage();
+            });
+        });
         await Task.Delay(16);
         NavigateTo(typeof(BlankPage));
         await InitializeGameRoleAsync();
@@ -68,10 +86,29 @@ public sealed partial class GameRecordPage : PageBase
     {
         WeakReferenceMessenger.Default.UnregisterAll(this);
         NavigationViewItem_BattleChronicle.Tapped -= NavigationViewItem_BattleChronicle_Tapped;
+        NavigationViewItem_MapTool.Tapped -= NavigationViewItem_MapTool_Tapped;
         NavigationViewItem_UpdateDeviceInfo.Tapped -= NavigationViewItem_UpdateDeviceInfo_Tapped;
+        // 战绩 / 地图窗口是工具箱页带出来的，离开工具箱就别再留着它们（顺带释放内嵌的 WebView2）。
+        try
+        {
+            if (_battleChronicleWindow?.AppWindow is not null)
+            {
+                _battleChronicleWindow.Close();
+            }
+        }
+        catch { }
+        try
+        {
+            if (_mapToolWindow?.AppWindow is not null)
+            {
+                _mapToolWindow.Close();
+            }
+        }
+        catch { }
         CurrentRole = null;
         GameRoleList = null!;
         _battleChronicleWindow = null;
+        _mapToolWindow = null;
     }
 
 
@@ -155,6 +192,15 @@ public sealed partial class GameRecordPage : PageBase
             // 绝区零战绩图片
             Image_BattleChronicle.Source = new BitmapImage(new("ms-appx:///Assets/Image/bc8f0b7384b306c80f2a1fcca9f3d14b_8590605504999484795.png"));
         }
+        // 地图工具：原神、星穹铁道有官方互动地图，其余游戏没有这份目录，直接不显示这一项。
+        if (MapToolCatalog.GetOptions(CurrentGameBiz).Count > 0)
+        {
+            NavigationViewItem_MapTool.Visibility = Visibility.Visible;
+            // 原神叫「大地图」，星铁叫「地图」，按游戏取名字。
+            TextBlock_MapTool.Text = MapToolCatalog.GetMapTitle(CurrentGameBiz);
+            // 图标同样按游戏取：原神一张、星穹铁道一张。
+            Image_MapTool.Source = new BitmapImage(new(MapToolCatalog.GetMapIconPath(CurrentGameBiz)));
+        }
     }
 
 
@@ -169,6 +215,25 @@ public sealed partial class GameRecordPage : PageBase
             return;
         }
         frame.Navigate(page, parameter ?? CurrentRole);
+    }
+
+
+    /// <summary>工具箱数据刚被刷新过，当前的子页面重新导航一次，显示的就是新记录。</summary>
+    private void ReloadCurrentPage()
+    {
+        try
+        {
+            LoadGameRoles();
+            var page = frame.SourcePageType;
+            if (page is not null && page != typeof(BlankPage))
+            {
+                NavigateTo(page, force_navigate: true);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Reload toolbox page.");
+        }
     }
 
 
@@ -330,6 +395,36 @@ public sealed partial class GameRecordPage : PageBase
             _battleChronicleWindow.CurrentRole = CurrentRole;
         }
         _battleChronicleWindow.Activate();
+    }
+
+
+
+    private void NavigationViewItem_MapTool_Tapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
+    {
+        ShowMapToolWindow();
+    }
+
+
+
+    private MapToolWindow? _mapToolWindow;
+
+
+
+    private void ShowMapToolWindow()
+    {
+        // 窗口关闭后 AppWindow is null
+        if (_mapToolWindow?.AppWindow is null)
+        {
+            _mapToolWindow = new MapToolWindow
+            {
+                CurrentGameBiz = CurrentGameBiz,
+            };
+        }
+        else if (_mapToolWindow.CurrentGameBiz != CurrentGameBiz)
+        {
+            _mapToolWindow.CurrentGameBiz = CurrentGameBiz;
+        }
+        _mapToolWindow.Activate();
     }
 
 
@@ -512,6 +607,7 @@ public sealed partial class GameRecordPage : PageBase
             _logger.LogError($"Login failed: {ex}");
         }
     }
+
 
 
     private void ListView_GameRoles_SelectionChanged(object sender, SelectionChangedEventArgs e)

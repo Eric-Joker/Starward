@@ -24,14 +24,16 @@ namespace Starward.Features.GameRecord.DailyNote.Notify;
 /// </summary>
 /// <remarks>
 /// 调度结构是绝对到期时刻 + 分段等待（休眠后用墙上时钟重算）+ 唤醒信号。
-/// 0.19 还没有自动签到、云游戏免费时长这些启动批，所以启动缓冲后直接开始；等它们迁移过来，
-/// 在这个循环前排队等首轮完成即可（原先 AutoSignInService.StartupBatchCompleted 那个门闩）。
+/// 启动检查排在自动签到首轮之后（<see cref="StartResident"/> 的启动批量门闩），不与签到、云游戏免费时长抢同一时刻的请求。
 /// </remarks>
 internal sealed class DailyNoteNotifyService
 {
 
     /// <summary>启动后缓一段时间才开始检查，避开启动高峰。</summary>
     private static readonly TimeSpan StartupDelay = TimeSpan.FromSeconds(20);
+
+    /// <summary>等自动签到首轮的上限。签到卡住不能把便笺提醒一起挂死。</summary>
+    private static readonly TimeSpan StartupSignInWaitTimeout = TimeSpan.FromMinutes(15);
 
     /// <summary>长等待拆段的上限。相对 Delay 不计休眠，分段醒来用墙上时钟重算剩余。</summary>
     private static readonly TimeSpan WatchdogInterval = TimeSpan.FromMinutes(15);
@@ -95,13 +97,45 @@ internal sealed class DailyNoteNotifyService
     /// <summary>
     /// 启动常驻检查循环。幂等。
     /// </summary>
-    public void StartResident()
+    /// <param name="waitForSignInStartupBatch">
+    /// 自动签到首轮的完成任务；检查排在它之后，不与签到抢同一时刻的请求。
+    /// 为 null 时只等启动缓冲（例如没有签到首轮可等）。
+    /// </param>
+    public void StartResident(Task? waitForSignInStartupBatch = null)
     {
         if (Interlocked.Exchange(ref _residentStarted, 1) == 1)
         {
             return;
         }
-        _ = Task.Run(() => RunResidentLoopAsync(CancellationToken.None));
+        _ = Task.Run(() => RunResidentLoopAsync(waitForSignInStartupBatch, CancellationToken.None));
+    }
+
+
+    /// <summary>
+    /// 等自动签到首轮打完；超时或门闩本身出错都不再等。
+    /// </summary>
+    /// <param name="waitForSignInStartupBatch">自动签到首轮完成任务；为 null 时直接进入启动缓冲。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    private async Task WaitForSignInStartupBatchAsync(Task? waitForSignInStartupBatch, CancellationToken cancellationToken)
+    {
+        if (waitForSignInStartupBatch is null)
+        {
+            return;
+        }
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(StartupSignInWaitTimeout);
+        try
+        {
+            await waitForSignInStartupBatch.WaitAsync(timeout.Token);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogWarning("Daily note notify: auto sign-in startup batch did not finish within {timeout}; starting anyway.", StartupSignInWaitTimeout);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Daily note notify: waiting for auto sign-in startup batch failed; starting anyway.");
+        }
     }
 
 
@@ -183,12 +217,15 @@ internal sealed class DailyNoteNotifyService
 
 
     /// <summary>
-    /// 常驻循环：启动缓冲 → 检查到期账号 → 睡到最早的下次检查。单轮异常只影响本轮。
+    /// 常驻循环：等签到首轮 → 启动缓冲 → 检查到期账号 → 睡到最早的下次检查。单轮异常只影响本轮。
     /// </summary>
-    private async Task RunResidentLoopAsync(CancellationToken cancellationToken)
+    /// <param name="waitForSignInStartupBatch">自动签到首轮完成任务；为 null 时只等启动缓冲。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    private async Task RunResidentLoopAsync(Task? waitForSignInStartupBatch, CancellationToken cancellationToken)
     {
         try
         {
+            await WaitForSignInStartupBatchAsync(waitForSignInStartupBatch, cancellationToken);
             await WaitOrWakeAsync(StartupDelay, cancellationToken);
             while (!cancellationToken.IsCancellationRequested)
             {

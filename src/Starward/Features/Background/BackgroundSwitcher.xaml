@@ -394,6 +394,17 @@
                        PreviousButtonVisibility="VisibleOnPointerOver"
                        SelectedPageIndex="{x:Bind CurrentGameBackgroundIndex, Mode=TwoWay}"
                        Style="{ThemeResource CustomPipsPagerStyle}" />
+            <!--  好感壁纸（仅绝区零）：入口放在指示器与分割线之间，分割线及之后的每一项都保持上游原样  -->
+            <Button Padding="4"
+                    Command="{x:Bind OpenFavorWallpaperDialogCommand}"
+                    Style="{ThemeResource DateTimePickerFlyoutButtonStyle}"
+                    ToolTipService.ToolTip="{x:Bind lang:Lang.FavorWallpaper_Title}"
+                    Visibility="{x:Bind ShowFavorWallpaper}">
+                <FontIcon FontSize="16"
+                          Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                          Glyph="&#xE125;"
+                          IsTextScaleFactorEnabled="False" />
+            </Button>
             <AppBarSeparator Padding="0,4,0,4" />
             <!--  图库  -->
             <Button Padding="4"

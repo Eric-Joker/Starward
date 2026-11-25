@@ -34,6 +34,13 @@ internal partial class GameFeatureConfig
     public bool SupportCloudGame { get; init; }
 
     /// <summary>
+    /// 支持好感壁纸（米游社百科里的角色壁纸，目前只有绝区零有）。
+    /// 启动页背景切换条按它显示好感壁纸入口。
+    /// </summary>
+    public bool SupportFavorWallpaper { get; init; }
+
+
+    /// <summary>
     /// 支持实时便笺
     /// </summary>
     public bool SupportDailyNote { get; init; }
@@ -220,6 +227,7 @@ internal partial class GameFeatureConfig
         InGameNoticesWindow = true,
         SupportDailyNote = true,
         SupportCloudGame = true,
+        SupportFavorWallpaper = true,
     };
 
 
@@ -235,6 +243,7 @@ internal partial class GameFeatureConfig
         ],
         InGameNoticesWindow = true,
         SupportDailyNote = true,
+        SupportFavorWallpaper = true,
     };
 
 
@@ -250,6 +259,7 @@ internal partial class GameFeatureConfig
         ],
         InGameNoticesWindow = true,
         SupportDailyNote = true,
+        SupportFavorWallpaper = true,
     };
 
 

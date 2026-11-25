@@ -467,6 +467,29 @@
                     </NavigationViewItem.Content>
                 </NavigationViewItem>
 
+                <!--  地图工具：官方互动地图，点开后在独立窗口里用 WebView 打开  -->
+                <!--  使用 Tapped 事件，防止新窗口打开后此窗口重新获得焦点  -->
+                <!--  https://github.com/microsoft/microsoft-ui-xaml/issues/10272  -->
+                <NavigationViewItem Name="NavigationViewItem_MapTool"
+                                    Tag="MapTool"
+                                    Tapped="NavigationViewItem_MapTool_Tapped"
+                                    Visibility="Collapsed">
+                    <NavigationViewItem.Content>
+                        <Grid Margin="{x:Bind NavigationViewItemContentMargin}" ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition />
+                            </Grid.ColumnDefinitions>
+                            <!--  图标在代码里按游戏取：原神 / 星穹铁道各一张  -->
+                            <Image x:Name="Image_MapTool" Width="20" />
+                            <!--  文字在代码里按游戏取官方地图的名字：原神「大地图」、星穹铁道「地图」  -->
+                            <TextBlock x:Name="TextBlock_MapTool"
+                                       Grid.Column="1"
+                                       TextTrimming="CharacterEllipsis" />
+                        </Grid>
+                    </NavigationViewItem.Content>
+                </NavigationViewItem>
+
             </NavigationView.MenuItems>
 
             <NavigationView.PaneFooter>
