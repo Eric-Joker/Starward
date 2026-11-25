@@ -23,13 +23,13 @@
             <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
 
-        <!--  游戏图标  -->
-        <ListView Grid.Column="1"
-                  AllowDrop="True"
-                  CanReorderItems="{x:Bind s:AppConfig.IsAdmin, Converter={StaticResource BoolReversedConverter}}"
+        <!--  游戏图标：排序不用系统拖放（ListView.CanReorderItems 在管理员权限下不可用），
+              由 GameIconDragReorder 自己实现按住拖动、松手换位  -->
+        <ListView x:Name="ListView_GameIcons"
+                  Grid.Column="1"
                   ItemsSource="{x:Bind PinnedGameIcons}"
-                  ScrollViewer.HorizontalScrollBarVisibility="Hidden"
-                  ScrollViewer.HorizontalScrollMode="Auto"
+                  ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                  ScrollViewer.HorizontalScrollMode="Enabled"
                   ScrollViewer.VerticalScrollBarVisibility="Disabled"
                   SelectionMode="None">
             <ListView.ItemsPanel>

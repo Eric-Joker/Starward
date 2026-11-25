@@ -34,10 +34,18 @@ public sealed partial class GameSwitcher : UserControl
     public PinnedGameIcon? CurrentGameIcon { get; set => SetProperty(ref field, value); }
 
 
+    /// <summary>
+    /// 游戏图标的按住拖动排序。0.19 上游用系统拖放（ListView.CanReorderItems），
+    /// 非打包应用提权后系统拖放不可用，这里换成自己实现的拖动。
+    /// </summary>
+    private readonly GameIconDragReorder _gameIconDragReorder;
+
+
 
     public GameSwitcher()
     {
         InitializeComponent();
+        _gameIconDragReorder = new GameIconDragReorder(ListView_GameIcons, MoveGameIcon);
         InitializeSwitcher();
         WeakReferenceMessenger.Default.Register<PinGameIconMessage>(this, HandlePinGameIconMessage);
         WeakReferenceMessenger.Default.Register<MainViewNavigateMessage>(this, HandleMainViewNavigateMessage);
@@ -310,6 +318,25 @@ public sealed partial class GameSwitcher : UserControl
             GameEntryService.SavePinnedIcons(PinnedGameIcons);
         }
         catch { }
+    }
+
+
+
+    /// <summary>
+    /// 拖拽松手后移动待选游戏。用移除再插入而不是 Move：Move 会被 WinUI 折叠成 Reset，重建全部图标。
+    /// 集合变化会触发 PinnedGameIcons_CollectionChanged，把新顺序写进 GameEntry 表。
+    /// 悬停遮罩的复位在 GameIconDragReorder 里统一处理（拖动结束时按光标位置判定）。
+    /// </summary>
+    /// <param name="oldIndex">旧索引</param>
+    /// <param name="newIndex">新索引</param>
+    private void MoveGameIcon(int oldIndex, int newIndex)
+    {
+        PinnedGameIcon icon = PinnedGameIcons[oldIndex];
+        // 只在插回后保存一次，缺了这个图标的中间状态不写入配置
+        PinnedGameIcons.CollectionChanged -= PinnedGameIcons_CollectionChanged;
+        PinnedGameIcons.RemoveAt(oldIndex);
+        PinnedGameIcons.CollectionChanged += PinnedGameIcons_CollectionChanged;
+        PinnedGameIcons.Insert(newIndex, icon);
     }
 
 
