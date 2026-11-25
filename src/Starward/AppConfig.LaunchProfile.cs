@@ -59,6 +59,26 @@ public static partial class AppConfig
 
 
     /// <summary>
+    /// 上次接口返回的「当前显卡可切换 DX12」。启动时先按它显示 DX12 选项，不等接口返回，
+    /// 接口慢或断网时选项也不会缺席（0.19 上游按 <see cref="GameId"/> 存这类开关）。
+    /// </summary>
+    public static bool GetDX12SwitchAvailable(GameId gameId)
+    {
+        return GetValue<bool>(default, "DX12SwitchAvailable", gameId.ToString());
+    }
+
+
+    /// <summary>
+    /// 上次接口返回的「当前显卡可切换 DX12」，见 <see cref="GetDX12SwitchAvailable"/>。
+    /// </summary>
+    public static void SetDX12SwitchAvailable(GameId gameId, bool value)
+    {
+        SetValue(value, "DX12SwitchAvailable", gameId.ToString());
+    }
+
+
+
+    /// <summary>
     /// 迁移旧配置时用的游戏 ID：0.19 上游把启动参数、DX12、自定义启动程序等按
     /// <see cref="GameId"/> 存，预设按区服存，读取旧值时取该区服的标准 GameId。
     /// <para>
