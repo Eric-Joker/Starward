@@ -3305,43 +3305,82 @@ You are welcome to submit the exported data to the following repository:</value>
   <data name="AutoRecordRefresh_Title" xml:space="preserve">
     <value>Auto update</value>
   </data>
-  <data name="DailyNoteButton_Genshin_StoredEncounterPoints" xml:space="preserve">
+<data name="DailyNoteButton_Genshin_StoredEncounterPoints" xml:space="preserve">
     <value>Stored Encounter Points</value>
   </data>
-  <data name="DailyNoteButton_Genshin_WeeklyBossRemaining" xml:space="preserve">
+<data name="DailyNoteButton_Genshin_WeeklyBossRemaining" xml:space="preserve">
     <value>Weekly Bosses Remaining</value>
   </data>
-  <data name="DailyNoteButton_Genshin_ParametricTransformer" xml:space="preserve">
+<data name="DailyNoteButton_Genshin_ParametricTransformer" xml:space="preserve">
     <value>Parametric Transformer</value>
   </data>
-  <data name="DailyNoteButton_Genshin_TransformerReady" xml:space="preserve">
+<data name="DailyNoteButton_Genshin_TransformerReady" xml:space="preserve">
     <value>Ready</value>
   </data>
-  <data name="TimeNode_RemainingDays" xml:space="preserve">
+<data name="TimeNode_RemainingDays" xml:space="preserve">
     <value>{0}d remaining</value>
   </data>
-  <data name="TimeNode_RemainingHours" xml:space="preserve">
+<data name="TimeNode_RemainingHours" xml:space="preserve">
     <value>{0}h remaining</value>
   </data>
-  <data name="TimeNode_RemainingMinutes" xml:space="preserve">
+<data name="TimeNode_RemainingMinutes" xml:space="preserve">
     <value>{0}m remaining</value>
   </data>
-  <data name="ImaginariumTheaterPage_TrialCharacter" xml:space="preserve">
+<data name="ImaginariumTheaterPage_TrialCharacter" xml:space="preserve">
     <value>Trial</value>
   </data>
-  <data name="ImaginariumTheaterPage_SupportingCastCharacter" xml:space="preserve">
+<data name="ImaginariumTheaterPage_SupportingCastCharacter" xml:space="preserve">
     <value>Support</value>
   </data>
-  <data name="DeadlyAssaultPage_RankFetchTime" xml:space="preserve">
+<data name="DeadlyAssaultPage_RankFetchTime" xml:space="preserve">
     <value>Rank data fetched at {0}</value>
   </data>
-  <data name="ShiyuDefensePage_RankFetchTime" xml:space="preserve">
+<data name="ShiyuDefensePage_RankFetchTime" xml:space="preserve">
     <value>Rank data fetched at {0}</value>
   </data>
-  <data name="DeadlyAssaultPage_HardMode" xml:space="preserve">
+<data name="DeadlyAssaultPage_HardMode" xml:space="preserve">
     <value>Desperate</value>
   </data>
-  <data name="DeadlyAssaultPage_NormalMode" xml:space="preserve">
+<data name="DeadlyAssaultPage_NormalMode" xml:space="preserve">
     <value>Normal</value>
+  </data>
+<data name="PassportLogin_AccountId" xml:space="preserve">
+    <value>ID: {0}</value>
+  </data>
+<data name="PassportLogin_ActionTypeMissing" xml:space="preserve">
+    <value>The server did not return an action type for the verification code. Send the code again.</value>
+  </data>
+<data name="PassportLogin_CaptchaCancelled" xml:space="preserve">
+    <value>Verification was cancelled.</value>
+  </data>
+<data name="PassportLogin_CaptchaRequired" xml:space="preserve">
+    <value>Too many sign-in attempts in a short time. Complete the human verification to continue.</value>
+  </data>
+<data name="PassportLogin_CaptchaUnavailable" xml:space="preserve">
+    <value>The verification component is unavailable.</value>
+  </data>
+<data name="PassportLogin_DerivedTokenFailed" xml:space="preserve">
+    <value>Signed in, but the miyoushe toolbox credentials could not be retrieved: {0}. Click Refresh Info in the account center to retry.</value>
+  </data>
+<data name="PassportLogin_DerivedTokenOwnerMismatch" xml:space="preserve">
+    <value>The server returned credentials for a different account, so they were ignored.</value>
+  </data>
+<data name="PassportLogin_ImportNeedStokenV2" xml:space="preserve">
+    <value>Only an SToken (V2) together with the matching MiHoYo ID can be imported.</value>
+  </data>
+<data name="PassportLogin_ImportNeedStuid" xml:space="preserve">
+    <value>An SToken (V1) needs the matching stuid. Paste the full Cookie instead.</value>
+  </data>
+<data name="PassportLogin_NoTokenReturned" xml:space="preserve">
+    <value>The server did not return a sign-in token.</value>
+  </data>
+<data name="PassportLogin_ServiceError" xml:space="preserve">
+    <value>The server returned an unexpected result.</value>
+  </data>
+<data name="PassportLogin_TooManyAttempts" xml:space="preserve">
+    <value>Too many attempts. Please try again later.</value>
+  </data>
+<data name="PassportLogin_UnknownAccount" xml:space="preserve">
+    <value>Unknown account</value>
   </data>
 </root>

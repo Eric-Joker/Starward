@@ -17,6 +17,7 @@ using Starward.Core.HoYoPlay;
 using Starward.Core.MiyoLive;
 using Starward.Core.Passport;
 using Starward.Core.SelfQuery;
+using Starward.Features.Account;
 using Starward.Features.Background;
 using Starward.Features.Database;
 using Starward.Features.Gacha;
@@ -148,6 +149,10 @@ public static partial class AppConfig
 
         sc.AddSingleton<PassportClient>();
         sc.AddSingleton<PassportService>();
+        // 通行证账号池（账号中心）与短信验证码登录会话。账号池是国服账号的主要存储，
+        // 同时向上游 PassportUserInfo 表同步，让 MainView / 自动登录等已有功能继续工作。
+        sc.AddSingleton<PassportAccountService>();
+        sc.AddSingleton<PassportLoginSession>();
 
         sc.AddSingleton<SelfQueryClient>();
         sc.AddSingleton<SelfQueryService>();

@@ -1081,4 +1081,81 @@ public static partial class AppConfig
     #endregion
 
 
+
+
+    #region Passport Account (adapted from the Moonward main branch)
+
+    // 通行证账号池（账号中心）的设置键。键名与主分支（main）保持一致，
+    // 用户从 main 升级上来时数据库里已有的值可以直接复用；0.19 的 Setting 表在 v22 迁移时
+    // 会把 main 的大写开头键原样搬到 GameId = '' 的行里。
+
+
+    /// <summary>
+    /// 通行证令牌（JSON）。用 DPAPI 加密后保存在数据库中，不再写入 config.ini 或注册表。
+    /// </summary>
+    public static string? PassportTokenJson
+    {
+        get => GetValue<string>();
+        set => SetValue(value);
+    }
+
+
+    /// <summary>
+    /// 账号中心里账号列表的排列顺序（账号标识，逗号分隔）。拖动排序后保存，重启后仍然有效。
+    /// </summary>
+    public static string? PassportAccountOrder
+    {
+        get => GetValue<string>();
+        set => SetValue(value);
+    }
+
+
+    /// <summary>
+    /// 某个游戏当前选用的通行证账号（账号标识，见 <c>PassportAccountRecord.GetKey</c>）。
+    /// <para>
+    /// 一个通行证账号在一个游戏里只对应一个游戏账号，所以每个游戏各记一份就够了。
+    /// </para>
+    /// </summary>
+    public static string? GetCurrentPassportAccountKey(GameBiz gameBiz)
+    {
+        return GetValue<string>(null, GetCurrentPassportAccountKeyName(gameBiz));
+    }
+
+
+    public static void SetCurrentPassportAccountKey(GameBiz gameBiz, string? key)
+    {
+        SetValue(key, GetCurrentPassportAccountKeyName(gameBiz));
+    }
+
+
+    private static string? GetCurrentPassportAccountKeyName(GameBiz gameBiz)
+    {
+        return string.IsNullOrWhiteSpace(gameBiz.Value) ? null : $"PassportAccountKey_{gameBiz.Value}";
+    }
+
+
+    /// <summary>
+    /// 基于注册表的游戏账号切换：开启后启动页显示游戏账号切换器，
+    /// 切账号时读写游戏客户端自己记住的那个账号（注册表里那份，每个游戏各记一份）；
+    /// 关闭时走通行证账号池，米游社会话跟着启动预设里选的账号走。
+    /// <para>
+    /// 键名与 main 保持一致；改名前的键 <see cref="ObsoleteGameAccountSwitcherKey"/> 只当作默认值读一次，
+    /// 免得升级后把用户已经打开的开关关掉。
+    /// </para>
+    /// </summary>
+    public static bool EnableRegistryGameAccountSwitcher
+    {
+        get => GetValue(GetValue(false, ObsoleteGameAccountSwitcherKey), nameof(EnableRegistryGameAccountSwitcher));
+        set => SetValue(value, nameof(EnableRegistryGameAccountSwitcher));
+    }
+
+
+    /// <summary>改名前的设置键，只当作默认值读一次。</summary>
+    public const string ObsoleteGameAccountSwitcherKey = "EnableGameAccountSwitcher";
+
+
+    #endregion
+
+
+
 }

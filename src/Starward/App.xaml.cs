@@ -3,6 +3,7 @@ using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.Windows.AppLifecycle;
 using Starward.Core;
+using Starward.Features.Account;
 using Starward.Features.Database;
 using Starward.Features.GameSelector;
 using Starward.Features.GamepadControl;
@@ -11,6 +12,7 @@ using Starward.Features.Setting;
 using Starward.Features.ViewHost;
 using System;
 using System.Collections;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -99,9 +101,20 @@ public partial class App : Application
         instance = AppInstance.GetCurrent();
         instance.Activated += AppInstance_Activated;
 
+        // 升级到 0.19 后的一次性数据准备，必须在主窗口创建之前完成：
+        // 加载通行证账号池，并与上游 PassportUserInfo 表对齐（MainView / 自动登录都读那张表）。
+        // 失败只记日志，绝不能拦住启动。
+        try
+        {
+            AppConfig.GetService<PassportAccountService>().Initialize();
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine(ex);
+        }
+
         // 程序挪过目录 / 应用更新过之后，把仍启用的开机自启快捷方式指回当前 exe；用户已关掉自启则不动。
-        AutoStartService.RepairIfNeeded();
-        if (Environment.GetCommandLineArgs().Contains("--hide"))
+        AutoStartService.RepairIfNeeded();        if (Environment.GetCommandLineArgs().Contains("--hide"))
         {
             m_SystemTrayWindow = new SystemTrayWindow();
         }

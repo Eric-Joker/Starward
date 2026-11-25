@@ -9638,5 +9638,122 @@ namespace Starward.Language {
             }
         }
         
+        /// <summary>
+        ///   查找类似 ID: {0} 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_AccountId {
+            get {
+                return ResourceManager.GetString("PassportLogin_AccountId", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 The server did not return an action type for the verification code. Send the code again. 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_ActionTypeMissing {
+            get {
+                return ResourceManager.GetString("PassportLogin_ActionTypeMissing", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Verification was cancelled. 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_CaptchaCancelled {
+            get {
+                return ResourceManager.GetString("PassportLogin_CaptchaCancelled", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Too many sign-in attempts in a short time. Complete the human verification to continue. 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_CaptchaRequired {
+            get {
+                return ResourceManager.GetString("PassportLogin_CaptchaRequired", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 The verification component is unavailable. 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_CaptchaUnavailable {
+            get {
+                return ResourceManager.GetString("PassportLogin_CaptchaUnavailable", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Signed in, but the miyoushe toolbox credentials could not be retrieved: {0}. Click Refresh Info in the account center to retry. 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_DerivedTokenFailed {
+            get {
+                return ResourceManager.GetString("PassportLogin_DerivedTokenFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 The server returned credentials for a different account, so they were ignored. 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_DerivedTokenOwnerMismatch {
+            get {
+                return ResourceManager.GetString("PassportLogin_DerivedTokenOwnerMismatch", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Only an SToken (V2) together with the matching MiHoYo ID can be imported. 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_ImportNeedStokenV2 {
+            get {
+                return ResourceManager.GetString("PassportLogin_ImportNeedStokenV2", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 An SToken (V1) needs the matching stuid. Paste the full Cookie instead. 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_ImportNeedStuid {
+            get {
+                return ResourceManager.GetString("PassportLogin_ImportNeedStuid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 The server did not return a sign-in token. 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_NoTokenReturned {
+            get {
+                return ResourceManager.GetString("PassportLogin_NoTokenReturned", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 The server returned an unexpected result. 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_ServiceError {
+            get {
+                return ResourceManager.GetString("PassportLogin_ServiceError", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Too many attempts. Please try again later. 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_TooManyAttempts {
+            get {
+                return ResourceManager.GetString("PassportLogin_TooManyAttempts", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Unknown account 的本地化字符串。
+        /// </summary>
+        public static string PassportLogin_UnknownAccount {
+            get {
+                return ResourceManager.GetString("PassportLogin_UnknownAccount", resourceCulture);
+            }
+        }
+
     }
 }

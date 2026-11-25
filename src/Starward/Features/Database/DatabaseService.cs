@@ -1,6 +1,7 @@
 ﻿using Dapper;
 using Microsoft.Data.Sqlite;
 using SharpSevenZip;
+using Starward.Features.Account;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -77,11 +78,101 @@ internal static class DatabaseService
             {
                 con.Execute("PRAGMA JOURNAL_MODE = WAL;");
             }
+            // 老 main 分支的数据库同样占用 user_version = 22，但内容是上游的 v21 结构 +
+            // 通行证账号表（PassportAccount），而不是上游 v22 的 Setting 表拆分（Key, GameId, Value）。
+            // 这类库要从 21 开始重新执行上游的 v22 / v23，再把本分支的 v24 / v25 补上。
+            if (version >= 22 && !HasColumn(con, "Setting", "GameId"))
+            {
+                Debug.WriteLine("Legacy main database detected (user_version 22 without Setting.GameId), rerunning migrations from v21.");
+                BackupLegacyDatabase();
+                version = 21;
+            }
             foreach (var sql in DatabaseSqls.Skip(version))
             {
                 con.Execute(sql);
             }
+            // v24 / v25 需要按列是否已存在决定要不要 ALTER，SQL 里做不到，因此单独执行。
+            if (version <= 23)
+            {
+                ApplyMigrationV24(con);
+            }
+            if (version <= 24)
+            {
+                ApplyMigrationV25(con);
+            }
         }
+    }
+
+
+    /// <summary>
+    /// 判断某张表里是否已经有某一列。用于让「加列」类迁移可以重复执行。
+    /// </summary>
+    private static bool HasColumn(SqliteConnection con, string table, string column)
+    {
+        try
+        {
+            return con.Query<string>($"SELECT name FROM pragma_table_info('{table}');")
+                      .Contains(column, StringComparer.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+
+    /// <summary>
+    /// 老 main 的库要从 v22 回退重跑上游迁移，先留一份备份，避免迁移失败时用户数据没有退路。
+    /// 只在一开始备份一次（文件已存在就跳过）。
+    /// </summary>
+    private static void BackupLegacyDatabase()
+    {
+        try
+        {
+            string backup = _databasePath + ".main-v22.bak";
+            if (!File.Exists(backup) && File.Exists(_databasePath))
+            {
+                File.Copy(_databasePath, backup, false);
+                Debug.WriteLine($"Backed up the legacy main database to {backup}.");
+            }
+        }
+        catch (Exception ex)
+        {
+            // 备份失败也继续迁移：用户至少还能通过自动备份恢复。
+            Debug.WriteLine(ex);
+        }
+    }
+
+
+    /// <summary>
+    /// v24：给 GameRecordRole 加 Aid 列（对应上游 0.19 的数据库结构）。
+    /// <para>
+    /// 上游 v24 还会清空 GameRecordUser / GameRecordRole；本分支保留主分支的账号模型，
+    /// 工具箱账号行与角色行都要继续使用，所以这里去掉了那两条 DELETE。
+    /// </para>
+    /// </summary>
+    private static void ApplyMigrationV24(SqliteConnection con)
+    {
+        if (!HasColumn(con, "GameRecordRole", "Aid"))
+        {
+            con.Execute("ALTER TABLE GameRecordRole ADD COLUMN Aid INTEGER NOT NULL DEFAULT 0;");
+        }
+        con.Execute("PRAGMA USER_VERSION = 24;");
+    }
+
+
+    /// <summary>
+    /// v25：本分支的通行证账号池表（老 main 的库已经存在该表时只补 Region 列与索引）。
+    /// </summary>
+    private static void ApplyMigrationV25(SqliteConnection con)
+    {
+        con.Execute(Sql_v25_CreatePassportAccount);
+        if (!HasColumn(con, "PassportAccount", "Region"))
+        {
+            con.Execute("ALTER TABLE PassportAccount ADD COLUMN Region INTEGER NOT NULL DEFAULT 1;");
+        }
+        con.Execute(Sql_v25_CreatePassportAccountIndexes);
+        con.Execute("PRAGMA USER_VERSION = 25;");
     }
 
 
@@ -250,6 +341,107 @@ internal static class DatabaseService
 
 
 
+    #region Passport Account
+
+    // 通行证账号池（原 main 分支的账号中心模型）。账号本身只存在数据库里，
+    // 需要用到哪一个就把它写到「当前账号」的设置项 / 上游 PassportUserInfo 表里。
+    // 令牌由调用方用 DPAPI 加密后再写进 Token 列，数据库层不感知令牌内容。
+
+
+    /// <summary>
+    /// 读取账号池里的全部通行证账号，最近更新的排在前面。
+    /// </summary>
+    public static List<PassportAccountRecord> GetPassportAccounts()
+    {
+        try
+        {
+            using var con = CreateConnection();
+            return con.Query<PassportAccountRecord>("SELECT * FROM PassportAccount ORDER BY Time DESC;").ToList();
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine(ex);
+            return [];
+        }
+    }
+
+
+    /// <summary>
+    /// 按账号标识读取一条通行证账号记录，不存在时返回 null。
+    /// </summary>
+    public static PassportAccountRecord? GetPassportAccount(string key)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return null;
+        }
+        try
+        {
+            using var con = CreateConnection();
+            return con.QueryFirstOrDefault<PassportAccountRecord>("SELECT * FROM PassportAccount WHERE Key = @key LIMIT 1;", new { key });
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine(ex);
+            return null;
+        }
+    }
+
+
+    /// <summary>
+    /// 写入（新增或更新）一条通行证账号记录。
+    /// </summary>
+    /// <returns>这条记录是本次新插入的（账号池里原来没有）时返回 true。</returns>
+    public static bool SavePassportAccount(PassportAccountRecord record)
+    {
+        using var con = CreateConnection();
+        bool isNew = con.ExecuteScalar<long>("SELECT COUNT(1) FROM PassportAccount WHERE Key = @Key;", new { record.Key }) == 0;
+        con.Execute("""
+            INSERT OR REPLACE INTO PassportAccount (Key, Region, Aid, Mid, Nickname, AccountName, LoginMethod, LoginTime, Token, Time)
+            VALUES (@Key, @Region, @Aid, @Mid, @Nickname, @AccountName, @LoginMethod, @LoginTime, @Token, @Time);
+            """, record);
+        return isNew;
+    }
+
+
+    /// <summary>
+    /// 从账号池里删除一条通行证账号记录。
+    /// </summary>
+    /// <returns>确实删掉了一行时返回 true。</returns>
+    public static bool DeletePassportAccount(string key)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return false;
+        }
+        using var con = CreateConnection();
+        return con.Execute("DELETE FROM PassportAccount WHERE Key = @key;", new { key }) > 0;
+    }
+
+
+    /// <summary>
+    /// 直接查询账号池里的原始账号 ID，供迁移 / 去重这类只需要 ID 的场景使用。
+    /// </summary>
+    public static List<long> GetPassportAccountAids()
+    {
+        try
+        {
+            using var con = CreateConnection();
+            return con.Query<long>("SELECT Aid FROM PassportAccount WHERE Aid > 0;").ToList();
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine(ex);
+            return [];
+        }
+    }
+
+
+    #endregion
+
+
+
+
 
     #region Database Structure
 
@@ -279,7 +471,6 @@ internal static class DatabaseService
         Sql_v21,
         Sql_v22,
         Sql_v23,
-        Sql_v24,
     ];
 
 
@@ -1208,15 +1399,38 @@ internal static class DatabaseService
         PRAGMA USER_VERSION = 23;
         COMMIT TRANSACTION;
         """;
-    private const string Sql_v24 = """
-        BEGIN TRANSACTION;
+    /// <summary>
+    /// v25 使用：本分支的通行证账号池表。
+    /// <para>
+    /// 与老 main 的 <c>PassportAccount</c> 表字段保持一致，另外补上 <c>Region</c>
+    /// （<see cref="Starward.Core.ServerRegion"/> 的整数值，1 = 国服 miHoYo），
+    /// 为后续把国际服 HYP 登录的账号也并入账号池做准备。
+    /// </para>
+    /// <para>
+    /// 老 main 的库里这张表已经存在且没有 Region，<see cref="ApplyMigrationV25"/> 会补列；
+    /// 这里必须带 Region 定义，保证全新安装一次到位。
+    /// </para>
+    /// </summary>
+    private const string Sql_v25_CreatePassportAccount = """
+        CREATE TABLE IF NOT EXISTS PassportAccount
+        (
+            Key         TEXT    NOT NULL PRIMARY KEY,
+            Region      INTEGER NOT NULL DEFAULT 1,
+            Aid         INTEGER NOT NULL,
+            Mid         TEXT,
+            Nickname    TEXT,
+            AccountName TEXT,
+            LoginMethod TEXT,
+            LoginTime   TEXT    NOT NULL,
+            Token       BLOB    NOT NULL,
+            Time        TEXT    NOT NULL
+        );
+        """;
 
-        DELETE FROM GameRecordUser WHERE TRUE;
-        DELETE FROM GameRecordRole WHERE TRUE;
-        ALTER TABLE GameRecordRole ADD COLUMN Aid INTEGER NOT NULL DEFAULT 0;
-
-        PRAGMA USER_VERSION = 24;
-        COMMIT TRANSACTION;
+    private const string Sql_v25_CreatePassportAccountIndexes = """
+        CREATE INDEX IF NOT EXISTS IX_PassportAccount_Aid ON PassportAccount (Aid);
+        CREATE INDEX IF NOT EXISTS IX_PassportAccount_Time ON PassportAccount (Time);
+        CREATE INDEX IF NOT EXISTS IX_PassportAccount_Region ON PassportAccount (Region);
         """;
 
     #endregion

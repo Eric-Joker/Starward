@@ -3305,43 +3305,82 @@
   <data name="AutoRecordRefresh_Title" xml:space="preserve">
     <value>自动更新</value>
   </data>
-  <data name="DailyNoteButton_Genshin_StoredEncounterPoints" xml:space="preserve">
+<data name="DailyNoteButton_Genshin_StoredEncounterPoints" xml:space="preserve">
     <value>长效历练点</value>
   </data>
-  <data name="DailyNoteButton_Genshin_WeeklyBossRemaining" xml:space="preserve">
+<data name="DailyNoteButton_Genshin_WeeklyBossRemaining" xml:space="preserve">
     <value>周本剩余次数</value>
   </data>
-  <data name="DailyNoteButton_Genshin_ParametricTransformer" xml:space="preserve">
+<data name="DailyNoteButton_Genshin_ParametricTransformer" xml:space="preserve">
     <value>参量质变仪</value>
   </data>
-  <data name="DailyNoteButton_Genshin_TransformerReady" xml:space="preserve">
+<data name="DailyNoteButton_Genshin_TransformerReady" xml:space="preserve">
     <value>可使用</value>
   </data>
-  <data name="TimeNode_RemainingDays" xml:space="preserve">
+<data name="TimeNode_RemainingDays" xml:space="preserve">
     <value>还剩{0}天</value>
   </data>
-  <data name="TimeNode_RemainingHours" xml:space="preserve">
+<data name="TimeNode_RemainingHours" xml:space="preserve">
     <value>还剩{0}小时</value>
   </data>
-  <data name="TimeNode_RemainingMinutes" xml:space="preserve">
+<data name="TimeNode_RemainingMinutes" xml:space="preserve">
     <value>还剩{0}分钟</value>
   </data>
-  <data name="ImaginariumTheaterPage_TrialCharacter" xml:space="preserve">
+<data name="ImaginariumTheaterPage_TrialCharacter" xml:space="preserve">
     <value>试用</value>
   </data>
-  <data name="ImaginariumTheaterPage_SupportingCastCharacter" xml:space="preserve">
+<data name="ImaginariumTheaterPage_SupportingCastCharacter" xml:space="preserve">
     <value>助演</value>
   </data>
-  <data name="DeadlyAssaultPage_RankFetchTime" xml:space="preserve">
+<data name="DeadlyAssaultPage_RankFetchTime" xml:space="preserve">
     <value>排名数据获取时间：{0}</value>
   </data>
-  <data name="ShiyuDefensePage_RankFetchTime" xml:space="preserve">
+<data name="ShiyuDefensePage_RankFetchTime" xml:space="preserve">
     <value>排名数据获取时间：{0}</value>
   </data>
-  <data name="DeadlyAssaultPage_HardMode" xml:space="preserve">
+<data name="DeadlyAssaultPage_HardMode" xml:space="preserve">
     <value>绝境</value>
   </data>
-  <data name="DeadlyAssaultPage_NormalMode" xml:space="preserve">
+<data name="DeadlyAssaultPage_NormalMode" xml:space="preserve">
     <value>常规</value>
+  </data>
+<data name="PassportLogin_AccountId" xml:space="preserve">
+    <value>ID：{0}</value>
+  </data>
+<data name="PassportLogin_ActionTypeMissing" xml:space="preserve">
+    <value>服务端没有返回验证码的操作标识，请重新发送验证码</value>
+  </data>
+<data name="PassportLogin_CaptchaCancelled" xml:space="preserve">
+    <value>已取消验证</value>
+  </data>
+<data name="PassportLogin_CaptchaRequired" xml:space="preserve">
+    <value>短时间内登录次数过多，请完成人机验证后继续</value>
+  </data>
+<data name="PassportLogin_CaptchaUnavailable" xml:space="preserve">
+    <value>无法加载验证码组件</value>
+  </data>
+<data name="PassportLogin_DerivedTokenFailed" xml:space="preserve">
+    <value>已登录，但获取米游社工具箱凭据失败：{0}。可在账号中心点「刷新信息」重试。</value>
+  </data>
+<data name="PassportLogin_DerivedTokenOwnerMismatch" xml:space="preserve">
+    <value>服务端返回的凭据属于另一个账号，已忽略</value>
+  </data>
+<data name="PassportLogin_ImportNeedStokenV2" xml:space="preserve">
+    <value>只能导入 SToken（V2），并需要同时填写对应的 MiHoYo ID</value>
+  </data>
+<data name="PassportLogin_ImportNeedStuid" xml:space="preserve">
+    <value>V1 的 SToken 需要同时提供 stuid，建议直接粘贴整段 Cookie。</value>
+  </data>
+<data name="PassportLogin_NoTokenReturned" xml:space="preserve">
+    <value>服务端没有返回登录令牌</value>
+  </data>
+<data name="PassportLogin_ServiceError" xml:space="preserve">
+    <value>服务端返回异常</value>
+  </data>
+<data name="PassportLogin_TooManyAttempts" xml:space="preserve">
+    <value>尝试次数过多，请稍后再试</value>
+  </data>
+<data name="PassportLogin_UnknownAccount" xml:space="preserve">
+    <value>未知账号</value>
   </data>
 </root>

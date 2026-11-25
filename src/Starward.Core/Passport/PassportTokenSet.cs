@@ -1,4 +1,4 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 
 namespace Starward.Core.Passport;
 
@@ -34,6 +34,18 @@ namespace Starward.Core.Passport;
 /// </summary>
 public class PassportTokenSet
 {
+
+    /// <summary>
+    /// 服务器区域（<see cref="ServerRegion.miHoYo"/> 国服 / <see cref="ServerRegion.HoYoverse"/> 国际服）。
+    /// <para>
+    /// 国服登录协议（原 Moonward 分支）产出的令牌集合默认是国服；国际服 HYP 登录得到的账号
+    /// 在写入账号池时带上 <see cref="ServerRegion.HoYoverse"/>，用于区分两套通行证接口。
+    /// 旧版本保存的 JSON 没有这个字段，反序列化时使用默认值，即按国服处理。
+    /// </para>
+    /// </summary>
+    [JsonPropertyName("region")]
+    public ServerRegion Region { get; set; } = ServerRegion.miHoYo;
+
 
     /// <summary>SToken（V1 或 V2）。</summary>
     [JsonPropertyName("stoken")]
