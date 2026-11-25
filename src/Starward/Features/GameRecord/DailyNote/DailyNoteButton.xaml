@@ -176,6 +176,9 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
@@ -462,6 +465,92 @@
                                    Visibility="{x:Bind GenshinDailyNote.WeekActiveProgress.IsDisplay}">
                             <Run Text="{x:Bind GenshinDailyNote.WeekActiveProgress.ProgressCurrent}" /><Run Text="/" /><Run Text="{x:Bind GenshinDailyNote.WeekActiveProgress.ProgressTotal}" />
                         </TextBlock>
+
+
+                        <!--  长效历练点  -->
+                        <Grid Grid.Row="8"
+                              Grid.Column="0"
+                              Width="20"
+                              Height="20"
+                              HorizontalAlignment="Left"
+                              Visibility="{x:Bind GenshinDailyNote.DailyTask.AttendanceVisible}">
+                            <BitmapIcon Width="16"
+                                        Height="16"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        Foreground="#C1B09F"
+                                        ShowAsMonochrome="True"
+                                        UriSource="ms-appx:///Assets/Image/UI_Icon_Gift.png" />
+                        </Grid>
+                        <TextBlock Grid.Row="8"
+                                   Grid.Column="1"
+                                   HorizontalAlignment="Left"
+                                   VerticalAlignment="Center"
+                                   FontSize="12"
+                                   Text="{x:Bind lang:Lang.DailyNoteButton_Genshin_StoredEncounterPoints}"
+                                   Visibility="{x:Bind GenshinDailyNote.DailyTask.AttendanceVisible}" />
+                        <TextBlock Grid.Row="8"
+                                   Grid.Column="2"
+                                   HorizontalAlignment="Right"
+                                   VerticalAlignment="Center"
+                                   FontSize="12"
+                                   Visibility="{x:Bind GenshinDailyNote.DailyTask.AttendanceVisible}">
+                            <Run Text="&#xD7;" /><Run Text="{x:Bind GenshinDailyNote.DailyTask.StoredAttendance}" />
+                        </TextBlock>
+
+
+                        <!--  周本剩余次数（值得铭记的强敌数值消耗减半剩余次数）  -->
+                        <Image Grid.Row="9"
+                               Grid.Column="0"
+                               Width="20"
+                               Height="20"
+                               HorizontalAlignment="Left"
+                               Source="ms-appx:///Assets/Image/UI_MapIcon_HardChallenge.png" />
+                        <TextBlock Grid.Row="9"
+                                   Grid.Column="1"
+                                   HorizontalAlignment="Left"
+                                   VerticalAlignment="Center"
+                                   FontSize="12"
+                                   Text="{x:Bind lang:Lang.DailyNoteButton_Genshin_WeeklyBossRemaining}" />
+                        <TextBlock Grid.Row="9"
+                                   Grid.Column="2"
+                                   HorizontalAlignment="Right"
+                                   VerticalAlignment="Center"
+                                   FontSize="12">
+                            <Run Text="{x:Bind GenshinDailyNote.RemainResinDiscountNum}" /><Run Text="/" /><Run Text="{x:Bind GenshinDailyNote.ResinDiscountNumLimit}" />
+                        </TextBlock>
+
+
+                        <!--  参量质变仪（未获得时接口仍返回 reached=true 的空冷却时间，整行按 Obtained 隐藏）  -->
+                        <Image Grid.Row="10"
+                               Grid.Column="0"
+                               Width="20"
+                               Height="20"
+                               HorizontalAlignment="Left"
+                               Source="ms-appx:///Assets/Image/UI_ItemIcon_220021_64.png"
+                               Visibility="{x:Bind local:DailyNoteButton.GenshinTransformerVisibility(GenshinDailyNote.Transformer)}" />
+                        <TextBlock Grid.Row="10"
+                                   Grid.Column="1"
+                                   HorizontalAlignment="Left"
+                                   VerticalAlignment="Center"
+                                   FontSize="12"
+                                   Text="{x:Bind lang:Lang.DailyNoteButton_Genshin_ParametricTransformer}"
+                                   Visibility="{x:Bind local:DailyNoteButton.GenshinTransformerVisibility(GenshinDailyNote.Transformer)}" />
+                        <TextBlock Grid.Row="10"
+                                   Grid.Column="2"
+                                   HorizontalAlignment="Right"
+                                   VerticalAlignment="Center"
+                                   FontSize="12"
+                                   Foreground="{ThemeResource SystemFillColorSuccessBrush}"
+                                   Text="{x:Bind lang:Lang.DailyNoteButton_Genshin_TransformerReady}"
+                                   Visibility="{x:Bind local:DailyNoteButton.GenshinTransformerReadyVisibility(GenshinDailyNote.Transformer)}" />
+                        <TextBlock Grid.Row="10"
+                                   Grid.Column="2"
+                                   HorizontalAlignment="Right"
+                                   VerticalAlignment="Center"
+                                   FontSize="12"
+                                   Text="{x:Bind local:DailyNoteButton.GenshinTransformerRecoveryToString(GenshinDailyNote.Transformer)}"
+                                   Visibility="{x:Bind local:DailyNoteButton.GenshinTransformerCoolingDownVisibility(GenshinDailyNote.Transformer)}" />
 
 
                     </Grid>
