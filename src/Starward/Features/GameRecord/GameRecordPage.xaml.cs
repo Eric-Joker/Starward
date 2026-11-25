@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Logging;
 using Microsoft.UI.Xaml;
@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.UI.Xaml.Navigation;
 using Starward.Core;
 using Starward.Core.GameRecord;
+using Starward.Features.GameRecord.AutoRefresh;
 using Starward.Features.GameRecord.Genshin;
 using Starward.Features.GameRecord.StarRail;
 using Starward.Features.GameRecord.ZZZ;
@@ -171,6 +172,105 @@ public sealed partial class GameRecordPage : PageBase
     }
 
 
+    /// <summary>
+    /// 工具箱里的数据页换了：把页脚那个「自动更新」入口指向当前页面对应的数据板块。
+    /// <para>
+    /// 0.19 的数据页工具栏里没有单独的自动更新按钮，整个工具箱共用页脚上的一个入口，
+    /// 配置哪个板块由这里按当前 frame 的内容换算。
+    /// 没有对应板块的页面（空白页等）把入口收起来，免得用户以为配的是刚离开的那页。
+    /// </para>
+    /// </summary>
+    private void Frame_Navigated(object sender, NavigationEventArgs e)
+    {
+        try
+        {
+            if (RecordRefreshConfigButton_Auto is null)
+            {
+                return;
+            }
+            if (GetRefreshItem(e.SourcePageType) is RecordRefreshItem item)
+            {
+                RecordRefreshConfigButton_Auto.GameRole = CurrentRole;
+                RecordRefreshConfigButton_Auto.Item = item;
+                RecordRefreshConfigButton_Auto.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                RecordRefreshConfigButton_Auto.Visibility = Visibility.Collapsed;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Update the record refresh entry ({page}).", e.SourcePageType);
+        }
+    }
+
+
+
+    /// <summary>
+    /// 数据页类型到自动更新板块的换算。没有对应板块的页面返回 null。
+    /// </summary>
+    /// <param name="pageType">frame 当前页面的类型。</param>
+    /// <returns>对应的数据板块；不认识时返回 null。</returns>
+    private static RecordRefreshItem? GetRefreshItem(Type? pageType)
+    {
+        if (pageType == typeof(SpiralAbyssPage))
+        {
+            return RecordRefreshItem.SpiralAbyss;
+        }
+        if (pageType == typeof(ImaginariumTheaterPage))
+        {
+            return RecordRefreshItem.ImaginariumTheater;
+        }
+        if (pageType == typeof(StygianOnslaughtPage))
+        {
+            return RecordRefreshItem.StygianOnslaught;
+        }
+        if (pageType == typeof(TravelersDiaryPage))
+        {
+            return RecordRefreshItem.TravelersDiary;
+        }
+        if (pageType == typeof(ForgottenHallPage))
+        {
+            return RecordRefreshItem.ForgottenHall;
+        }
+        if (pageType == typeof(PureFictionPage))
+        {
+            return RecordRefreshItem.PureFiction;
+        }
+        if (pageType == typeof(ApocalypticShadowPage))
+        {
+            return RecordRefreshItem.ApocalypticShadow;
+        }
+        if (pageType == typeof(ChallengePeakPage))
+        {
+            return RecordRefreshItem.ChallengePeak;
+        }
+        if (pageType == typeof(SimulatedUniversePage))
+        {
+            return RecordRefreshItem.SimulatedUniverse;
+        }
+        if (pageType == typeof(TrailblazeCalendarPage))
+        {
+            return RecordRefreshItem.TrailblazeCalendar;
+        }
+        if (pageType == typeof(ShiyuDefensePage))
+        {
+            return RecordRefreshItem.ShiyuDefense;
+        }
+        if (pageType == typeof(DeadlyAssaultPage))
+        {
+            return RecordRefreshItem.DeadlyAssault;
+        }
+        if (pageType == typeof(InterKnotMonthlyReportPage))
+        {
+            return RecordRefreshItem.InterKnotReport;
+        }
+        return null;
+    }
+
+
+
     private void NavigationView_Toolbox_ItemInvoked(NavigationView sender, NavigationViewItemInvokedEventArgs args)
     {
         try
@@ -249,6 +349,11 @@ public sealed partial class GameRecordPage : PageBase
             if (SetProperty(ref field, value))
             {
                 OnPropertyChanged(nameof(AvatarUrl));
+                // 页脚的「自动更新」是按账号存配置的，换号后要跟着换
+                if (RecordRefreshConfigButton_Auto is not null)
+                {
+                    RecordRefreshConfigButton_Auto.GameRole = value;
+                }
             }
         }
     }

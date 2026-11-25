@@ -12,6 +12,7 @@ using Starward.Core;
 using Starward.Core.HoYoPlay;
 using Starward.Features.GameLauncher;
 using Starward.Features.GameSelector;
+using Starward.Features.GameRecord.AutoRefresh;
 using Starward.Features.Setting;
 using Starward.Features.Startup;
 using Starward.Helpers;
@@ -99,7 +100,16 @@ public sealed partial class SystemTrayWindow : WindowBase
         _autoSignInService.StartResident();
         WeakReferenceMessenger.Default.Register<InstalledGameRefreshedMessage>(this, (_, _) => UpdateInstalledGames());
         WeakReferenceMessenger.Default.Register<GameInstallPathChangedMessage>(this, (_, _) => _ = InitializeInstalledGamesAsync());
+        // 战绩自动更新挂在唯一常驻的托盘窗口上：启动后判一次到期，窗口销毁时取消。
+        _autoRecordRefreshService.StartResident();
     }
+
+
+    /// <summary>
+    /// 自动更新战绩：与其它常驻批量任务一样挂在托盘窗口上。
+    /// 实例来自 <c>AppConfig.ServiceProvider.cs</c> 注册的 <c>AddSingleton&lt;AutoRecordRefreshService&gt;()</c>。
+    /// </summary>
+    private readonly AutoRecordRefreshService _autoRecordRefreshService = AppConfig.GetService<AutoRecordRefreshService>();
 
 
 
@@ -237,6 +247,8 @@ public sealed partial class SystemTrayWindow : WindowBase
         // 预设列表是独立窗口，不跟着宿主一起走，这里显式关掉。
         _launchProfilePopup?.Close();
         _launchProfilePopup = null;
+        // 常驻宿主走了（软件退出）：取消还没跑完的自动更新战绩，之后不再发起任何请求。
+        _autoRecordRefreshService.StopResident();
         trayIcon?.Dispose();
     }
 

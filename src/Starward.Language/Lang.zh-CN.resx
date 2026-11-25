@@ -3248,4 +3248,61 @@
 <data name="GachaLogPage_FillMissingRecordsConfirm" xml:space="preserve">
     <value>不影响原有记录，只补充展示缺失的 S 级记录</value>
   </data>
+<data name="AutoRecordRefresh_DayOfMonthFormat" xml:space="preserve">
+    <value>{0} 号</value>
+  </data>
+<data name="AutoRecordRefresh_Days" xml:space="preserve">
+    <value>天数</value>
+  </data>
+<data name="AutoRecordRefresh_Enable" xml:space="preserve">
+    <value>启用自动更新</value>
+  </data>
+<data name="AutoRecordRefresh_EnableCurrentMonth" xml:space="preserve">
+    <value>更新当月</value>
+  </data>
+<data name="AutoRecordRefresh_EnablePreviousMonth" xml:space="preserve">
+    <value>更新上月</value>
+  </data>
+<data name="AutoRecordRefresh_Errors" xml:space="preserve">
+    <value>异常记录</value>
+  </data>
+<data name="AutoRecordRefresh_ErrorsDescription" xml:space="preserve">
+    <value>自动更新时被跳过的账号与数据板块。返回码与提示为米游社原文。</value>
+  </data>
+<data name="AutoRecordRefresh_Frequency" xml:space="preserve">
+    <value>更新频率</value>
+  </data>
+<data name="AutoRecordRefresh_LastUpdate" xml:space="preserve">
+    <value>上次更新</value>
+  </data>
+<data name="AutoRecordRefresh_ModeEveryDays" xml:space="preserve">
+    <value>每隔几天</value>
+  </data>
+<data name="AutoRecordRefresh_ModeMonthly" xml:space="preserve">
+    <value>每月</value>
+  </data>
+<data name="AutoRecordRefresh_ModeWeekly" xml:space="preserve">
+    <value>每周</value>
+  </data>
+<data name="AutoRecordRefresh_MonthCurrent" xml:space="preserve">
+    <value>当月</value>
+  </data>
+<data name="AutoRecordRefresh_MonthPrevious" xml:space="preserve">
+    <value>上月</value>
+  </data>
+<data name="AutoRecordRefresh_MonthTarget" xml:space="preserve">
+    <value>月份</value>
+  </data>
+<data name="AutoRecordRefresh_NeverUpdated" xml:space="preserve">
+    <value>从未更新</value>
+  </data>
+<data name="AutoRecordRefresh_NextUpdate" xml:space="preserve">
+    <value>下次更新</value>
+  </data>
+<data name="AutoRecordRefresh_NoErrors" xml:space="preserve">
+    <value>暂无异常</value>
+  </data>
+<data name="AutoRecordRefresh_Title" xml:space="preserve">
+    <value>自动更新</value>
+  </data>
 </root>

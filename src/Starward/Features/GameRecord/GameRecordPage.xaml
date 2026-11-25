@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8" ?>
+<?xml version="1.0" encoding="utf-8" ?>
 <sf:PageBase x:Class="Starward.Features.GameRecord.GameRecordPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -9,6 +9,7 @@
              xmlns:sc="using:Starward.Controls"
              xmlns:scg="using:Starward.Core.GameRecord"
              xmlns:sf="using:Starward.Features"
+             xmlns:sfgra="using:Starward.Features.GameRecord.AutoRefresh"
              xmlns:sh="using:Starward.Helpers"
              x:DefaultBindMode="OneWay"
              mc:Ignorable="d">
@@ -469,20 +470,30 @@
             </NavigationView.MenuItems>
 
             <NavigationView.PaneFooter>
-                <!--  更新设备指纹  -->
-                <NavigationViewItem x:Name="NavigationViewItem_UpdateDeviceInfo"
-                                    Margin="-2,0,0,-4"
-                                    Content="{x:Bind lang:Lang.HoyolabToolboxPage_UpdateDeviceFingerprint}"
-                                    Tapped="NavigationViewItem_UpdateDeviceInfo_Tapped"
-                                    Visibility="Collapsed">
-                    <NavigationViewItem.Icon>
-                        <FontIcon Glyph="&#xE928;" />
-                    </NavigationViewItem.Icon>
-                </NavigationViewItem>
+                <StackPanel>
+                    <!--  更新设备指纹  -->
+                    <NavigationViewItem x:Name="NavigationViewItem_UpdateDeviceInfo"
+                                        Margin="-2,0,0,-4"
+                                        Content="{x:Bind lang:Lang.HoyolabToolboxPage_UpdateDeviceFingerprint}"
+                                        Tapped="NavigationViewItem_UpdateDeviceInfo_Tapped"
+                                        Visibility="Collapsed">
+                        <NavigationViewItem.Icon>
+                            <FontIcon Glyph="&#xE928;" />
+                        </NavigationViewItem.Icon>
+                    </NavigationViewItem>
+                    <!--
+                        战绩自动更新：整个工具箱只有这一个入口，
+                        配置的对象是「当前账号 + 当前 frame 里打开的数据板块 + 月份」，
+                        板块由代码在 Frame_Navigated 里按页面类型换算，月报类可在浮层里切换当月 / 上月。
+                    -->
+                    <sfgra:RecordRefreshConfigButton x:Name="RecordRefreshConfigButton_Auto"
+                                                     Margin="-2,0,0,-4"
+                                                     Visibility="Collapsed" />
+                </StackPanel>
             </NavigationView.PaneFooter>
 
 
-            <Frame Name="frame" />
+            <Frame Name="frame" Navigated="Frame_Navigated" />
 
 
         </NavigationView>
