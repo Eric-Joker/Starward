@@ -165,7 +165,7 @@ public sealed partial class UpdateWindow : WindowBase
             {
                 var url = fe.Tag switch
                 {
-                    "release" => $"https://github.com/Scighost/Starward/releases/tag/{NewVersion.Version}",
+                    "release" => $"https://github.com/Eric-Joker/Starward/releases/tag/{NewVersion.Version}",
                     "package" => NewVersion.PackageUrl,
                     _ => null,
                 };
@@ -517,7 +517,7 @@ public sealed partial class UpdateWindow : WindowBase
         {
             _logger.LogError(ex, "Load recent update content");
             string tag = NewVersion?.Version ?? AppConfig.AppVersion;
-            webview.Source = new Uri($"https://github.com/Scighost/Starward/releases/tag/{tag}");
+            webview.Source = new Uri($"https://github.com/Eric-Joker/Starward/releases/tag/{tag}");
             webview.Visibility = Visibility.Visible;
             StackPanel_Loading.Visibility = Visibility.Collapsed;
             StackPanel_Error.Visibility = Visibility.Collapsed;

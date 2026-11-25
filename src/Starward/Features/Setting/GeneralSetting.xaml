@@ -28,7 +28,7 @@
 
             <!--  帮助翻译  -->
             <TextBlock Margin="0,12,0,0" HorizontalAlignment="Left">
-                <Hyperlink NavigateUri="https://github.com/Scighost/Starward/blob/main/docs/Localization.md" UnderlineStyle="None">
+                <Hyperlink NavigateUri="https://github.com/Eric-Joker/Starward/blob/main/docs/Localization.md" UnderlineStyle="None">
                     <Run Text="{x:Bind lang:Lang.AppearanceSettingPage_HelpUsTranslateStarward}" />
                 </Hyperlink>
             </TextBlock>

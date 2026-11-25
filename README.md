@@ -1,4 +1,4 @@
-English | [简体中文](./docs/README.zh-CN.md) | [Tiếng Việt](./docs/README.vi-VN.md) | [日本語](./docs/README.ja-JP.md) | [ภาษาไทย](./docs/README.th-TH.md) | [Русский](./docs/README.ru-RU.md)
+English | [简体中文](./docs/README.zh-CN.md) | [Tiếng Việt](./docs/README.vi-VN.md) | [日本語](./docs/README.ja-JP.md) | [ภาษาไทย](./docs/README.th-TH.md) | [Русский](./docs/README.ru-RU.md) | [Bahasa Indonesia](./docs/README.id-ID.md)
 
 
 # Starward
@@ -14,6 +14,8 @@ Starward is an open-source third-party launcher developed to address the shortco
 
 More features are left for you to explore...
 
+> This repository is a fork of [Scighost/Starward](https://github.com/Scighost/Starward). The release builds, packages and update metadata of this fork are published at [Eric-Joker/Starward releases](https://github.com/Eric-Joker/Starward/releases). The original project by [Scighost](https://github.com/Scighost) remains the upstream source of Starward.
+
 
 ## Install
 
@@ -26,7 +28,7 @@ First, your device needs to meet the following requirements:
 
 >[WebP Imaging Extension](https://apps.microsoft.com/detail/9pg2dk419drg) is typically bundled with your system. If the application isn’t displaying background images correctly, please ensure it’s installed.
 
-Next, download the package for your CPU architecture from [GitHub Release](https://github.com/Scighost/Starward/releases). Extract it, then run `Starward.exe` and follow the prompts.
+Next, download the package for your CPU architecture from [GitHub Release](https://github.com/Eric-Joker/Starward/releases). Extract it, then run `Starward.exe` and follow the prompts.
 
 
 ## Localization
@@ -84,3 +86,17 @@ And the [third-party libraries](./docs/ThirdParty.md) used in this project.
 ## Screenshot
 
 <img width="1200" src="https://github.com/user-attachments/assets/d1704d44-fadd-4672-aade-c09584b7f16c" />
+
+
+## Build from source
+
+The asset projects (`Starward.Assets`, `Starward.Codec`, `Starward.HPatch`, ...) are consumed from NuGet, so this fork can be built from a plain clone — no git submodule is required. You need:
+
+- [.NET 11 SDK](https://dotnet.microsoft.com/download) (the required version is pinned in [`global.json`](./global.json))
+- Visual Studio 2022 with the **C++ Desktop Development** workload (for `Starward.Launcher`)
+
+```sh
+dotnet build src/Starward/Starward.csproj -c Debug -p:Platform=x64
+```
+
+Release packages are built and published by [`publish.cs`](./publish.cs) and the workflows under [`.github/workflows`](./.github/workflows).
