@@ -1,6 +1,7 @@
 ﻿using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.UI.Xaml;
 using Starward.Core;
+using Starward.Helpers;
 using System;
 using System.Text.Json.Nodes;
 using System.Web;
@@ -21,6 +22,10 @@ public sealed partial class CloudGameGachaWindow : WindowBase
     public GameBiz GameBiz { get; set; }
 
 
+    /// <summary>本窗口已关闭。await 期间窗口被关掉时用它补一次 WebView2 的 Close，避免留下 msedgewebview2.exe。</summary>
+    private bool _webviewClosed;
+
+
 
 
     public CloudGameGachaWindow()
@@ -36,6 +41,11 @@ public sealed partial class CloudGameGachaWindow : WindowBase
             RootGrid.RequestedTheme = ElementTheme.Light;
         }
         AdaptTitleBarButtonColorToActuallTheme();
+        Closed += (_, _) =>
+        {
+            _webviewClosed = true;
+            WebView2Helper.Close(webview);
+        };
     }
 
 
@@ -69,6 +79,10 @@ public sealed partial class CloudGameGachaWindow : WindowBase
         try
         {
             await webview.EnsureCoreWebView2Async();
+            if (WebView2Helper.CloseIfRequested(webview, _webviewClosed))
+            {
+                return;
+            }
             string result = await webview.CoreWebView2.ExecuteScriptAsync("document.documentElement.outerHTML");
             string? html = JsonNode.Parse(result)?.ToString();
             if (!string.IsNullOrWhiteSpace(html))

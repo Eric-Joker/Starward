@@ -40,13 +40,32 @@ public sealed partial class GameNoticeWindow : WindowBase
     public nint ParentWindowHandle { get; set; }
 
 
+    /// <summary>本窗口已关闭。await 期间窗口被关掉时用它补一次 WebView2 的 Close，避免留下 msedgewebview2.exe。</summary>
+    private bool _webviewClosed;
+
+
 
     public GameNoticeWindow()
     {
         this.InitializeComponent();
         SystemBackdrop = new TransparentBackdrop();
         InitializeWindow();
-        Closed += (_, _) => WeakReferenceMessenger.Default.Send(new GameNoticeWindowClosedMessage());
+        Closed += GameNoticeWindow_Closed;
+    }
+
+
+
+    private void GameNoticeWindow_Closed(object sender, WindowEventArgs args)
+    {
+        _webviewClosed = true;
+        try
+        {
+            timer?.Stop();
+            timer?.Dispose();
+        }
+        catch { }
+        WebView2Helper.Close(webview);
+        WeakReferenceMessenger.Default.Send(new GameNoticeWindowClosedMessage());
     }
 
 
@@ -151,6 +170,10 @@ public sealed partial class GameNoticeWindow : WindowBase
                 Close();
                 return;
             }
+            if (WebView2Helper.CloseIfRequested(webview, _webviewClosed))
+            {
+                return;
+            }
             webview.CoreWebView2.ProcessFailed += (_, _) => Close();
             webview.CoreWebView2.NavigationCompleted += (_, e) => { if (!e.IsSuccess) Close(); };
             webview.CoreWebView2.DOMContentLoaded += CoreWebView2_DOMContentLoaded;
@@ -171,6 +194,10 @@ public sealed partial class GameNoticeWindow : WindowBase
         try
         {
             await webview.EnsureCoreWebView2Async();
+            if (WebView2Helper.CloseIfRequested(webview, _webviewClosed))
+            {
+                return;
+            }
             string script = $$"""
                 document.onkeydown = (e) => {if(e.key === "Escape") chrome.webview.postMessage({ "action": "close" });}
                 miHoYoGameJSSDK.closeWebview = () => chrome.webview.postMessage({ "action": "close" });

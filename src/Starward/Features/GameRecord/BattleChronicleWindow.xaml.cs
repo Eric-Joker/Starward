@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Starward.Core.GameRecord;
@@ -16,6 +16,8 @@ public sealed partial class BattleChronicleWindow : WindowBase
     {
         this.InitializeComponent();
         InitializeWindow();
+        // UserControl.Unloaded 在窗口关闭时不一定触发，Closed 里显式关掉内嵌 WebView2
+        Closed += (_, _) => bbsWebBridge.CloseWebView();
     }
 
 
