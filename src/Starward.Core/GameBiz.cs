@@ -1,4 +1,7 @@
-﻿namespace Starward.Core;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+
+namespace Starward.Core;
 
 public record struct GameBiz
 {
@@ -52,6 +55,39 @@ public record struct GameBiz
     public const string hyg_cn = "hyg_cn";
     public const string hyg_global = "hyg_global";
 
+
+    public const string None = "";
+
+
+
+
+    /// <summary>
+    /// 所有已支持的游戏区服，供需要遍历全部区服的功能（如云游戏每日免费时长）使用。
+    /// </summary>
+    public static ReadOnlyCollection<GameBiz> AllGameBizs { get; private set; } = new List<GameBiz>
+    {
+        bh3_cn,
+        bh3_global,
+        //bh3_os,
+        //bh3_jp,
+        //bh3_kr,
+        //bh3_usa,
+        //bh3_asia,
+        //bh3_eur,
+        hk4e_cn,
+        hk4e_global,
+        hk4e_bilibili,
+        //clgm_cn,
+        //clgm_global,
+        hkrpg_cn,
+        hkrpg_global,
+        hkrpg_bilibili,
+        nap_cn,
+        nap_global,
+        nap_bilibili,
+        hyg_cn,
+        hyg_global,
+    }.AsReadOnly();
 
 
 

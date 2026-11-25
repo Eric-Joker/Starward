@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using Microsoft.UI.Xaml;
 using Starward.Core.HoYoPlay;
 using Starward.GameInstall;
@@ -95,6 +95,20 @@ public class BackgroundService
             return path;
         }
         return null;
+    }
+
+
+
+    /// <summary>
+    /// 获取背景图文件路径，保存在 CacheFolder\bg。
+    /// <para>从主分支迁移过来的好感壁纸代码使用；0.19 原本只有按 GameId 取当前背景的入口。</para>
+    /// </summary>
+    /// <param name="name">背景文件名。</param>
+    /// <returns>完整路径；<paramref name="name"/> 为 null 时返回 null。</returns>
+    [return: NotNullIfNotNull(nameof(name))]
+    public static string? GetBgFilePath(string? name)
+    {
+        return Path.Join(AppConfig.CacheFolder, "bg", name);
     }
 
 

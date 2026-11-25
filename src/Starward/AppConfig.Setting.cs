@@ -1,4 +1,4 @@
-﻿using Dapper;
+using Dapper;
 using Starward.Core;
 using Starward.Core.HoYoPlay;
 using Starward.Features.Database;
@@ -6,6 +6,7 @@ using Starward.Features.GameLauncher;
 using Starward.Features.ViewHost;
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
@@ -853,6 +854,171 @@ public static partial class AppConfig
     public static void ClearCache()
     {
         _settingCache.Clear();
+    }
+
+
+    #endregion
+
+
+
+
+    #region Cloud Game & Favor Wallpaper (adapted from the Moonward main branch)
+
+
+    // 好感壁纸与满影画壁纸的开关。主分支的键名与旧版本保持一致，用户已有的选择不会丢。
+    // 0.19 的 AppConfig 还没有这些键（原提交依赖未迁移的 wiring 提交），这里先行补上。
+
+
+    /// <summary>好感壁纸面板是否显示「满影画」而不是「好感」那一档。</summary>
+    public static bool GetFavorWallpaperMindscapeMode(GameBiz biz)
+    {
+        return GetValue<bool>(default, $"favor_wallpaper_mindscape_{biz}");
+    }
+
+    public static void SetFavorWallpaperMindscapeMode(GameBiz biz, bool value)
+    {
+        SetValue(value, $"favor_wallpaper_mindscape_{biz}");
+    }
+
+
+    /// <summary>好感壁纸是否在切换游戏时随机换一张。</summary>
+    public static bool GetFavorWallpaperShuffle(GameBiz biz)
+    {
+        return GetValue<bool>(default, $"favor_wallpaper_shuffle_{biz}");
+    }
+
+    public static void SetFavorWallpaperShuffle(GameBiz biz, bool value)
+    {
+        SetValue(value, $"favor_wallpaper_shuffle_{biz}");
+    }
+
+
+    /// <summary>满影画壁纸是否在切换游戏时随机换一张（与好感壁纸分开记，两者不混池）。</summary>
+    public static bool GetMindscapeWallpaperShuffle(GameBiz biz)
+    {
+        return GetValue<bool>(default, $"mindscape_wallpaper_shuffle_{biz}");
+    }
+
+    public static void SetMindscapeWallpaperShuffle(GameBiz biz, bool value)
+    {
+        SetValue(value, $"mindscape_wallpaper_shuffle_{biz}");
+    }
+
+
+    // 0.19 的背景设置以 GameId 为键，主分支以 GameBiz 为键；这里补一层 GameBiz 便捷重载，
+    // 好让迁移过来的好感壁纸代码保持原样。
+
+    public static string? GetBg(GameBiz biz)
+    {
+        return GameId.FromGameBiz(biz) is GameId gameId ? GetBg(gameId) : null;
+    }
+
+    public static void SetBg(GameBiz biz, string? value)
+    {
+        if (GameId.FromGameBiz(biz) is GameId gameId)
+        {
+            SetBg(gameId, value);
+        }
+    }
+
+    public static string? GetCustomBg(GameBiz biz)
+    {
+        return GameId.FromGameBiz(biz) is GameId gameId ? GetCustomBg(gameId) : null;
+    }
+
+    public static void SetCustomBg(GameBiz biz, string? value)
+    {
+        if (GameId.FromGameBiz(biz) is GameId gameId)
+        {
+            SetCustomBg(gameId, value);
+        }
+    }
+
+    public static bool GetEnableCustomBg(GameBiz biz)
+    {
+        return GameId.FromGameBiz(biz) is GameId gameId && GetValue<bool>(default, "EnableCustomBg", gameId.ToString());
+    }
+
+    public static void SetEnableCustomBg(GameBiz biz, bool value)
+    {
+        if (GameId.FromGameBiz(biz) is GameId gameId)
+        {
+            SetValue(value, "EnableCustomBg", gameId.ToString());
+        }
+    }
+
+
+    /// <summary>该游戏是否自动领取云游戏每日免费时长。默认关闭，要用户在云游戏浮窗里主动打开。</summary>
+    public static bool GetAutoCloudGameFreeTimeEnabled(GameBiz gameBiz)
+    {
+        return GetValue<bool>(default, $"auto_cloud_game_free_time_enabled_{gameBiz}");
+    }
+
+    public static void SetAutoCloudGameFreeTimeEnabled(GameBiz gameBiz, bool value)
+    {
+        SetValue(value, $"auto_cloud_game_free_time_enabled_{gameBiz}");
+    }
+
+
+    /// <summary>某个云游戏账号最近一次领取免费时长的服务端日期（按 UTC+8 的 4:00 分界）。</summary>
+    public static DateOnly? GetCloudGameFreeTimeClaimedDate(GameBiz gameBiz, string accountId)
+    {
+        string? text = GetValue<string?>(null, $"cloud_game_free_time_claimed_date_{gameBiz}_{accountId}");
+        return DateOnly.TryParseExact(text, "yyyy-MM-dd", out DateOnly date) ? date : null;
+    }
+
+    public static void SetCloudGameFreeTimeClaimedDate(GameBiz gameBiz, string accountId, DateOnly date)
+    {
+        SetValue(date.ToString("yyyy-MM-dd"), $"cloud_game_free_time_claimed_date_{gameBiz}_{accountId}");
+    }
+
+
+    /// <summary>云游戏浮窗里当前选中的账号（<c>open_id</c>）。</summary>
+    public static string? GetCloudGameSelectedAccount(GameBiz gameBiz)
+    {
+        return GetValue<string?>(null, $"cloud_game_selected_account_{gameBiz}");
+    }
+
+    public static void SetCloudGameSelectedAccount(GameBiz gameBiz, string? accountId)
+    {
+        SetValue(accountId, $"cloud_game_selected_account_{gameBiz}");
+    }
+
+
+    /// <summary>
+    /// 云游戏账号的 <c>combo_token</c>，只从本机云游戏客户端读取并存在本地。
+    /// <para>等同于账号的登录凭据，任何日志、诊断、上传路径都不要带上它。</para>
+    /// </summary>
+    public static string? GetCloudGameComboToken(GameBiz gameBiz, string accountId)
+    {
+        return GetValue<string?>(null, $"cloud_game_combo_token_{gameBiz}_{accountId}");
+    }
+
+    public static void SetCloudGameComboToken(GameBiz gameBiz, string accountId, string? value)
+    {
+        SetValue(value, $"cloud_game_combo_token_{gameBiz}_{accountId}");
+    }
+
+
+    /// <summary>列出该游戏已经保存过凭据的云游戏账号，用于在客户端日志读不到时仍能显示历史账号。</summary>
+    public static List<string> GetCloudGameComboTokenAccountIds(GameBiz gameBiz)
+    {
+        List<string> list = new();
+        string prefix = $"cloud_game_combo_token_{gameBiz}_";
+        try
+        {
+            using var dapper = DatabaseService.CreateConnection();
+            foreach (string key in dapper.Query<string>("SELECT Key FROM Setting WHERE Key LIKE @pattern;", new { pattern = prefix + "%" }))
+            {
+                string accountId = key[prefix.Length..];
+                if (!string.IsNullOrWhiteSpace(accountId) && !list.Contains(accountId))
+                {
+                    list.Add(accountId);
+                }
+            }
+        }
+        catch { }
+        return list;
     }
 
 

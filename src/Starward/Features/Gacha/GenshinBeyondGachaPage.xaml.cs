@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.WinUI.Controls;
 using Microsoft.Extensions.Logging;
@@ -470,7 +470,7 @@ public sealed partial class GenshinBeyondGachaPage : PageBase
                 return;
             }
 
-            var process = await _gameLauncherService.GetGameProcessAsync(CurrentGameId);
+            var process = await _gameLauncherService.GetGameProcessAsync(CurrentGameId, default);
             if (process is not null)
             {
                 InAppToast.MainWindow?.Warning(null, Lang.GachaLogPage_CannotDeleteCacheWhileGameIsRunning);

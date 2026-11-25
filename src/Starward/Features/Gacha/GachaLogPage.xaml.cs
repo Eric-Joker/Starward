@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Logging;
@@ -15,7 +15,6 @@ using Starward.Core.GameRecord;
 using Starward.Features.Gacha.UIGF;
 using Starward.Features.GameLauncher;
 using Starward.Features.GameRecord;
-using Starward.Features.GameRecord.Share;
 using Starward.Features.Screenshot;
 using Starward.Features.ViewHost;
 using Starward.Helpers;
@@ -473,9 +472,9 @@ public sealed partial class GachaLogPage : PageBase
             IsSharingGachaImage = true;
 
             // 背景：与战绩分享图共用同一取图流程（视频背景抓当前帧，抓不到时退回强调色渐变底）。
-            string? backgroundFile = await GameRecordShareHelper.PrepareBackgroundFileAsync(CurrentGameBiz);
+            string? backgroundFile = await GachaShareHelper.PrepareBackgroundFileAsync(CurrentGameBiz);
             // 强调色须在 UI 线程读取；Win2D 离屏渲染放到后台线程，避免 Application.Current 跨线程 COM 异常。
-            Color accentColor = GameRecordShareHelper.GetAccentColor();
+            Color accentColor = GachaShareHelper.GetAccentColor();
             GachaRecordViewMode viewMode = _recordViewMode;
             string file = await Task.Run(async () =>
                 await GachaShareImageRenderer.RenderAndSaveAsync(stats, CurrentGameBiz, backgroundFile, uid, accentColor, viewMode));
@@ -1323,7 +1322,7 @@ public sealed partial class GachaLogPage : PageBase
                 return;
             }
 
-            var process = await _gameLauncherService.GetGameProcessAsync(CurrentGameId);
+            var process = await _gameLauncherService.GetGameProcessAsync(CurrentGameId, default);
             if (process is not null)
             {
                 InAppToast.MainWindow?.Warning(null, Lang.GachaLogPage_CannotDeleteCacheWhileGameIsRunning);

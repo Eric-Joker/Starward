@@ -1,7 +1,9 @@
+using Dapper;
 using Microsoft.Extensions.Logging;
 using Starward.Core;
 using Starward.Core.CloudGame;
-using Starward.Features.GameRecord;
+using Starward.Core.GameRecord;
+using Starward.Features.Database;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -41,8 +43,6 @@ internal sealed class CloudGameWalletService
 
     private readonly CloudGameClientCredentialProvider _credentialProvider;
 
-    private readonly GameRecordService _gameRecordService;
-
     /// <summary>按「区服 + 账号」缓存查询结果，切换账号不会互相顶掉。</summary>
     private readonly ConcurrentDictionary<(GameBiz Biz, string AccountId), CloudGameWalletSummary> _cache = new();
 
@@ -53,17 +53,14 @@ internal sealed class CloudGameWalletService
     /// <param name="logger">日志。</param>
     /// <param name="client">云游戏接口 Client。</param>
     /// <param name="credentialProvider">云游戏客户端凭证读取器。</param>
-    /// <param name="gameRecordService">战绩与角色服务，仅用于把通行证 ID 显示成昵称。</param>
     public CloudGameWalletService(
         ILogger<CloudGameWalletService> logger,
         CloudGameClient client,
-        CloudGameClientCredentialProvider credentialProvider,
-        GameRecordService gameRecordService)
+        CloudGameClientCredentialProvider credentialProvider)
     {
         _logger = logger;
         _client = client;
         _credentialProvider = credentialProvider;
-        _gameRecordService = gameRecordService;
     }
 
 
@@ -254,14 +251,18 @@ internal sealed class CloudGameWalletService
     /// 米游社账号的「通行证 ID → 昵称」映射，用来把弹层里的账号显示得直观些。
     /// 查库失败不影响功能，退化成只显示 ID。
     /// </summary>
+    /// <remarks>
+    /// 原实现经 main 分支的 <c>GameRecordService.GetRecordUsers()</c> 取表；0.19 的战绩服务尚未迁移，
+    /// 这里直接读同一张 <c>GameRecordUser</c> 表，等战绩模块迁移后再合并回统一入口。
+    /// </remarks>
     /// <returns>映射表；取不到时为空表。</returns>
     private Dictionary<long, string?> GetHyperionNicknames()
     {
         try
         {
             // 云游戏只有国服，对应米游社（非 HoYoLAB）账号。
-            // 主干的 GameRecordService.GetRecordUsers() 不带参数，按当前 IsHoyolab 取表，用户记录本身带 IsHoyolab，这里自行过滤。
-            return _gameRecordService.GetRecordUsers()
+            using var dapper = DatabaseService.CreateConnection();
+            return dapper.Query<GameRecordUser>("SELECT * FROM GameRecordUser WHERE IsHoyolab = @IsHoyolab;", new { IsHoyolab = false })
                 .Where(u => !u.IsHoyolab)
                 .GroupBy(u => u.Uid)
                 .ToDictionary(g => g.Key, g => g.First().Nickname);

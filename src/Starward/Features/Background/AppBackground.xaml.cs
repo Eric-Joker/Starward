@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Messaging;
 using CommunityToolkit.WinUI.Helpers;
 using Microsoft.Extensions.Logging;
@@ -50,6 +50,7 @@ public sealed partial class AppBackground : UserControl
         Current = this;
         this.InitializeComponent();
         this.Unloaded += AppBackground_Unloaded;
+        WeakReferenceMessenger.Default.Register<BackgroundChangedMessage>(this, OnBackgroundChanged);
         WeakReferenceMessenger.Default.Register<MainWindowStateChangedMessage>(this, OnMainWindowStateChanged);
     }
 
@@ -682,6 +683,13 @@ public sealed partial class AppBackground : UserControl
             SaveGameBackgroundSetting();
         }
         catch { }
+    }
+
+
+
+    private void OnBackgroundChanged(object _, BackgroundChangedMessage message)
+    {
+        _ = UpdateBackgroundAsync();
     }
 
 
