@@ -328,7 +328,8 @@ public sealed partial class MainView : UserControl
                 CurrentLauncherConfig = null;
             }
         }
-        NavigateTo(message.Page, message.GameId);
+        // Parameter 是页面自带的导航参数（如设置页深链锚点），优先于游戏 Id
+        NavigateTo(message.Page, message.Parameter ?? (object?)message.GameId);
         HideLauncherConfigView();
     }
 

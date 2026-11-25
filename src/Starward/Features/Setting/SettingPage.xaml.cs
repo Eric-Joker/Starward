@@ -1,13 +1,18 @@
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Logging;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Navigation;
 using System;
+using System.Linq;
 
 
 namespace Starward.Features.Setting;
 
 public sealed partial class SettingPage : PageBase
 {
+
+    /// <summary>导航参数：滚动到「常规」页的开机启动一节。</summary>
+    public const string StartAtLoginSection = "StartAtLogin";
 
 
     private readonly ILogger<SettingPage> _logger = AppConfig.GetLogger<SettingPage>();
@@ -18,6 +23,43 @@ public sealed partial class SettingPage : PageBase
         this.InitializeComponent();
         Frame_Setting.Navigate(typeof(AboutSetting));
         WeakReferenceMessenger.Default.Register<LanguageChangedMessage>(this, (_, _) => this.Bindings.Update());
+    }
+
+
+
+    /// <summary>
+    /// 处理来自其它页面的深链：例如签到提示跳转到开机启动设置。
+    /// </summary>
+    protected override void OnNavigatedTo(NavigationEventArgs e)
+    {
+        base.OnNavigatedTo(e);
+        if (e.Parameter is string section && section == StartAtLoginSection)
+        {
+            ShowStartAtLoginSection();
+        }
+    }
+
+
+
+    /// <summary>
+    /// 切到「常规」子页并滚动到开机启动一节。
+    /// 按 Tag 找导航项而不是按下标，避免以后调整设置页顺序时跳错。
+    /// </summary>
+    private void ShowStartAtLoginSection()
+    {
+        if (Frame_Setting.CurrentSourcePageType != typeof(GeneralSetting))
+        {
+            Frame_Setting.Navigate(typeof(GeneralSetting));
+            if (NavView.MenuItems.OfType<NavigationViewItem>().FirstOrDefault(x => x.Tag as string is nameof(GeneralSetting)) is { } generalItem)
+            {
+                NavView.SelectedItem = generalItem;
+            }
+        }
+
+        if (Frame_Setting.Content is GeneralSetting general)
+        {
+            general.ScrollToStartAtLogin();
+        }
     }
 
 

@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <root>
   <!-- 
     Microsoft ResX Schema 
@@ -17,12 +17,12 @@
     <resheader name="version">2.0</resheader>
     <resheader name="reader">System.Resources.ResXResourceReader, System.Windows.Forms, ...</resheader>
     <resheader name="writer">System.Resources.ResXResourceWriter, System.Windows.Forms, ...</resheader>
-    <data name="Name1"><value>this is my long string</value><comment>this is a comment</comment></data>
-    <data name="Color1" type="System.Drawing.Color, System.Drawing">Blue</data>
-    <data name="Bitmap1" mimetype="application/x-microsoft.net.object.binary.base64">
+  <data name="Name1"><value>this is my long string</value><comment>this is a comment</comment></data>
+  <data name="Color1" type="System.Drawing.Color, System.Drawing">Blue</data>
+  <data name="Bitmap1" mimetype="application/x-microsoft.net.object.binary.base64">
         <value>[base64 mime encoded serialized .NET Framework object]</value>
     </data>
-    <data name="Icon1" type="System.Drawing.Icon, System.Drawing" mimetype="application/x-microsoft.net.object.bytearray.base64">
+  <data name="Icon1" type="System.Drawing.Icon, System.Drawing" mimetype="application/x-microsoft.net.object.bytearray.base64">
         <value>[base64 mime encoded string representing a byte array form of the .NET Framework object]</value>
         <comment>This is a comment</comment>
     </data>
@@ -2966,115 +2966,115 @@ You are welcome to submit the exported data to the following repository:</value>
   <data name="GachaLogPage_ImportUIGF4UseUIGF4WindowDesc" xml:space="preserve">
     <value>UIGF v4.x files cannot be imported through the legacy import. Use the "UIGF v4.2" button instead, where you can select the archives to import.</value>
   </data>
-<data name="SettingPage_StartAtLoginDesc" xml:space="preserve">
+  <data name="SettingPage_StartAtLoginDesc" xml:space="preserve">
     <value>Start Starward in the system tray when you sign in to Windows. You can also turn this off in Windows Settings &gt; Apps &gt; Startup.</value>
   </data>
-<data name="SettingPage_StartAtLoginSwitch" xml:space="preserve">
+  <data name="SettingPage_StartAtLoginSwitch" xml:space="preserve">
     <value>Start at login</value>
   </data>
-<data name="SettingPage_StartAtLoginWindowsSettings" xml:space="preserve">
+  <data name="SettingPage_StartAtLoginWindowsSettings" xml:space="preserve">
     <value>Windows Startup apps</value>
   </data>
-<data name="CloudGameButton_AutoClaimFreeTime" xml:space="preserve">
+  <data name="CloudGameButton_AutoClaimFreeTime" xml:space="preserve">
     <value>Auto-claim free time</value>
   </data>
-<data name="CloudGameButton_BangbooPointsTime" xml:space="preserve">
+  <data name="CloudGameButton_BangbooPointsTime" xml:space="preserve">
     <value>Bangboo Points Time</value>
   </data>
-<data name="CloudGameButton_CredentialFromClient" xml:space="preserve">
+  <data name="CloudGameButton_CredentialFromClient" xml:space="preserve">
     <value>The sign-in credential can only be read after you sign in to the cloud game client.</value>
   </data>
-<data name="CloudGameButton_Days" xml:space="preserve">
+  <data name="CloudGameButton_Days" xml:space="preserve">
     <value>{0} d</value>
   </data>
-<data name="CloudGameButton_DaysHours" xml:space="preserve">
+  <data name="CloudGameButton_DaysHours" xml:space="preserve">
     <value>{0} d {1} h</value>
   </data>
-<data name="CloudGameButton_FreeTime" xml:space="preserve">
+  <data name="CloudGameButton_FreeTime" xml:space="preserve">
     <value>Free Time</value>
   </data>
-<data name="CloudGameButton_Hours" xml:space="preserve">
+  <data name="CloudGameButton_Hours" xml:space="preserve">
     <value>{0} h</value>
   </data>
-<data name="CloudGameButton_HoursMinutes" xml:space="preserve">
+  <data name="CloudGameButton_HoursMinutes" xml:space="preserve">
     <value>{0} h {1} min</value>
   </data>
-<data name="CloudGameButton_Minutes" xml:space="preserve">
+  <data name="CloudGameButton_Minutes" xml:space="preserve">
     <value>{0} min</value>
   </data>
-<data name="CloudGameButton_PlayCard" xml:space="preserve">
+  <data name="CloudGameButton_PlayCard" xml:space="preserve">
     <value>Play Card</value>
   </data>
-<data name="CloudGameButton_PlayCardInactive" xml:space="preserve">
+  <data name="CloudGameButton_PlayCardInactive" xml:space="preserve">
     <value>Not activated</value>
   </data>
-<data name="CloudGameButton_YuanPointsTime" xml:space="preserve">
+  <data name="CloudGameButton_YuanPointsTime" xml:space="preserve">
     <value>Yuan Points Time</value>
   </data>
-<data name="Common_Download" xml:space="preserve">
+  <data name="Common_Download" xml:space="preserve">
     <value>Download</value>
   </data>
-<data name="FavorWallpaper_Deleted" xml:space="preserve">
+  <data name="FavorWallpaper_Deleted" xml:space="preserve">
     <value>Removed from device</value>
   </data>
-<data name="FavorWallpaper_DeleteFailed" xml:space="preserve">
+  <data name="FavorWallpaper_DeleteFailed" xml:space="preserve">
     <value>Failed to delete</value>
   </data>
-<data name="FavorWallpaper_DownloadCompleted" xml:space="preserve">
+  <data name="FavorWallpaper_DownloadCompleted" xml:space="preserve">
     <value>Download completed</value>
   </data>
-<data name="FavorWallpaper_DownloadFailed" xml:space="preserve">
+  <data name="FavorWallpaper_DownloadFailed" xml:space="preserve">
     <value>Download failed</value>
   </data>
-<data name="FavorWallpaper_InUse" xml:space="preserve">
+  <data name="FavorWallpaper_InUse" xml:space="preserve">
     <value>In Use</value>
   </data>
-<data name="FavorWallpaper_LoadFailed" xml:space="preserve">
+  <data name="FavorWallpaper_LoadFailed" xml:space="preserve">
     <value>Failed to load trust wallpapers</value>
   </data>
-<data name="FavorWallpaper_LoadingProgress" xml:space="preserve">
+  <data name="FavorWallpaper_LoadingProgress" xml:space="preserve">
     <value>Loading {0}/{1}</value>
   </data>
-<data name="FavorWallpaper_MindscapeTitle" xml:space="preserve">
+  <data name="FavorWallpaper_MindscapeTitle" xml:space="preserve">
     <value>Mindscape Wallpapers</value>
   </data>
-<data name="FavorWallpaper_SetSuccess" xml:space="preserve">
+  <data name="FavorWallpaper_SetSuccess" xml:space="preserve">
     <value>Background updated</value>
   </data>
-<data name="FavorWallpaper_ShuffleMode" xml:space="preserve">
+  <data name="FavorWallpaper_ShuffleMode" xml:space="preserve">
     <value>Shuffle mode</value>
   </data>
-<data name="FavorWallpaper_ShuffleNeedDownload" xml:space="preserve">
+  <data name="FavorWallpaper_ShuffleNeedDownload" xml:space="preserve">
     <value>Download some wallpapers first, then turn on shuffle mode.</value>
   </data>
-<data name="FavorWallpaper_Title" xml:space="preserve">
+  <data name="FavorWallpaper_Title" xml:space="preserve">
     <value>Trust Wallpapers</value>
   </data>
-<data name="GachaLogPage_CacheFolderDeleted" xml:space="preserve">
+  <data name="GachaLogPage_CacheFolderDeleted" xml:space="preserve">
     <value>Cache folder deleted. Restart the game, open the gacha history page, then update records.</value>
   </data>
-<data name="GachaLogPage_CacheFolderNotFound" xml:space="preserve">
+  <data name="GachaLogPage_CacheFolderNotFound" xml:space="preserve">
     <value>Cache folder not found.</value>
   </data>
-<data name="GachaLogPage_CannotDeleteCacheWhileGameIsRunning" xml:space="preserve">
+  <data name="GachaLogPage_CannotDeleteCacheWhileGameIsRunning" xml:space="preserve">
     <value>Cannot delete the cache while the game is running. Please quit the game first.</value>
   </data>
-<data name="GachaLogPage_DeleteCacheFolderConfirmContent" xml:space="preserve">
+  <data name="GachaLogPage_DeleteCacheFolderConfirmContent" xml:space="preserve">
     <value>This will delete the game's webCaches folder used for gacha URL authkeys. After deleting, restart the game and open the gacha history page, then update records again. The game must be closed first.</value>
   </data>
-<data name="GachaLogPage_DeleteCacheFolderConfirmTitle" xml:space="preserve">
+  <data name="GachaLogPage_DeleteCacheFolderConfirmTitle" xml:space="preserve">
     <value>Delete game webCaches?</value>
   </data>
-<data name="GachaLogPage_OpenCacheFolder" xml:space="preserve">
+  <data name="GachaLogPage_OpenCacheFolder" xml:space="preserve">
     <value>Open Folder</value>
   </data>
-<data name="GachaLogPage_ValidatingGachaUrl" xml:space="preserve">
+  <data name="GachaLogPage_ValidatingGachaUrl" xml:space="preserve">
     <value>Validating gacha URL…</value>
   </data>
-<data name="MapTool_BigMap" xml:space="preserve">
+  <data name="MapTool_BigMap" xml:space="preserve">
     <value>World Map</value>
   </data>
-<data name="MapTool_Map" xml:space="preserve">
+  <data name="MapTool_Map" xml:space="preserve">
     <value>Map</value>
   </data>
   <data name="AppBackground_AudioOutputUnavailableVideoPaused" xml:space="preserve">
@@ -3139,5 +3139,59 @@ You are welcome to submit the exported data to the following repository:</value>
   </data>
   <data name="DailyNoteNotify_Account" xml:space="preserve">
     <value>Account</value>
+  </data>
+  <data name="SignInButton_Title" xml:space="preserve">
+    <value>Daily Check-in</value>
+  </data>
+  <data name="SignInButton_SignIn" xml:space="preserve">
+    <value>Check In</value>
+  </data>
+  <data name="SignInButton_ReSign" xml:space="preserve">
+    <value>Resign</value>
+  </data>
+  <data name="SignInButton_SignedToday" xml:space="preserve">
+    <value>Signed in today</value>
+  </data>
+  <data name="SignInButton_NotSignedToday" xml:space="preserve">
+    <value>Not signed in</value>
+  </data>
+  <data name="SignInButton_SignedInForDays" xml:space="preserve">
+    <value>Signed in for {0} day(s) this month</value>
+  </data>
+  <data name="SignInButton_AutoSignIn" xml:space="preserve">
+    <value>Auto check-in</value>
+  </data>
+  <data name="SignInButton_AutoSignInHint" xml:space="preserve">
+    <value>Auto check-in is independent for each game. Starward checks in shortly after launch, and again after the daily reset while it stays running</value>
+  </data>
+  <data name="SignInButton_SignInSucceeded" xml:space="preserve">
+    <value>Reward claimed successfully</value>
+  </data>
+  <data name="SignInButton_AlreadySignedToday" xml:space="preserve">
+    <value>You have already checked in today</value>
+  </data>
+  <data name="SignInButton_LoginExpired" xml:space="preserve">
+    <value>Login expired, please sign in again</value>
+  </data>
+  <data name="SignInButton_RiskControl" xml:space="preserve">
+    <value>Verification required, please check in via the app or website</value>
+  </data>
+  <data name="SignInButton_NotEnoughCoin" xml:space="preserve">
+    <value>Not enough coins to resign</value>
+  </data>
+  <data name="SignInButton_ResignQuotaUsedUp" xml:space="preserve">
+    <value>Resign quota has been used up</value>
+  </data>
+  <data name="SignInButton_NoResignDate" xml:space="preserve">
+    <value>No missed day available to resign</value>
+  </data>
+  <data name="SignInButton_PleaseSignInFirst" xml:space="preserve">
+    <value>Please complete today's check-in first</value>
+  </data>
+  <data name="SignInButton_SignInFailed" xml:space="preserve">
+    <value>Check-in failed</value>
+  </data>
+  <data name="SignInButton_ReSignConfirmContent" xml:space="preserve">
+    <value>Resigning will cost {0} coin(s). You currently have {1}. Continue?</value>
   </data>
 </root>

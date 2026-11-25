@@ -783,6 +783,31 @@ public static partial class AppConfig
 
 
 
+    #region 每日签到
+
+
+
+    /// <summary>
+    /// 该游戏是否每日自动签到（启动后静默签一轮，常驻期间跨日再签）。默认关闭，要用户在签到浮窗里打开。
+    /// <para>国服与 B 服共用同一个键，读写前会先把 bilibili 区服归一化到国服。</para>
+    /// </summary>
+    public static bool GetAutoSignInEnabled(GameBiz gameBiz)
+    {
+        return GetValue(false, $"auto_sign_in_enabled_{gameBiz}");
+    }
+
+
+    public static void SetAutoSignInEnabled(GameBiz gameBiz, bool value)
+    {
+        SetValue(value, $"auto_sign_in_enabled_{gameBiz}");
+    }
+
+
+
+    #endregion
+
+
+
     #region Setting Method
 
 

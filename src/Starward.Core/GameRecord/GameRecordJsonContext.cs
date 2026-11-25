@@ -18,6 +18,7 @@ using Starward.Core.GameRecord.ZZZ.GachaRecord;
 using Starward.Core.GameRecord.ZZZ.InterKnotReport;
 using Starward.Core.GameRecord.ZZZ.ShiyuDefense;
 using Starward.Core.GameRecord.ZZZ.ThresholdSimulation;
+using Starward.Core.GameRecord.SignIn;
 using Starward.Core.GameRecord.ZZZ.UpgradeGuide;
 using Starward.Core.JsonConverter;
 using System.Text.Json.Serialization;
@@ -56,6 +57,11 @@ namespace Starward.Core.GameRecord;
 [JsonSerializable(typeof(miHoYoApiWrapper<ThresholdSimulationAbstractInfo>))]
 [JsonSerializable(typeof(miHoYoApiWrapper<ThresholdSimulationDetailInfo>))]
 [JsonSerializable(typeof(miHoYoApiWrapper<ThresholdSimulationPeriodDetail>))]
+[JsonSerializable(typeof(miHoYoApiWrapper<SignInReward>))]
+[JsonSerializable(typeof(miHoYoApiWrapper<SignInRewardInfo>))]
+[JsonSerializable(typeof(miHoYoApiWrapper<SignInResignInfo>))]
+[JsonSerializable(typeof(miHoYoApiWrapper<SignInResult>))]
+[JsonSerializable(typeof(SignInPostBody))]
 [JsonSerializable(typeof(DateTimeObjectJsonConverter.DateTimeObject))]
 internal partial class GameRecordJsonContext : JsonSerializerContext
 {

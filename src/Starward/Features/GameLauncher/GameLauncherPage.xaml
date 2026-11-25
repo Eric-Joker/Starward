@@ -14,6 +14,7 @@
              xmlns:sfg="using:Starward.Features.GameInstall"
              xmlns:sfga="using:Starward.Features.GameAccount"
              xmlns:sfgd="using:Starward.Features.GameRecord.DailyNote"
+             xmlns:sfgs="using:Starward.Features.GameRecord.SignIn"
              xmlns:sfp="using:Starward.Features.PlayTime"
              x:DefaultBindMode="OneWay"
              mc:Ignorable="d">
@@ -216,6 +217,10 @@
             <sfgd:DailyNoteButton Width="40"
                                   Height="40"
                                   CurrentGameId="{x:Bind CurrentGameId}" />
+            <!--  每日签到  -->
+            <sfgs:SignInButton Width="40"
+                               Height="40"
+                               CurrentGameId="{x:Bind CurrentGameId}" />
         </StackPanel>
 
     </Grid>

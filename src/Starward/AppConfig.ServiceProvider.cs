@@ -1,4 +1,4 @@
-using Microsoft.Data.Sqlite;
+﻿using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
@@ -9,6 +9,7 @@ using Starward.Core.Gacha.ZZZ;
 using Starward.Core.GameNotice;
 using Starward.Core.GameRecord.BH3;
 using Starward.Core.GameRecord.Genshin;
+using Starward.Core.GameRecord.SignIn;
 using Starward.Core.GameRecord.StarRail;
 using Starward.Core.GameRecord.ZZZ;
 using Starward.Core.HoYoPlay;
@@ -24,6 +25,7 @@ using Starward.Features.GameLauncher;
 using Starward.Features.GameRecord;
 using Starward.Features.GameRecord.BH3;
 using Starward.Features.GameRecord.DailyNote.Notify;
+using Starward.Features.GameRecord.SignIn;
 using Starward.Features.GameRecord.Genshin;
 using Starward.Features.GameRecord.StarRail;
 using Starward.Features.GameRecord.ZZZ;
@@ -126,6 +128,12 @@ public static partial class AppConfig
         sc.AddSingleton<GameRecordGenshinService>();
         sc.AddSingleton<GameRecordStarRailService>();
         sc.AddSingleton<GameRecordZZZService>();
+
+        // 每日签到：按区服各一个签到 Client；服务本身无状态，自动签到由托盘窗口在常驻期间驱动。
+        sc.AddSingleton<HyperionSignInClient>();
+        sc.AddSingleton<HoyolabSignInClient>();
+        sc.AddSingleton<SignInService>();
+        sc.AddSingleton<AutoSignInService>();
         sc.AddSingleton<WindowsDeviceFpService>();
 
         // 实时便笺提醒：常驻检查各账号便笺，达到阈值时发 Windows 系统通知。
