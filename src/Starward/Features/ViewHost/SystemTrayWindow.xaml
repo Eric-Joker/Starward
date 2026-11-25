@@ -1,4 +1,5 @@
-﻿<sf:WindowBase x:Class="Starward.Features.ViewHost.SystemTrayWindow"
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<sf:WindowBase x:Class="Starward.Features.ViewHost.SystemTrayWindow"
                xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -8,11 +9,15 @@
                xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
                xmlns:sc="using:Starward.Controls"
                xmlns:sf="using:Starward.Features"
+               xmlns:sfg="using:Starward.Features.GameSelector"
+               xmlns:sh="using:Starward.Helpers"
                Title="StarwardTrayMenu"
                x:DefaultBindMode="OneWay"
                Closed="WindowEx_Closed"
                mc:Ignorable="d">
 
+    <!--  菜单只有这一列：启动预设列表是**独立窗口**（GameLaunchProfilePopupWindow），
+          悬停区服行时才弹在菜单旁边，菜单自己不会被撑大。  -->
     <Grid Name="RootGrid">
         <hn:TaskbarIcon x:Name="trayIcon"
                         LeftClickCommand="{x:Bind ShowMainWindowCommand}"
@@ -20,7 +25,62 @@
                         RightClickCommand="{x:Bind ShowCommand}"
                         ToolTipText="Starward" />
 
-        <StackPanel Padding="8">
+        <StackPanel x:Name="StackPanel_Menu"
+                    Padding="8"
+                    PointerEntered="StackPanel_Menu_PointerEntered"
+                    PointerExited="StackPanel_Menu_PointerExited">
+
+            <!--  已安装的游戏，点一下用该区服的第一个预设直接启动；
+                  悬停时如果该区服有多个预设，会在菜单左边弹出预设列表，见 SystemTrayWindow.xaml.cs  -->
+            <ItemsControl ItemsSource="{x:Bind InstalledGames}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="local:SystemTrayGameIcon">
+                        <Button Name="Button_StartGame"
+                                HorizontalAlignment="Stretch"
+                                HorizontalContentAlignment="Left"
+                                Click="Button_StartGame_Click"
+                                Opacity="{x:Bind MaskOpacity}"
+                                PointerEntered="Button_StartGame_PointerEntered"
+                                PointerExited="Button_StartGame_PointerExited"
+                                Style="{ThemeResource DateTimePickerFlyoutButtonStyle}"
+                                Tag="{Binding}">
+                            <Grid ColumnSpacing="10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Grid Width="28"
+                                      Height="28"
+                                      sh:PointerCursor.CursorShape="Hand"
+                                      CornerRadius="8"
+                                      IsTapEnabled="True"
+                                      Shadow="{ThemeResource ThemeShadow}"
+                                      Translation="0,0,16">
+                                    <sc:CachedImage Width="28"
+                                                    Height="28"
+                                                    Source="{x:Bind GameIcon}" />
+                                    <Image Width="14"
+                                           Height="14"
+                                           HorizontalAlignment="Right"
+                                           VerticalAlignment="Bottom">
+                                        <Image.Source>
+                                            <BitmapImage DecodePixelHeight="14"
+                                                         DecodePixelType="Logical"
+                                                         DecodePixelWidth="14"
+                                                         UriSource="{x:Bind LauncherIcon}" />
+                                        </Image.Source>
+                                    </Image>
+
+                                </Grid>
+                                <TextBlock Grid.Column="1"
+                                           VerticalAlignment="Center"
+                                           Text="{x:Bind ServerName}"
+                                           TextTrimming="None" />
+                            </Grid>
+                        </Button>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
 
             <Button Height="36"
                     HorizontalAlignment="Stretch"

@@ -222,6 +222,8 @@ public sealed partial class LauncherConfigView : UserControl
             InstalledGames = new(models);
             await Parallel.ForEachAsync(models, cancellation, UpdateGameResourceDatabaseAsync);
             await UpdateHardLinkSharedSizeAsync(models, cancellation);
+            // 已安装游戏的实际占用空间算完了，托盘菜单等地方据此刷新
+            WeakReferenceMessenger.Default.Send(new InstalledGameRefreshedMessage());
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
         catch (Exception ex)

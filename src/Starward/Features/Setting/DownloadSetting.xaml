@@ -22,7 +22,10 @@
             <StackPanel Margin="0,12,0,0"
                         Orientation="Horizontal"
                         Spacing="12">
+                <!--  Maximum 兜住 int 溢出：SpeedLimit 以 KB/s 保存，乘 1024 写入下载器前不能超出 int 上限。
+                      2097151 * 1024 = 2147482624，仍小于 int.MaxValue。  -->
                 <NumberBox MinWidth="120"
+                           Maximum="2097151"
                            Minimum="0"
                            Value="{x:Bind SpeedLimit, Mode=TwoWay}" />
                 <TextBlock VerticalAlignment="Center" Text="KB/s" />
