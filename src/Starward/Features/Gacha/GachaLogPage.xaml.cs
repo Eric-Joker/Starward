@@ -12,9 +12,12 @@ using Microsoft.UI.Xaml.Navigation;
 using Starward.Core;
 using Starward.Core.Gacha;
 using Starward.Core.GameRecord;
+using Starward.Core.Passport;
+using Starward.Features.Account;
 using Starward.Features.Gacha.UIGF;
 using Starward.Features.GameLauncher;
 using Starward.Features.GameRecord;
+using Starward.Features.GameRecord.Genshin;
 using Starward.Features.Screenshot;
 using Starward.Features.ViewHost;
 using Starward.Helpers;
@@ -41,6 +44,12 @@ public sealed partial class GachaLogPage : PageBase
     private readonly GameLauncherService _gameLauncherService = AppConfig.GetService<GameLauncherService>();
 
     private readonly GenshinBeyondGachaService _genshinBeyondGachaService = AppConfig.GetService<GenshinBeyondGachaService>();
+
+    /// <summary>原神战绩服务：「从米游社同步」用它把 stoken 换成抽卡 authkey。</summary>
+    private readonly GameRecordGenshinService _gameRecordGenshinService = AppConfig.GetService<GameRecordGenshinService>();
+
+    /// <summary>通行证账号池：工具箱 Cookie 不含 stoken，凭据从这里兜底取。</summary>
+    private readonly PassportAccountService _passportAccountService = AppConfig.GetService<PassportAccountService>();
 
 
     private GachaLogService _gachaLogService;
@@ -95,6 +104,12 @@ public sealed partial class GachaLogPage : PageBase
             EnableGenshinGachaItemStats = true;
             _gachaLogService = AppConfig.GetService<GenshinGachaService>();
             Image_Emoji.Source = new BitmapImage(AppConfig.EmojiPaimon);
+            // 原神国服 / B 服可以用工具箱角色的 stoken 直接换 authkey；国际服没有对应接口。
+            if (CurrentGameBiz.Value is GameBiz.hk4e_cn or GameBiz.hk4e_bilibili)
+            {
+                MenuFlyoutItem_SyncFromMiyoushe.Visibility = Visibility.Visible;
+                MenuFlyoutItem_SyncFromMiyousheAll.Visibility = Visibility.Visible;
+            }
         }
         if (CurrentGameBiz.Game == GameBiz.hkrpg)
         {
@@ -919,45 +934,76 @@ public sealed partial class GachaLogPage : PageBase
     {
         try
         {
-            if (CurrentGameBiz.Game != GameBiz.nap)
+            bool isZZZ = CurrentGameBiz.Game == GameBiz.nap;
+            // 原神的 stoken 换 authkey 只有国服 / B 服有，国际服没有对应接口。
+            bool isGenshinCN = CurrentGameBiz.Value is GameBiz.hk4e_cn or GameBiz.hk4e_bilibili;
+            if (!isZZZ && !isGenshinCN)
             {
-                InAppToast.MainWindow?.Warning(null, Lang.GachaLogPage_OnlySupportZZZCNServer);
+                // 入口只在受支持的区服显示（见菜单项显隐），这里只是兜底。
+                InAppToast.MainWindow?.Warning(null, Lang.GameSettingPage_FeatureNotSupported);
                 return;
             }
-            if (_gachaLogService is not ZZZGachaService zzzGachaService)
+            // B 服角色在米游社绑定表中仍记为 _cn
+            GameBiz roleGameBiz = CurrentGameBiz.Value switch
             {
-                throw new InvalidOperationException($"Current gacha service type is {_gachaLogService.GetType().Name}.");
-            }
-            GameBiz roleGameBiz = CurrentGameBiz == GameBiz.nap_bilibili ? GameBiz.nap_cn : CurrentGameBiz;
+                GameBiz.nap_bilibili => GameBiz.nap_cn,
+                GameBiz.hk4e_bilibili => GameBiz.hk4e_cn,
+                _ => CurrentGameBiz,
+            };
             GameRecordRole? role = await PickGachaSyncRoleAsync(roleGameBiz);
             if (role is null)
             {
                 return;
             }
+            // 原神走 stoken 换 authkey：工具箱 Cookie 只带派生令牌（ltoken / cookie_token），
+            // stoken + mid 在账号池里；手工粘贴的完整 Cookie 自带这两个键，优先用 Cookie 里的。
+            string stoken = "";
+            string mid = "";
+            if (!isZZZ)
+            {
+                var cookieInfo = PassportCookieParser.Parse(role.Cookie);
+                stoken = cookieInfo.Stoken ?? "";
+                mid = cookieInfo.Mid ?? "";
+                if (string.IsNullOrWhiteSpace(stoken) || string.IsNullOrWhiteSpace(mid))
+                {
+                    (string Stoken, string Mid)? owned = _passportAccountService.GetStokenForGameRole(roleGameBiz, role.Uid);
+                    if (owned is null)
+                    {
+                        InAppToast.MainWindow?.Warning(null, Lang.GachaLogPage_CurrentAccountMissingCookiePleaseReloginMiyoushe);
+                        return;
+                    }
+                    (stoken, mid) = owned.Value;
+                }
+            }
+            // 与补全入口一致，记住本次使用的战绩角色
             AppConfig.SetLastSelectGameRecordRole(roleGameBiz, role.Uid);
             var cancelSource = new CancellationTokenSource();
-            var button = new Button
+            var infoBar = ShowCancelableProgressInfoBar(cancelSource);
+            IProgress<string> progress = new Progress<string>((str) => infoBar.Message = str);
+            long uid;
+            if (isZZZ)
             {
-                // 取消
-                Content = Lang.Common_Cancel,
-                HorizontalAlignment = HorizontalAlignment.Right,
-            };
-            var infoBar = new InfoBar
+                if (_gachaLogService is not ZZZGachaService zzzGachaService)
+                {
+                    throw new InvalidOperationException($"Current gacha service type is {_gachaLogService.GetType().Name}.");
+                }
+                uid = await zzzGachaService.GetGachaLogByGameRecordAsync(role, param is "all", GachaLanguage, progress, cancelSource.Token);
+            }
+            else
             {
-                Severity = InfoBarSeverity.Informational,
-                Background = Application.Current.Resources["CustomAcrylicBrush"] as Brush,
-                ActionButton = button,
-            };
-            button.Click += (_, _) =>
-            {
-                cancelSource.Cancel();
-                // 操作已取消
-                infoBar.Message = Lang.GachaLogPage_OperationCanceled;
-                infoBar.ActionButton = null;
-            };
-            InAppToast.MainWindow?.Show(infoBar);
-            var progress = new Progress<string>((str) => infoBar.Message = str);
-            var uid = await zzzGachaService.GetGachaLogByGameRecordAsync(role, param is "all", GachaLanguage, progress, cancelSource.Token);
+                // 原神：stoken 换 authkey → 拼 public-operation URL → 复用既有分页逻辑，不必开 WebView 抓 URL
+                // 正在获取 uid
+                infoBar.Message = Lang.GachaLogService_GettingUid;
+                GameAuthKey authKey = await _gameRecordGenshinService.GenAuthKeyAsync(role, stoken, mid, cancelSource.Token);
+                string url = GameRecordGenshinService.BuildGachaLogUrlFromAuthKey(CurrentGameBiz, role, authKey, GachaLanguage);
+                uid = await _gachaLogService.GetGachaLogAsync(url, param is "all", GachaLanguage, progress, cancelSource.Token);
+                // 战绩角色已有真实 UID：接口一条记录都没有时也把 URL 存下来，便于短时内增量更新
+                long urlUid = uid > 0 ? uid : role.Uid;
+                if (urlUid > 0)
+                {
+                    _gachaLogService.SaveGachaLogUrl(urlUid, url);
+                }
+            }
             infoBar.Title = $"Uid {uid}";
             infoBar.Severity = InfoBarSeverity.Success;
             infoBar.ActionButton = null;
@@ -965,21 +1011,21 @@ public sealed partial class GachaLogPage : PageBase
         }
         catch (OperationCanceledException)
         {
-            _logger.LogInformation("Sync zzz gacha record from miyoushe canceled");
+            _logger.LogInformation("Sync gacha record from miyoushe canceled");
         }
         catch (miHoYoApiException ex)
         {
-            _logger.LogWarning(ex, "Sync zzz gacha record from miyoushe error ({retcode})", ex.ReturnCode);
+            _logger.LogWarning(ex, "Sync gacha record from miyoushe error ({retcode})", ex.ReturnCode);
             InAppToast.MainWindow?.Warning(null, ex.Message);
         }
         catch (NotSupportedException ex)
         {
-            _logger.LogWarning(ex, "Sync zzz gacha record from miyoushe is not supported");
+            _logger.LogWarning(ex, "Sync gacha record from miyoushe is not supported");
             InAppToast.MainWindow?.Warning(null, ex.Message);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Sync zzz gacha record from miyoushe");
+            _logger.LogError(ex, "Sync gacha record from miyoushe");
             InAppToast.MainWindow?.Error(ex);
         }
     }

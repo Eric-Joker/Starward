@@ -374,9 +374,6 @@
   <data name="GachaLogPage_OperationCanceled" xml:space="preserve">
     <value>작업이 취소되었습니다.</value>
   </data>
-  <data name="GachaLogPage_OnlySupportZZZCNServer" xml:space="preserve">
-    <value>이 기능은 현재 ZZZ만 지원합니다.</value>
-  </data>
   <data name="GachaLogPage_PleaseLoginMiyousheAndAddZZZRole" xml:space="preserve">
     <value>먼저 미유시 도구 상자에 로그인하고 미유시 계정을 추가해 주세요.</value>
   </data>

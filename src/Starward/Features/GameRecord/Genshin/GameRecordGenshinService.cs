@@ -15,6 +15,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -83,6 +84,83 @@ internal class GameRecordGenshinService : GameRecordServiceBase
         var client = await GetClientAsync(role.GameBiz, cancellationToken);
         return await client.GetGameRoleHeadIconAsync(role, cancellationToken);
     }
+
+
+
+    #region 抽卡 authkey
+
+
+    /// <summary>
+    /// 用米游社 stoken 换取抽卡 authkey（Auth Key B），仅国服支持。
+    /// <para>
+    /// 用于「从米游社同步」：拿到 authkey 后由
+    /// <see cref="BuildGachaLogUrlFromAuthKey"/> 拼出 <c>public-operation</c> 抽卡 URL，
+    /// 再交给抽卡记录客户端走既有分页逻辑，不必打开 WebView 抓 URL。
+    /// </para>
+    /// </summary>
+    /// <param name="role">国服角色，提供 game_biz / region / uid。</param>
+    /// <param name="stoken">米游社 SToken（V2）；取法见 <see cref="Starward.Core.Passport.PassportCookieParser.Parse"/> 与账号池。</param>
+    /// <param name="mid">与 SToken V2 搭配的 mid。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>authkey 结果。</returns>
+    /// <exception cref="NotSupportedException">国际服角色时抛出。</exception>
+    public async Task<GameAuthKey> GenAuthKeyAsync(GameRecordRole role, string stoken, string mid, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(role);
+        if (role.GameBiz?.EndsWith("_global", StringComparison.OrdinalIgnoreCase) ?? false)
+        {
+            throw new NotSupportedException("Generating gacha authkey from HoYoLAB SToken is not supported.");
+        }
+        // 该接口只有国服有，与工具箱资料一样固定走国服 Client（顺带按需申请设备指纹）。
+        _hyperionGenshinClient.DeviceInfo = await GetDeviceInfoAsync(ServerRegion.miHoYo, cancellationToken).ConfigureAwait(false);
+        return await _hyperionGenshinClient.GenAuthKeyAsync(role, stoken, mid, cancellationToken).ConfigureAwait(false);
+    }
+
+
+
+    /// <summary>
+    /// 把 genAuthKey 的结果拼成抽卡记录客户端可直接使用的 <c>public-operation</c> URL。
+    /// </summary>
+    /// <param name="launcherGameBiz">启动器当前选择的区服。</param>
+    /// <param name="role">绑定角色，提供 game_biz 与 region。</param>
+    /// <param name="authKey">genAuthKey 结果。</param>
+    /// <param name="lang">抽卡记录语言；留空时用 zh-cn。</param>
+    /// <returns>可直接交给 GetGachaLogAsync 的 URL。</returns>
+    /// <exception cref="NotSupportedException">非原神国服（含 B 服）时抛出。</exception>
+    public static string BuildGachaLogUrlFromAuthKey(GameBiz launcherGameBiz, GameRecordRole role, GameAuthKey authKey, string? lang = null)
+    {
+        ArgumentNullException.ThrowIfNull(role);
+        ArgumentNullException.ThrowIfNull(authKey);
+        if (string.IsNullOrWhiteSpace(authKey.Authkey))
+        {
+            throw new ArgumentException("Authkey is empty.", nameof(authKey));
+        }
+        if (launcherGameBiz.Game != GameBiz.hk4e || !(launcherGameBiz.IsChinaServer() || launcherGameBiz.IsBilibili()))
+        {
+            throw new NotSupportedException($"Building a gacha url from an authkey is only supported for Genshin Impact CN servers (current: {launcherGameBiz}).");
+        }
+        const string apiPrefix = "https://public-operation-hk4e.mihoyo.com/gacha_info/api/getGachaLog";
+        // 查询参数里的 game_biz 用绑定角色的 biz（hk4e_cn），而不是 B 服启动器的 biz。
+        string roleGameBiz = string.IsNullOrWhiteSpace(role.GameBiz) ? GameBiz.hk4e_cn : role.GameBiz;
+        string language = string.IsNullOrWhiteSpace(lang) ? "zh-cn" : LanguageUtil.FilterLanguage(lang);
+        int authkeyVer = authKey.AuthkeyVer > 0 ? authKey.AuthkeyVer : 1;
+        int signType = authKey.SignType > 0 ? authKey.SignType : 2;
+        var sb = new StringBuilder(apiPrefix);
+        sb.Append("?auth_appid=webview_gacha");
+        sb.Append("&authkey=").Append(Uri.EscapeDataString(authKey.Authkey));
+        sb.Append("&authkey_ver=").Append(authkeyVer);
+        sb.Append("&sign_type=").Append(signType);
+        sb.Append("&lang=").Append(Uri.EscapeDataString(language));
+        sb.Append("&game_biz=").Append(Uri.EscapeDataString(roleGameBiz));
+        if (!string.IsNullOrWhiteSpace(role.Region))
+        {
+            sb.Append("&region=").Append(Uri.EscapeDataString(role.Region));
+        }
+        return sb.ToString();
+    }
+
+
+    #endregion
 
 
     /// <summary>

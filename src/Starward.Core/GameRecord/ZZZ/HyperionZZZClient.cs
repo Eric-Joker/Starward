@@ -442,4 +442,26 @@ public class HyperionZZZClient : GameRecordClientBase, IGameRecordClient, IGameR
         return string.Join("; ", map.Select(static kv => $"{kv.Key}={kv.Value}"));
     }
 
+
+
+    #region stoken 换抽卡 authkey
+
+
+    /// <summary>
+    /// 用米游社 stoken 换取抽卡 authkey（Auth Key B），仅国服提供该接口。
+    /// </summary>
+    /// <param name="role">游戏角色，提供 game_biz / region / uid。</param>
+    /// <param name="stoken">米游社 SToken（V2）。</param>
+    /// <param name="mid">与 SToken V2 搭配的 mid。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>含 authkey / authkey_ver / sign_type 的结果。</returns>
+    public override Task<GameAuthKey> GenAuthKeyAsync(GameRecordRole role, string stoken, string mid, CancellationToken cancellationToken = default)
+    {
+        return GenAuthKeyCoreAsync(role, stoken, mid, cancellationToken);
+    }
+
+
+    #endregion
+
+
 }

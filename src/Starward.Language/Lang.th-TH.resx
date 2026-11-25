@@ -373,9 +373,6 @@
   <data name="GachaLogPage_OperationCanceled" xml:space="preserve">
     <value>กระบวนการถูกยกเลิก</value>
   </data>
-  <data name="GachaLogPage_OnlySupportZZZCNServer" xml:space="preserve">
-    <value>ฟีเจอร์นี้รองรับเฉพาะ ZZZ ในขณะนี้</value>
-  </data>
   <data name="GachaLogPage_PleaseLoginMiyousheAndAddZZZRole" xml:space="preserve">
     <value>โปรดเข้าสู่ระบบผ่าน Miyoushe toolbox และเพิ่มบัญชี Miyoushe ของคุณก่อน</value>
   </data>

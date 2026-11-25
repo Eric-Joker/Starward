@@ -182,6 +182,110 @@ public abstract class GameRecordClientBase
 
 
 
+    #region stoken 换抽卡 authkey / Gen1 DS
+
+
+    /// <summary>
+    /// <c>binding/api/genAuthKey</c> 的 Gen1 DS 盐，与战绩 / 签到接口的盐都不同。
+    /// </summary>
+    protected const string GenAuthKeyApiSalt = "d9200c846b10886e8c874fc33c8f308b";
+
+
+    /// <summary>
+    /// <c>binding/api/genAuthKey</c> 的请求地址（国服）。
+    /// </summary>
+    protected const string GenAuthKeyApiUrl = "https://api-takumi.mihoyo.com/binding/api/genAuthKey";
+
+
+    /// <summary>
+    /// 用指定盐值生成 Gen1 DS（<c>DS</c> 请求头）。
+    /// <para>
+    /// 个别接口的盐值与常规接口不同（如 <c>binding/api/genAuthKey</c>），需要按接口传入。
+    /// </para>
+    /// </summary>
+    /// <param name="salt">参与签名的盐值。</param>
+    /// <returns><c>t,r,check</c> 形式的 DS 值。</returns>
+    protected static string CreateSecret(string salt)
+    {
+        long t = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        string r = RandomNumberGenerator.GetString("0123456789abcdefghijklmnop", 6);
+        byte[] md5 = MD5.HashData(Encoding.UTF8.GetBytes($"salt={salt}&t={t}&r={r}"));
+        return $"{t},{r},{Convert.ToHexStringLower(md5)}";
+    }
+
+
+    /// <summary>
+    /// 用米游社 stoken 调用 <c>binding/api/genAuthKey</c> 换取抽卡 authkey（Auth Key B）。
+    /// <para>
+    /// stoken 与 mid 由调用方给出：工具箱 Cookie 只带派生令牌（ltoken / cookie_token），
+    /// 不含 stoken，凭据要从账号池或用户粘贴的完整 Cookie 里取。
+    /// </para>
+    /// <para>
+    /// 仅国服 Hyperion 客户端实现；国际服 HoYoLAB 没有对应接口，默认抛
+    /// <see cref="NotSupportedException"/>。这里用 virtual + 默认实现而不是 abstract，
+    /// 免得 6 个 HoYoLAB 客户端都要写一遍。
+    /// </para>
+    /// </summary>
+    /// <param name="role">游戏角色，提供 game_biz / region / uid。</param>
+    /// <param name="stoken">米游社 SToken（V2）。</param>
+    /// <param name="mid">与 SToken V2 搭配的 mid。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>含 authkey / authkey_ver / sign_type 的结果。</returns>
+    /// <exception cref="NotSupportedException">当前平台不支持 stoken 换 authkey。</exception>
+    public virtual Task<GameAuthKey> GenAuthKeyAsync(GameRecordRole role, string stoken, string mid, CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException("Generating a gacha authkey from an SToken is not supported on this platform.");
+    }
+
+
+    /// <summary>
+    /// <c>binding/api/genAuthKey</c> 的国服实现，供各国服 Hyperion 客户端复用。
+    /// <para>
+    /// 与社区实现一致：只带 <c>stoken</c> + <c>mid</c> 两个 cookie 键，避免无关键干扰；
+    /// 该接口的 Gen1 DS 盐与战绩接口不同，须单独传入；<c>auth_appid</c> 固定
+    /// <c>webview_gacha</c>（游戏内抽卡记录）。设备 id / fp 由
+    /// <see cref="CommonSendAsync{T}"/> → <see cref="AddDeviceHeaders"/> 按
+    /// <see cref="DeviceInfo"/> 自动补齐，与既有请求保持一致。
+    /// </para>
+    /// </summary>
+    /// <param name="role">游戏角色，提供 game_biz / region / uid。</param>
+    /// <param name="stoken">米游社 SToken（V2）。</param>
+    /// <param name="mid">与 SToken V2 搭配的 mid。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>含 authkey / authkey_ver / sign_type 的结果。</returns>
+    /// <exception cref="ArgumentException">stoken / mid 为空，或角色缺少 GameBiz / Region。</exception>
+    protected async Task<GameAuthKey> GenAuthKeyCoreAsync(GameRecordRole role, string stoken, string mid, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(role);
+        if (string.IsNullOrWhiteSpace(stoken) || string.IsNullOrWhiteSpace(mid))
+        {
+            throw new ArgumentException("stoken and mid are required.", nameof(stoken));
+        }
+        if (string.IsNullOrWhiteSpace(role.GameBiz) || string.IsNullOrWhiteSpace(role.Region))
+        {
+            throw new ArgumentException("GameBiz and Region are required.", nameof(role));
+        }
+
+        var body = new GenAuthKeyPostBody("webview_gacha", role.GameBiz, role.Uid, role.Region);
+        string json = JsonSerializer.Serialize(body, typeof(GenAuthKeyPostBody), GameRecordJsonContext.Default);
+        var request = new HttpRequestMessage(HttpMethod.Post, GenAuthKeyApiUrl)
+        {
+            Content = new StringContent(json, Encoding.UTF8, application_json),
+        };
+        request.Headers.Add(Cookie, $"stoken={stoken};mid={mid}");
+        request.Headers.Add(Referer, "https://app.mihoyo.com");
+        request.Headers.Add(DS, CreateSecret(GenAuthKeyApiSalt));
+        request.Headers.Add(x_rpc_app_version, AppVersion);
+        request.Headers.Add(x_rpc_client_type, "5");
+        return await CommonSendAsync<GameAuthKey>(request, cancellationToken).ConfigureAwait(false);
+    }
+
+
+    #endregion
+
+
+
+
     #region 养成指南 / badge 接口
 
 
@@ -205,15 +309,15 @@ public abstract class GameRecordClientBase
 
     /// <summary>
     /// 生成养成指南接口的 Gen1 DS（<c>DS</c> 请求头），用于国际服 badge 登录。
+    /// <para>
+    /// 与 <see cref="CreateSecret(string)"/> 是同一套 Gen1 算法，只为既有调用保留这个名字。
+    /// </para>
     /// </summary>
     /// <param name="salt">参与签名的盐值。</param>
     /// <returns><c>t,r,check</c> 形式的 DS 值。</returns>
     protected static string CreateCultivateSecret1(string salt)
     {
-        long t = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        string r = RandomNumberGenerator.GetString("0123456789abcdefghijklmnop", 6);
-        byte[] md5 = MD5.HashData(Encoding.UTF8.GetBytes($"salt={salt}&t={t}&r={r}"));
-        return $"{t},{r},{Convert.ToHexStringLower(md5)}";
+        return CreateSecret(salt);
     }
 
 

@@ -374,9 +374,6 @@
   <data name="GachaLogPage_OperationCanceled" xml:space="preserve">
     <value>操作をキャンセルしました</value>
   </data>
-  <data name="GachaLogPage_OnlySupportZZZCNServer" xml:space="preserve">
-    <value>この機能は現在ゼンレスゾーンゼロのみ対応しています。</value>
-  </data>
   <data name="GachaLogPage_PleaseLoginMiyousheAndAddZZZRole" xml:space="preserve">
     <value>先に米游社ツールボックスにログインし、米游社アカウントを追加してください。</value>
   </data>
