@@ -3338,4 +3338,10 @@
   <data name="ShiyuDefensePage_RankFetchTime" xml:space="preserve">
     <value>排名数据获取时间：{0}</value>
   </data>
+  <data name="DeadlyAssaultPage_HardMode" xml:space="preserve">
+    <value>绝境</value>
+  </data>
+  <data name="DeadlyAssaultPage_NormalMode" xml:space="preserve">
+    <value>常规</value>
+  </data>
 </root>

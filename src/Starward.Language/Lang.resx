@@ -3338,4 +3338,10 @@ You are welcome to submit the exported data to the following repository:</value>
   <data name="ShiyuDefensePage_RankFetchTime" xml:space="preserve">
     <value>Rank data fetched at {0}</value>
   </data>
+  <data name="DeadlyAssaultPage_HardMode" xml:space="preserve">
+    <value>Desperate</value>
+  </data>
+  <data name="DeadlyAssaultPage_NormalMode" xml:space="preserve">
+    <value>Normal</value>
+  </data>
 </root>

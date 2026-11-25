@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml.Navigation;
 using Starward.Core;
 using Starward.Core.GameRecord;
 using Starward.Core.GameRecord.ZZZ.DeadlyAssault;
+using Starward.Features.GameRecord.Share;
 using Starward.Helpers;
 using System;
 using System.Collections.Generic;
@@ -181,6 +182,32 @@ public sealed partial class DeadlyAssaultPage : PageBase
         return rankFetchTime == default
             ? null
             : string.Format(Lang.DeadlyAssaultPage_RankFetchTime, rankFetchTime.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss"));
+    }
+
+
+
+    public bool IsSharingRecordImage { get; set => SetProperty(ref field, value); }
+
+
+
+    private async void Button_ShareRecordImage_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (CurrentDeadlyAssault is not { } data)
+            {
+                InAppToast.MainWindow?.Warning(Lang.HoyolabToolboxPage_NoData);
+                return;
+            }
+            await GameRecordShareHelper.ShareAsync(this, gameRole, _logger,
+                busy => IsSharingRecordImage = busy,
+                (bg, accent) => DeadlyAssaultShareRenderer.RenderAndSaveAsync(data, gameRole.Uid, bg, accent));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Share game record image");
+            InAppToast.MainWindow?.Error(Lang.Common_Error);
+        }
     }
 
 
