@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Starward.Core.HoYoPlay;
 using Starward.GameInstall.Model;
@@ -105,17 +105,23 @@ internal class PackageUpdateStep : PackageStepBase
     private async Task PatchDiffFilesAsync(double percentRatio, CancellationToken cancellation = default)
     {
         Lock lockObj = new();
+        // 合并要同时读写本地文件，瓶颈在磁盘：固态硬盘按 CPU 核数限流，机械硬盘只开少量并发
+        ParallelOptions mergeOptions = new() { MaxDegreeOfParallelism = GetLocalFileParallelism(OfficialLdiffParallelism), CancellationToken = cancellation };
 
         string hdifffiles = Path.Combine(_context.InstallPath, "hdifffiles.txt");
         if (File.Exists(hdifffiles))
         {
-            using FileStream fs = File.OpenRead(hdifffiles);
-            List<HDiffFile?> hdiffFiles = await JsonSerializer.DeserializeAsyncEnumerable<HDiffFile>(fs, true, null, cancellation).ToListAsync(cancellation).ConfigureAwait(false);
+            List<HDiffFile?> hdiffFiles;
+            // 读完就关闭：下面合并完要删除这个清单，读句柄还开着会因文件被占用删不掉
+            using (FileStream fs = File.OpenRead(hdifffiles))
+            {
+                hdiffFiles = await JsonSerializer.DeserializeAsyncEnumerable<HDiffFile>(fs, true, null, cancellation).ToListAsync(cancellation).ConfigureAwait(false);
+            }
             if (hdiffFiles.Count > 0)
             {
                 _logger.LogInformation("Patch {count} files by hdifffiles.txt.", hdiffFiles.Count);
                 double increase = percentRatio / hdiffFiles.Count;
-                await Parallel.ForEachAsync(hdiffFiles, cancellation, async (item, token) =>
+                await Parallel.ForEachAsync(hdiffFiles, mergeOptions, async (item, token) =>
                 {
                     if (item is null)
                     {
@@ -153,7 +159,7 @@ internal class PackageUpdateStep : PackageStepBase
             {
                 _logger.LogInformation("Patch {count} files by hdiffmap.json.", diffMapItems.Count);
                 double increase = percentRatio / diffMapItems.Count;
-                await Parallel.ForEachAsync(diffMapItems, cancellation, async (item, token) =>
+                await Parallel.ForEachAsync(diffMapItems, mergeOptions, async (item, token) =>
                 {
                     string source = Path.GetFullPath(Path.Join(_context.InstallPath, item.SourceFileName));
                     string target = Path.GetFullPath(Path.Join(_context.InstallPath, item.TargetFileName));
@@ -212,6 +218,7 @@ internal class PackageUpdateStep : PackageStepBase
         string tmp = target + ".tmp";
         try
         {
+            // 三个 using 的作用域都在 try 块内：合并完离开这里时句柄已关闭，下面替换或删除被合并的文件才不会被占用
             using FileStream fs_source = File.OpenRead(source);
             using FileStream fs_diff = File.OpenRead(diff);
             using FileStream fs_target = File.Create(tmp);

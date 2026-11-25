@@ -1,7 +1,8 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Starward.Core;
 using Starward.GameInstall.Model;
+using Starward.GameInstall.Service;
 using Starward.GameInstall.Sophon;
 using Starward.GameInstall.Step;
 using System.Text;
@@ -79,9 +80,10 @@ internal class CutsceneManageStep : ChunkStepBase
         _context.ProgressDisplay = ProgressDisplay.NetworkSpeed | ProgressDisplay.NetworkBytes | ProgressDisplay.StorageBytes;
         _logger.LogInformation("Start downloading {count} chunk files, network: {networkBytes} bytes, storage: {storageBytes} bytes.", _chunkItems.Count, _context.NetworkTotalBytes, _context.StorageTotalBytes);
 
+        using ChunkDownloadScheduler scheduler = new();
         await _polly.ForEachAsync(_chunkItems, cancellation, async (item, token) =>
         {
-            await DownloadSophonChunkFileAsync(item, token).ConfigureAwait(false);
+            await DownloadSophonChunkFileAsync(item, scheduler, token).ConfigureAwait(false);
         }).ConfigureAwait(false);
     }
 

@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.Messaging;
+using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Logging;
 using Starward.Core;
 using Starward.Core.HoYoPlay;
@@ -30,6 +30,8 @@ internal partial class GameLauncherService
 
     private readonly GameConfigService _gameConfigService;
 
+    private readonly GameResourceService _gameResourceService;
+
     private readonly PassportService _passportService;
 
     private readonly PlayTimeRecordService _playTimeRecorderService;
@@ -47,12 +49,14 @@ internal partial class GameLauncherService
                                HoYoPlayService hoYoPlayService,
                                PassportService passportService,
                                GameConfigService gameConfigService,
+                               GameResourceService gameResourceService,
                                PlayTimeRecordService playTimeRecorderService,
                                GenshinHotUpdateService genshinHotUpdateService)
     {
         _logger = logger;
         _hoYoPlayService = hoYoPlayService;
         _gameConfigService = gameConfigService;
+        _gameResourceService = gameResourceService;
         _passportService = passportService;
         _playTimeRecorderService = playTimeRecorderService;
         _genshinHotUpdateService = genshinHotUpdateService;
@@ -249,10 +253,13 @@ internal partial class GameLauncherService
 
 
     /// <summary>
-    /// 检查预下载是否完成
+    /// 检查预下载是否完成。
+    /// Starward 完成后会在 config.ini 写入 <c>predownload=本地版本,预下载版本,语音</c>；
+    /// 官方启动器不写该字段，而是把补丁或安装包按清单落到安装目录，所以还要对照接口里的清单检查磁盘上的文件。
     /// </summary>
     /// <param name="gameId"></param>
     /// <param name="installPath"></param>
+    /// <param name="cancellation"></param>
     /// <returns></returns>
     public async Task<bool> CheckPreDownloadFinishedAsync(GameId gameId, string? installPath = null, CancellationToken cancellation = default)
     {
@@ -261,14 +268,173 @@ internal partial class GameLauncherService
         {
             return false;
         }
-        var config = await GameConfigService.GetGameConfigIniAsync(installPath, cancellation);
+        GameConfigIni? config = await GameConfigService.GetGameConfigIniAsync(installPath, cancellation);
         if (config is null)
         {
             return false;
         }
         (_, Version? pre) = await GetLatestGameVersionAsync(gameId, cancellation);
         AudioLanguage language = await _gameConfigService.GetAudioLanguageAsync(gameId, installPath, cancellation);
-        return config.Settings.GetValueOrDefault("predownload") == $"{config.GameVersion},{pre},{language}";
+        if (config.Settings.GetValueOrDefault("predownload") == $"{config.GameVersion},{pre},{language}")
+        {
+            return true;
+        }
+        string? localVersion = config.GameVersion?.ToString();
+        string? predownloadVersion = pre?.ToString();
+        if (string.IsNullOrWhiteSpace(localVersion) || string.IsNullOrWhiteSpace(predownloadVersion))
+        {
+            return false;
+        }
+        try
+        {
+            GameConfig? gameConfig = await _hoYoPlayService.GetGameConfigAsync(gameId, cancellation);
+            if (gameConfig is null)
+            {
+                return false;
+            }
+            if (gameConfig.DefaultDownloadMode is DownloadMode.DOWNLOAD_MODE_CHUNK or DownloadMode.DOWNLOAD_MODE_LDIFF)
+            {
+                return await CheckSophonPredownloadFilesAsync(gameId, installPath, localVersion, language, cancellation);
+            }
+            return await CheckPackagePredownloadFilesAsync(gameId, installPath, localVersion, language, cancellation);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Check predownload files of ({GameBiz})", gameId.GameBiz);
+            return false;
+        }
+    }
+
+
+
+    /// <summary>
+    /// 对照官方/Starward 落到磁盘上的 Sophon 预下载文件是否已经下完。
+    /// Starward 的 ldiff 文件名是补丁 id，官方是 <c>id_md5</c>，统计目录里的文件即可
+    /// </summary>
+    /// <param name="gameId"></param>
+    /// <param name="installPath"></param>
+    /// <param name="localVersion"></param>
+    /// <param name="language"></param>
+    /// <param name="cancellation"></param>
+    /// <returns></returns>
+    private async Task<bool> CheckSophonPredownloadFilesAsync(GameId gameId, string installPath, string localVersion, AudioLanguage language, CancellationToken cancellation)
+    {
+        GameBranch? branch = await _hoYoPlayService.GetGameBranchAsync(gameId, cancellation);
+        GameBranchPackage? pre = branch?.PreDownload;
+        if (pre is null)
+        {
+            return false;
+        }
+        // 当前版本在 diff_tags 里时官方走 ldiff；不在这里说明不是增量预下载，没必要检测
+        if (!pre.DiffTags.Any(x => x == localVersion))
+        {
+            return false;
+        }
+        string scenario = await _gameConfigService.GetCategoryScenarioAsync(gameId, installPath, cancellation);
+        List<GameSophonPatchManifest> manifests = await _gameResourceService.GetGameSophonPatchManifestsAsync(gameId, pre, installPath, scenario, language, cancellation);
+        long expectedBytes = 0;
+        int expectedChunks = 0;
+        foreach (GameSophonPatchManifest manifest in manifests)
+        {
+            if (manifest.Stats is not null && manifest.Stats.TryGetValue(localVersion, out GameSophonManifestStats? stats))
+            {
+                expectedBytes += stats.CompressedSize;
+                expectedChunks += stats.ChunkCount;
+            }
+        }
+        if (expectedBytes <= 0 || expectedChunks <= 0)
+        {
+            return false;
+        }
+        string ldiff = Path.Join(installPath, "ldiff");
+        (long localBytes, int localFiles) = SumPredownloadDirectory(ldiff);
+        _logger.LogInformation("Check official predownload of ({GameBiz}): expected {expectedBytes} bytes / {expectedChunks} files, found {localBytes} bytes / {localFiles} files in ldiff.", gameId.GameBiz, expectedBytes, expectedChunks, localBytes, localFiles);
+        return localBytes >= expectedBytes && localFiles >= expectedChunks;
+    }
+
+
+
+    /// <summary>
+    /// 压缩包模式下，预下载的压缩包是否都已按大小落在安装目录
+    /// </summary>
+    /// <param name="gameId"></param>
+    /// <param name="installPath"></param>
+    /// <param name="localVersion"></param>
+    /// <param name="language"></param>
+    /// <param name="cancellation"></param>
+    /// <returns></returns>
+    private async Task<bool> CheckPackagePredownloadFilesAsync(GameId gameId, string installPath, string localVersion, AudioLanguage language, CancellationToken cancellation)
+    {
+        GamePackage? package = await _hoYoPlayService.GetGamePackageAsync(gameId, cancellation);
+        if (package?.PreDownload is null)
+        {
+            return false;
+        }
+        GamePackageResource? resource = package.PreDownload.Patches?.FirstOrDefault(x => x.Version == localVersion) ?? package.PreDownload.Major;
+        if (resource is null)
+        {
+            return false;
+        }
+        (List<GamePackageFile> gamePackages, List<GamePackageFile> audioPackages) = GameResourceService.GetDownloadPackageFiles(resource, language);
+        List<GamePackageFile> files = [.. gamePackages, .. audioPackages];
+        if (files.Count == 0)
+        {
+            return false;
+        }
+        foreach (GamePackageFile file in files)
+        {
+            if (string.IsNullOrWhiteSpace(file.Url))
+            {
+                return false;
+            }
+            string path = Path.Join(installPath, GetUrlFileName(file.Url));
+            if (!File.Exists(path) || new FileInfo(path).Length != file.Size)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+
+
+    /// <summary>
+    /// 统计预下载目录中已完成文件的总大小与数量（忽略未下完的 *_tmp）
+    /// </summary>
+    private static (long Bytes, int Files) SumPredownloadDirectory(string directory)
+    {
+        if (!Directory.Exists(directory))
+        {
+            return (0, 0);
+        }
+        long bytes = 0;
+        int files = 0;
+        foreach (string file in Directory.EnumerateFiles(directory))
+        {
+            if (file.EndsWith("_tmp", StringComparison.OrdinalIgnoreCase) || file.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+            bytes += new FileInfo(file).Length;
+            files++;
+        }
+        return (bytes, files);
+    }
+
+
+
+    /// <summary>
+    /// 下载链接里的文件名，去掉查询参数
+    /// </summary>
+    private static string GetUrlFileName(string url)
+    {
+        string name = Path.GetFileName(url);
+        int i = name.IndexOf('?');
+        if (i > 0)
+        {
+            name = name[..i];
+        }
+        return name;
     }
 
 

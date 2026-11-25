@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
@@ -8,6 +8,7 @@ using Microsoft.Windows.AppLifecycle;
 using Serilog;
 using Starward.Features.GameInstall;
 using Starward.GameInstall;
+using Starward.GameInstall.Service;
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -108,6 +109,13 @@ public static class RpcRunner
                 client.DefaultRequestHeaders.Add("User-Agent", $"Starward.RPC/{AppConfig.AppVersion}");
             });
             config.ConfigurePrimaryHttpMessageHandler(GetDefaultSocketsHttpHandler);
+        });
+        // 游戏文件下载只走 HTTP/1.1：HTTP/2 会把所有并发下载挤在一条 TCP 连接上，多拨按连接分流时只能用到一条线，
+        // HTTP/1.1 每个并发请求各占一条连接。原因与实测数据见 HttpService.DownloadHttpClientName
+        builder.Services.AddHttpClient(HttpService.DownloadHttpClientName, client =>
+        {
+            client.DefaultRequestVersion = HttpVersion.Version11;
+            client.DefaultVersionPolicy = HttpVersionPolicy.RequestVersionOrLower;
         });
 
         builder.Logging.ClearProviders();

@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Starward.Core.HoYoPlay;
 using Starward.GameInstall.Model;
@@ -28,9 +28,32 @@ internal class ChunkUpdateStep : ChunkStepBase
 
     private Dictionary<string, SophonChunkItem>? _oldFileDict;
 
-    private Dictionary<string, SophonChunkItem>? _oldChunkDict;
+    /// <summary>
+    /// 旧版本文件里的块，按解压后 MD5 索引。块的 id 是压缩后内容的 MD5，压缩参数变化时同一份内容会得到不同的 id，
+    /// 按解压后的内容找才能在版本差异不大时复用更多旧块
+    /// </summary>
+    private Dictionary<string, (SophonChunkItem File, SophonChunk Chunk)>? _oldChunkDict;
 
     private List<string>? _deleteFiles;
+
+    /// <summary>
+    /// 新版本的全部文件（lDiff 清单里包括没有变化、不需要补丁的文件），删除补丁用过的原文件时不能删这些
+    /// </summary>
+    private HashSet<string>? _patchNewFiles;
+
+    /// <summary>
+    /// ldiff 合并成功后不再使用的原文件。等全部文件合并完再删：同一个原文件可能还要给其他文件合并
+    /// </summary>
+    private readonly HashSet<string> _patchOriginalFiles = new(StringComparer.OrdinalIgnoreCase);
+
+    private readonly Lock _patchOriginalFilesLock = new();
+
+    /// <summary>
+    /// 下载阶段已经落在本地的 ldiff 分段文件，合并阶段直接使用，不重复下载
+    /// </summary>
+    private readonly Dictionary<SophonPatchItem, string> _patchDiffOffsetFiles = new();
+
+    private readonly Lock _patchDiffOffsetFilesLock = new();
 
 
 
@@ -47,20 +70,24 @@ internal class ChunkUpdateStep : ChunkStepBase
 
         if (_branch.Main.DiffTags.Contains(localVersion))
         {
-            (_patchItems, _deleteFiles) = await _gameResourceService.GetSophonPatchItemsAsync(_context.GameId, _branch.Main, _context.InstallPath, _context.CategoryScenario, _context.AudioLanguage, localVersion, cancellation).ConfigureAwait(false);
+            (_patchItems, _deleteFiles, HashSet<string> newFiles) = await _gameResourceService.GetSophonPatchItemsAsync(_context.GameId, _branch.Main, _context.InstallPath, _context.CategoryScenario, _context.AudioLanguage, localVersion, cancellation).ConfigureAwait(false);
+            _patchNewFiles = newFiles.Select(x => Path.GetFullPath(Path.Join(_context.InstallPath, x))).ToHashSet(StringComparer.OrdinalIgnoreCase);
             _logger.LogInformation("Chunk update uses patch of version {version}, patch count: {count}, delete count: {deleteCount}.", localVersion, _patchItems.Count, _deleteFiles.Count);
         }
         else
         {
             List<SophonChunkItem> oldChunkItems = await _gameResourceService.GetSophonChunkItemsAsync(_context.GameId, _branch.Main, _context.InstallPath, _context.CategoryScenario, _context.AudioLanguage, localVersion, cancellation).ConfigureAwait(false);
-            Dictionary<string, SophonChunkItem> oldFileDict = new();
-            Dictionary<string, SophonChunkItem> oldChunkDict = new();
+            // Windows 路径不区分大小写：只改了大小写的文件仍是同一个文件，不能当成「新版本已移除」而删掉
+            Dictionary<string, SophonChunkItem> oldFileDict = new(StringComparer.OrdinalIgnoreCase);
+            Dictionary<string, (SophonChunkItem File, SophonChunk Chunk)> oldChunkDict = new(StringComparer.OrdinalIgnoreCase);
             foreach (SophonChunkItem chunkItem in oldChunkItems)
             {
                 oldFileDict.TryAdd(chunkItem.ChunkFile.File, chunkItem);
                 foreach (SophonChunk? chunk in chunkItem.ChunkFile.Chunks)
                 {
-                    oldChunkDict.TryAdd(chunk.Id, new SophonChunkItem(chunkItem.ManifestUrl, chunkItem.ChunkFile, chunk));
+                    // 旧版本有、新版本已移除的文件也在这里：它们要等全部文件写完才删除，更新途中仍可按内容复用其中的块。
+                    // 同一个块被多个文件引用时保留先出现的那个即可，内容相同
+                    oldChunkDict.TryAdd(chunk.UncompressedMd5, (chunkItem, chunk));
                 }
             }
             _oldFileDict = oldFileDict;
@@ -75,7 +102,8 @@ internal class ChunkUpdateStep : ChunkStepBase
                 }
                 _chunkItems.Add(item);
             }
-            _deleteFiles = oldChunkItems.Select(x => x.ChunkFile.File).Except(chunkItems.Select(x => x.ChunkFile.File)).ToList();
+            HashSet<string> newFiles = chunkItems.Select(x => x.ChunkFile.File).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            _deleteFiles = oldChunkItems.Select(x => x.ChunkFile.File).Where(x => !newFiles.Contains(x)).ToList();
             _logger.LogInformation("Chunk update uses chunk, new file count: {count}, delete count: {deleteCount}.", _chunkItems.Count, _deleteFiles.Count);
         }
     }
@@ -112,7 +140,49 @@ internal class ChunkUpdateStep : ChunkStepBase
         _context.StorageTotalBytes = _patchItems.Sum(x => x.PatchFile.Size);
         _logger.LogInformation("Start patching {count} files, network: {networkBytes} bytes, storage: {storageBytes} bytes.", _patchItems.Count, _context.NetworkTotalBytes, _context.StorageTotalBytes);
 
-        await _polly.ForEachAsync(_patchItems, cancellation, async (item, token) =>
+        // 补丁下载主要等网络，文件数用官方 ldiff 的固定并发数，不跟随 CPU 核数，也不和后面的合并抢磁盘
+        await PreparePatchDiffsAsync(cancellation).ConfigureAwait(false);
+
+        Lock failedLock = new();
+        List<SophonPatchItem> failedItems = new();
+        // 合并要同时读写本地文件，瓶颈在磁盘：固态硬盘按 CPU 核数限流，机械硬盘只开少量并发
+        ParallelOptions mergeOptions = new() { MaxDegreeOfParallelism = GetLocalFileParallelism(OfficialLdiffParallelism), CancellationToken = cancellation };
+        await _polly.ForEachAsync(_patchItems, mergeOptions, async (item, token) =>
+        {
+            if (AddBytesIfFinished(item))
+            {
+                return;
+            }
+            if (!await TryPatchFileAsync(item, token).ConfigureAwait(false))
+            {
+                lock (failedLock)
+                {
+                    failedItems.Add(item);
+                }
+            }
+        }).ConfigureAwait(false);
+
+        if (failedItems.Count > 0)
+        {
+            _logger.LogWarning("{count} files failed to patch, download them in mode chunk.", failedItems.Count);
+            await RedownloadFailedPatchFilesAsync(failedItems, cancellation).ConfigureAwait(false);
+        }
+    }
+
+
+
+    /// <summary>
+    /// 先把补丁需要的 ldiff 数据下载到本地，并顺便复用已存在且校验通过的游戏文件。
+    /// 下载主要等网络，并发数用官方 ldiff 的固定值，不跟随 CPU 核数，也不和后面的合并抢磁盘。
+    /// </summary>
+    private async Task PreparePatchDiffsAsync(CancellationToken cancellation = default)
+    {
+        if (_patchItems is null)
+        {
+            return;
+        }
+        ParallelOptions options = new() { MaxDegreeOfParallelism = OfficialLdiffParallelism, CancellationToken = cancellation };
+        await _polly.ForEachAsync(_patchItems, options, async (item, token) =>
         {
             if (AddBytesIfFinished(item))
             {
@@ -121,116 +191,256 @@ internal class ChunkUpdateStep : ChunkStepBase
             string path_target = Path.Join(_context.InstallPath, item.PatchFile.File);
             long networkSize = item.DiffFile.DiffLength, storageSize = item.PatchFile.Size;
             string md5 = item.PatchFile.Md5;
-            if (await TryHardLinkAsync(item, path_target, networkSize, storageSize, md5, cancellation).ConfigureAwait(false))
+            if (await TryHardLinkAsync(item, path_target, networkSize, storageSize, md5, token).ConfigureAwait(false))
             {
-                if (!string.IsNullOrWhiteSpace(item.DiffFile.OriginalFileName) && item.PatchFile.File != item.DiffFile.OriginalFileName)
-                {
-                    string path_original = Path.Combine(_context.InstallPath, item.DiffFile.OriginalFileName);
-                    if (File.Exists(path_original))
-                    {
-                        File.Delete(path_original);
-                    }
-                    HardLinkService.DeleteGameFileItem(path_original);
-                }
+                AddPatchOriginalFile(item, path_target);
+                // 进度已在这里计入，合并阶段不能再计一次
+                item.NetworkSize = 0;
+                item.StorageSize = 0;
                 return;
             }
-            if (await CheckFileMD5Async(item, path_target, networkSize, storageSize, md5, true, cancellation).ConfigureAwait(false))
+            if (await CheckFileMD5Async(item, path_target, networkSize, storageSize, md5, true, token).ConfigureAwait(false))
             {
                 HardLinkService.InsertGameFileItem(_context.GameId, path_target, storageSize, md5);
+                AddPatchOriginalFile(item, path_target);
+                // 进度已在这里计入，合并阶段不能再计一次
+                item.NetworkSize = 0;
+                item.StorageSize = 0;
                 return;
             }
-
-            string? path_source = null;
-            if (!string.IsNullOrWhiteSpace(item.DiffFile.OriginalFileName))
-            {
-                path_source = Path.Join(_context.InstallPath, item.DiffFile.OriginalFileName);
-                if (!await HashService.CheckFileMD5Async(path_source, item.DiffFile.OriginalFileSize, item.DiffFile.OriginalFileMd5, cancellation).ConfigureAwait(false))
-                {
-                    // 原文件错误，跳过，后续由修复步骤兜底
-                    if (item.PatchFile.File != item.DiffFile.OriginalFileName)
-                    {
-                        string path_original = Path.Combine(_context.InstallPath, item.DiffFile.OriginalFileName);
-                        if (File.Exists(path_original))
-                        {
-                            File.Delete(path_original);
-                        }
-                        HardLinkService.DeleteGameFileItem(path_original);
-                    }
-                    _context.AddNetworkBytes(networkSize);
-                    _context.AddStorageBytes(storageSize);
-                    item.NetworkSize = networkSize;
-                    item.StorageSize = storageSize;
-                    item.IsFinished = true;
-                    return;
-                }
-            }
-
             string path_diff = Path.Join(_context.InstallPath, "ldiff", item.DiffFile.Id);
-            string? path_diff_offset = null;
-            long diffDownloadedBytes = 0;
-            if (!await HashService.CheckFileMD5Async(path_diff, item.DiffFile.DiffFileSize, item.DiffFile.DiffFileMd5, cancellation).ConfigureAwait(false))
+            if (await HashService.CheckFileMD5Async(path_diff, item.DiffFile.DiffFileSize, item.DiffFile.DiffFileMd5, token).ConfigureAwait(false))
             {
+                // 完整的补丁文件已经在本地（上次预下载或暂停前下载完的）
+                return;
+            }
+            string path_diff_offset = Path.Join(_context.InstallPath, "ldiff", $"{item.DiffFile.Id}_{item.DiffFile.DiffOffset}");
+            string url = item.ManifestUrl.BuildUrl(item.DiffFile.Id);
+            await _polly.ExecuteAsync(async t => await _downloadService.DownloadRangeToFileAsync(path_diff_offset, url, item.DiffFile.DiffOffset, item.DiffFile.DiffLength, _context, t).ConfigureAwait(false), token).ConfigureAwait(false);
+            lock (_patchDiffOffsetFilesLock)
+            {
+                _patchDiffOffsetFiles[item] = path_diff_offset;
+            }
+        }).ConfigureAwait(false);
+    }
+
+
+    /// <summary>
+    /// 合并一个 ldiff 补丁。合并结果按清单的大小和 MD5 校验通过后才替换游戏文件，失败时删掉临时文件，游戏文件保持原样。
+    /// 原文件与目标不是同一个文件时不在这里删除：同一个原文件可能还要给其他文件合并，等全部合并完后统一删除。
+    /// </summary>
+    /// <param name="item">补丁任务</param>
+    /// <param name="cancellation"></param>
+    /// <returns>合并并校验通过（或本次无需更新）为 <see langword="true"/>；原文件缺失或大小不符、合并失败、校验不过为 <see langword="false"/>，需要改为按块重新下载</returns>
+    private async Task<bool> TryPatchFileAsync(SophonPatchItem item, CancellationToken cancellation)
+    {
+        string path_target = Path.Join(_context.InstallPath, item.PatchFile.File);
+        long networkSize = item.DiffFile.DiffLength, storageSize = item.PatchFile.Size;
+        string md5 = item.PatchFile.Md5;
+
+        string? path_source = null;
+        if (!string.IsNullOrWhiteSpace(item.DiffFile.OriginalFileName))
+        {
+            path_source = Path.Join(_context.InstallPath, item.DiffFile.OriginalFileName);
+            FileInfo source = new(path_source);
+            if (!source.Exists)
+            {
+                _logger.LogWarning("Source file not found {file}", path_source);
+                return false;
+            }
+            // 大小对不上必然合并不出正确结果，不必再读一遍文件
+            if (item.DiffFile.OriginalFileSize > 0 && source.Length != item.DiffFile.OriginalFileSize)
+            {
+                _logger.LogWarning("Source file size not match, expected {expected}, actual {actual}. File: {file}", item.DiffFile.OriginalFileSize, source.Length, path_source);
+                return false;
+            }
+        }
+
+        string path_diff = Path.Join(_context.InstallPath, "ldiff", item.DiffFile.Id);
+        string? path_diff_offset = null;
+        long diffDownloadedBytes = 0;
+        if (!await HashService.CheckFileMD5Async(path_diff, item.DiffFile.DiffFileSize, item.DiffFile.DiffFileMd5, cancellation).ConfigureAwait(false))
+        {
+            lock (_patchDiffOffsetFilesLock)
+            {
+                _patchDiffOffsetFiles.TryGetValue(item, out path_diff_offset);
+            }
+            if (path_diff_offset is null || !File.Exists(path_diff_offset))
+            {
+                // 下载阶段漏掉的（例如上一轮失败后重试），这里补下
                 path_diff_offset = Path.Join(_context.InstallPath, "ldiff", $"{item.DiffFile.Id}_{item.DiffFile.DiffOffset}");
                 string url = item.ManifestUrl.BuildUrl(item.DiffFile.Id);
                 await _polly.ExecuteAsync(async token => await _downloadService.DownloadRangeToFileAsync(path_diff_offset, url, item.DiffFile.DiffOffset, item.DiffFile.DiffLength, _context, token).ConfigureAwait(false), cancellation).ConfigureAwait(false);
-                diffDownloadedBytes = new FileInfo(path_diff_offset).Length;
             }
+            diffDownloadedBytes = new FileInfo(path_diff_offset).Length;
+        }
 
-            CreateDirectoryForFile(path_target);
-            string path_target_temp = path_target + ".tmp";
-            try
+        CreateDirectoryForFile(path_target);
+        string path_target_temp = path_target + ".tmp";
+        try
+        {
+            // using 的作用域都在 try 块内：离开后源文件、补丁文件的句柄已关闭，下面替换文件时不会被占用
+            using Stream fs_diff = path_diff_offset is null ? new FileSliceStream(path_diff, item.DiffFile.DiffOffset, item.DiffFile.DiffLength) : File.OpenRead(path_diff_offset);
+            using var fs_target_temp = File.Create(path_target_temp);
+            if (path_source is null)
             {
-                using Stream fs_diff = path_diff_offset is null ? new FileSliceStream(path_diff, item.DiffFile.DiffOffset, item.DiffFile.DiffLength) : File.OpenRead(path_diff_offset);
-                using var fs_target_temp = File.Create(path_target_temp);
-                if (path_source is null)
+                if (item.PatchMode is 0 or 1)
                 {
-                    if (item.PatchMode is 0 or 1)
-                    {
-                        await fs_diff.CopyToAsync(fs_target_temp, cancellation).ConfigureAwait(false);
-                    }
-                    else
-                    {
-                        await HPatch.HPatch.PatchAsync(null, fs_diff, fs_target_temp, cancellationToken: token);
-                    }
+                    await fs_diff.CopyToAsync(fs_target_temp, cancellation).ConfigureAwait(false);
                 }
                 else
                 {
-                    using FileStream fs_source = File.OpenRead(path_source);
-                    await HPatch.HPatch.PatchAsync(fs_source, fs_diff, fs_target_temp, cancellationToken: token);
+                    await HPatch.HPatch.PatchAsync(null, fs_diff, fs_target_temp, cancellationToken: cancellation);
                 }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Patch file failed, path: {path}.", path_target);
-                if (File.Exists(path_target_temp))
-                {
-                    File.Delete(path_target_temp);
-                }
-                throw;
-            }
-
-            if (File.Exists(path_source))
-            {
-                File.Delete(path_source);
-            }
-            if (await HashService.CheckFileMD5Async(path_target_temp, item.PatchFile.Size, item.PatchFile.Md5, cancellation).ConfigureAwait(false))
-            {
-                File.Move(path_target_temp, path_target, true);
-                HardLinkService.InsertGameFileItem(_context.GameId, path_target, item.PatchFile.Size, item.PatchFile.Md5);
             }
             else
             {
-                File.Delete(path_target_temp);
-                _logger.LogWarning("Patch file MD5 check failed, path: {path}.", path_target);
+                using FileStream fs_source = File.OpenRead(path_source);
+                await HPatch.HPatch.PatchAsync(fs_source, fs_diff, fs_target_temp, cancellationToken: cancellation);
             }
-            // 减去已由 DownloadRangeToFileAsync 完成的部分
-            _context.AddNetworkBytes(networkSize - diffDownloadedBytes);
-            _context.AddStorageBytes(storageSize - diffDownloadedBytes);
-            item.NetworkSize = networkSize;
-            item.StorageSize = storageSize;
-            item.IsFinished = true;
-        }).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Patch file failed, path: {path}.", path_target);
+            if (File.Exists(path_target_temp))
+            {
+                File.Delete(path_target_temp);
+            }
+            return false;
+        }
 
+        // 只校验结果：原文件损坏同样会让结果对不上，不必另外读一遍原文件
+        if (!await HashService.CheckFileMD5Async(path_target_temp, item.PatchFile.Size, item.PatchFile.Md5, cancellation).ConfigureAwait(false))
+        {
+            File.Delete(path_target_temp);
+            _logger.LogWarning("Patched file MD5 not match. File: {path}", path_target);
+            return false;
+        }
+        // 校验通过才替换游戏文件
+        File.Move(path_target_temp, path_target, true);
+        HardLinkService.InsertGameFileItem(_context.GameId, path_target, storageSize, md5);
+        AddPatchOriginalFile(item, path_target);
+        // 减去已由 DownloadRangeToFileAsync 完成的部分
+        _context.AddNetworkBytes(networkSize - diffDownloadedBytes);
+        _context.AddStorageBytes(storageSize - diffDownloadedBytes);
+        item.NetworkSize = networkSize;
+        item.StorageSize = storageSize;
+        item.IsFinished = true;
+        return true;
+    }
+
+
+
+    /// <summary>
+    /// ldiff 合并失败的文件改为按块重新下载，完成后把这些文件标记为已完成，继续任务时不再处理。
+    /// </summary>
+    /// <param name="failedItems">合并失败的文件，此时游戏里仍是旧文件</param>
+    /// <param name="cancellation"></param>
+    /// <exception cref="InvalidOperationException">目标版本的 Chunk 清单里缺少这些文件。任务会出错，
+    /// 但游戏文件只有校验过的才被替换、本地版本号也还没改，修复游戏即可补齐</exception>
+    private async Task RedownloadFailedPatchFilesAsync(List<SophonPatchItem> failedItems, CancellationToken cancellation)
+    {
+        HashSet<string> failedFiles = failedItems.Select(x => x.PatchFile.File).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        List<SophonChunkItem> chunkItems = await _gameResourceService.GetSophonChunkItemsAsync(_context.GameId, _branch.Main, _context.InstallPath, _context.CategoryScenario, _context.AudioLanguage, null, cancellation).ConfigureAwait(false);
+        Dictionary<string, SophonChunkItem> chunkFileDict = new(StringComparer.OrdinalIgnoreCase);
+        foreach (SophonChunkItem item in chunkItems)
+        {
+            chunkFileDict.TryAdd(item.ChunkFile.File, item);
+        }
+        List<SophonChunkItem> fallbackItems = new();
+        List<string> missingFiles = new();
+        foreach (string file in failedFiles)
+        {
+            if (chunkFileDict.TryGetValue(file, out SophonChunkItem? item))
+            {
+                fallbackItems.Add(item);
+            }
+            else
+            {
+                missingFiles.Add(file);
+            }
+        }
+        if (missingFiles.Count > 0)
+        {
+            _logger.LogError("Files not found in sophon chunk build ({GameBiz}): {Files}", _context.GameId.GameBiz, string.Join(", ", missingFiles));
+            throw new InvalidOperationException($"{missingFiles.Count} files that failed to patch are not found in sophon chunk build of ({_context.GameId.GameBiz}).");
+        }
+
+        // 这些文件原来按补丁计入进度，改为按块下载后把完整的文件大小补进总量
+        long totalNetworkSize = fallbackItems.Sum(x => x.ChunkFile.Chunks.Sum(long (SophonChunk y) => y.CompressedSize));
+        long totalStorageSize = fallbackItems.Sum(x => x.ChunkFile.Size);
+        _context.NetworkTotalBytes += totalNetworkSize;
+        _context.StorageTotalBytes += totalStorageSize;
+        _logger.LogInformation("Download {count} files failed to patch in mode chunk, network: {networkBytes} bytes, storage: {storageBytes} bytes.", fallbackItems.Count, totalNetworkSize, totalStorageSize);
+        using ChunkDownloadScheduler scheduler = new();
+        await _polly.ForEachAsync(fallbackItems, cancellation, async (item, token) =>
+        {
+            await DownloadSophonChunkFileAsync(item, scheduler, token).ConfigureAwait(false);
+        }).ConfigureAwait(false);
+    }
+
+
+
+    /// <summary>
+    /// 记下补丁用过的原文件，等全部合并完后统一删除（同一个原文件可能还要给其他文件合并）。
+    /// 原文件和新文件同路径时不能删
+    /// </summary>
+    private void AddPatchOriginalFile(SophonPatchItem item, string path_target)
+    {
+        if (string.IsNullOrWhiteSpace(item.DiffFile.OriginalFileName))
+        {
+            return;
+        }
+        string path_original = Path.GetFullPath(Path.Join(_context.InstallPath, item.DiffFile.OriginalFileName));
+        if (!string.Equals(path_original, Path.GetFullPath(path_target), StringComparison.OrdinalIgnoreCase))
+        {
+            lock (_patchOriginalFilesLock)
+            {
+                _patchOriginalFiles.Add(path_original);
+            }
+        }
+    }
+
+
+
+    /// <summary>
+    /// 删除 ldiff 合并用过、新版本不再使用的原文件（原文件与目标不是同一个文件时）。
+    /// 必须在全部文件处理完后调用，因为同一个原文件可能要给多个文件合并；按全部已完成的文件统计，暂停或出错后继续也能删干净
+    /// </summary>
+    private void DeletePatchOriginalFiles()
+    {
+        if (_patchOriginalFiles.Count == 0)
+        {
+            return;
+        }
+        int count = 0;
+        foreach (string path in _patchOriginalFiles)
+        {
+            // 新版本的文件不能删：原文件路径可能正好是另一个文件的目标
+            if (_patchNewFiles?.Contains(path) is true)
+            {
+                continue;
+            }
+            if (!File.Exists(path))
+            {
+                continue;
+            }
+            try
+            {
+                File.SetAttributes(path, FileAttributes.Normal);
+                File.Delete(path);
+                HardLinkService.DeleteGameFileItem(path);
+                count++;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                _logger.LogWarning(ex, "Failed to delete original file of patch: {path}", path);
+            }
+        }
+        if (count > 0)
+        {
+            _logger.LogInformation("Delete {count} original files of patch no longer used in new version.", count);
+        }
     }
 
 
@@ -252,7 +462,7 @@ internal class ChunkUpdateStep : ChunkStepBase
             totalStorageSize += item.ChunkFile.Size;
             foreach (SophonChunk? chunk in item.ChunkFile.Chunks)
             {
-                if (!(_oldChunkDict?.ContainsKey(chunk.Id) ?? false))
+                if (!CanReuseOldChunk(chunk))
                 {
                     totalNetworkSize += chunk.CompressedSize;
                 }
@@ -262,7 +472,11 @@ internal class ChunkUpdateStep : ChunkStepBase
         _context.StorageTotalBytes = totalStorageSize;
         _logger.LogInformation("Start chunk update download, file count: {count}, network: {networkBytes} bytes, storage: {storageBytes} bytes.", _chunkItems.Count, totalNetworkSize, totalStorageSize);
 
-        await _polly.ForEachAsync(_chunkItems, cancellation, async (item, token) =>
+        // 块下载并行、按序写入，共用一个限流器限制同时下载的块数
+        using ChunkDownloadScheduler scheduler = new();
+        // 任务包含新版本全部文件，没变的文件也要先完整读一遍校验，变了的还要从旧文件按块读取，瓶颈在磁盘
+        ParallelOptions options = new() { MaxDegreeOfParallelism = GetLocalFileParallelism(ChunkFileParallelismOnHdd), CancellationToken = cancellation };
+        await _polly.ForEachAsync(_chunkItems, options, async (item, token) =>
         {
             if (AddBytesIfFinished(item))
             {
@@ -273,7 +487,7 @@ internal class ChunkUpdateStep : ChunkStepBase
             long networkSize = 0, storageSize = item.ChunkFile.Size;
             foreach (var chunk in item.ChunkFile.Chunks)
             {
-                if (!(_oldChunkDict?.ContainsKey(chunk.Id) ?? false))
+                if (!CanReuseOldChunk(chunk))
                 {
                     networkSize += chunk.CompressedSize;
                 }
@@ -291,84 +505,20 @@ internal class ChunkUpdateStep : ChunkStepBase
                 return;
             }
 
-            Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
-            string path_tmp = fullPath + ".tmp";
-
-            long networkBytes = 0, storageBytes = 0;
-            try
-            {
-                using FileStream fs = File.Open(path_tmp, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
-                foreach (SophonChunk? chunk in item.ChunkFile.Chunks)
-                {
-                    fs.Position = chunk.Offset;
-                    if (await HashService.CheckStreamMD5Async(fs, chunk.UncompressedSize, chunk.UncompressedMd5, token).ConfigureAwait(false))
-                    {
-                        _context.AddNetworkBytes(chunk.CompressedSize);
-                        _context.AddStorageBytes(chunk.UncompressedSize);
-                        networkBytes += chunk.CompressedSize;
-                        storageBytes += chunk.UncompressedSize;
-                    }
-                    else
-                    {
-                        fs.Position = chunk.Offset;
-                        if (_oldChunkDict?.TryGetValue(chunk.Id, out SophonChunkItem? oldChunk) ?? false)
-                        {
-                            string path_source = Path.Join(_context.InstallPath, oldChunk.ChunkFile.File);
-                            if (File.Exists(path_source) && oldChunk.Chunk is not null && new FileInfo(path_source).Length >= oldChunk.Chunk.Offset + oldChunk.Chunk.UncompressedSize)
-                            {
-                                using var fs_source = new FileSliceStream(path_source, oldChunk.Chunk.Offset, oldChunk.Chunk.UncompressedSize);
-                                if (await HashService.CheckStreamMD5Async(fs_source, chunk.UncompressedSize, chunk.UncompressedMd5, token).ConfigureAwait(false))
-                                {
-                                    fs_source.Position = 0;
-                                    await fs_source.CopyToAsync(fs, token).ConfigureAwait(false);
-                                    _context.AddNetworkBytes(chunk.CompressedSize);
-                                    _context.AddStorageBytes(chunk.UncompressedSize);
-                                    networkBytes += chunk.CompressedSize;
-                                    storageBytes += chunk.UncompressedSize;
-                                    continue;
-                                }
-                            }
-                        }
-                        string path_chunk = Path.Join(_context.InstallPath, "chunk", chunk.Id);
-                        if (await HashService.CheckFileMD5Async(path_chunk, chunk.CompressedSize, chunk.CompressedMd5, token).ConfigureAwait(false))
-                        {
-                            using var fs_chunk = File.OpenRead(path_chunk);
-                            using var ds = new ZstandardStream(fs_chunk, CompressionMode.Decompress);
-                            await ds.CopyToAsync(fs, token).ConfigureAwait(false);
-                            _context.AddNetworkBytes(chunk.CompressedSize);
-                            _context.AddStorageBytes(chunk.UncompressedSize);
-                            networkBytes += chunk.CompressedSize;
-                            storageBytes += chunk.UncompressedSize;
-                            continue;
-                        }
-                        string url = item.ManifestUrl.BuildUrl(chunk.Id);
-                        await _downloadService.DownloadAndDecompressZstdToStreamAsync(url, fs, _context, token).ConfigureAwait(false);
-                        networkBytes += chunk.CompressedSize;
-                        storageBytes += chunk.UncompressedSize;
-                    }
-                }
-            }
-            catch
-            {
-                _context.AddNetworkBytes(-networkBytes);
-                _context.AddStorageBytes(-storageBytes);
-                throw;
-            }
-
-            if (await CheckFileMD5Async(item, path_tmp, networkSize, storageSize, md5, false, token).ConfigureAwait(false))
-            {
-                File.Move(path_tmp, fullPath, true);
-                HardLinkService.InsertGameFileItem(_context.GameId, fullPath, storageSize, md5);
-            }
-            else
-            {
-                File.Delete(path_tmp);
-                _context.AddNetworkBytes(-networkBytes);
-                _context.AddStorageBytes(-storageBytes);
-                throw new FileMD5FailedException(fullPath, md5);
-            }
+            await DownloadSophonChunkFileContentAsync(item, scheduler, _oldChunkDict, networkSize, storageSize, fullPath, false, token).ConfigureAwait(false);
         }).ConfigureAwait(false);
 
+    }
+
+
+
+    /// <summary>
+    /// 新版本的块能否从旧版本文件里按内容复用。只看大小是否对得上，实际复制前还会校验截取出的内容
+    /// </summary>
+    private bool CanReuseOldChunk(SophonChunk chunk)
+    {
+        return _oldChunkDict?.TryGetValue(chunk.UncompressedMd5, out var old) is true
+            && old.Chunk.UncompressedSize == chunk.UncompressedSize;
     }
 
 
@@ -380,21 +530,19 @@ internal class ChunkUpdateStep : ChunkStepBase
         _context.ProgressDisplay = ProgressDisplay.None;
         try
         {
-            if (_deleteFiles is not null)
+            DeletePatchOriginalFiles();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to delete original files of patch.");
+        }
+        try
+        {
+            if (_deleteFiles is { Count: > 0 })
             {
-                if (_deleteFiles.Count > 0)
-                {
-                    _logger.LogInformation("Delete {count} outdated files.", _deleteFiles.Count);
-                }
-                foreach (string item in _deleteFiles)
-                {
-                    string path = Path.Join(_context.InstallPath, item);
-                    if (File.Exists(path))
-                    {
-                        File.Delete(path);
-                    }
-                    HardLinkService.DeleteGameFileItem(path);
-                }
+                _logger.LogInformation("Delete {count} outdated files.", _deleteFiles.Count);
+                int count = DeleteRemovedFiles(_deleteFiles);
+                _logger.LogInformation("Deleted {count} of {total} outdated files.", count, _deleteFiles.Count);
             }
         }
         catch (Exception ex)

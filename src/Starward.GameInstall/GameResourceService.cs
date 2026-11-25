@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using Polly;
 using Polly.Retry;
 using Starward.Core;
@@ -242,12 +242,13 @@ public class GameResourceService
     }
 
 
-    internal async Task<(List<SophonPatchItem> PatchItems, List<string> DeleteFiles)> GetSophonPatchItemsAsync(GameId gameId, GameBranchPackage branchPackage, string installPath, string scenarios, AudioLanguage audio, string version, CancellationToken cancellation = default)
+    internal async Task<(List<SophonPatchItem> PatchItems, List<string> DeleteFiles, HashSet<string> NewFiles)> GetSophonPatchItemsAsync(GameId gameId, GameBranchPackage branchPackage, string installPath, string scenarios, AudioLanguage audio, string version, CancellationToken cancellation = default)
     {
         List<GameSophonPatchManifest> patchManifests = await GetGameSophonPatchManifestsAsync(gameId, branchPackage, installPath, scenarios, audio, cancellation).ConfigureAwait(false);
         HashSet<string> blackListSet = await _gameConfigService.GetIgnoreFileNamesAsync(gameId, installPath, cancellation).ConfigureAwait(false);
         List<SophonPatchItem> patchItems = new();
         List<string> deleteFiles = new();
+        HashSet<string> newFiles = new(StringComparer.OrdinalIgnoreCase);
         await _polly.ForEachAsync(patchManifests, cancellation, async (item, token) =>
         {
             SophonPatchManifest manifest = await _hoYoPlayService.DownloadAndParsePatchManifestAsync(item.ManifestDownload, item.Manifest, token).ConfigureAwait(false);
@@ -255,6 +256,7 @@ public class GameResourceService
             {
                 foreach (SophonPatchFile? patchFile in manifest.PatchFiles.Where(x => !blackListSet.Contains(x.File)))
                 {
+                    newFiles.Add(patchFile.File);
                     SophonDiffInfo? diffInfo = patchFile.Diffs.FirstOrDefault(x => x.Tag == version);
                     if (diffInfo is not null)
                     {
@@ -268,7 +270,7 @@ public class GameResourceService
                 }
             }
         }).ConfigureAwait(false);
-        return (patchItems, deleteFiles);
+        return (patchItems, deleteFiles, newFiles);
     }
 
 

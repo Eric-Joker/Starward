@@ -1,4 +1,4 @@
-﻿using System.Buffers;
+using System.Buffers;
 using System.Security.Cryptography;
 
 namespace Starward.GameInstall.Service;
@@ -117,5 +117,20 @@ public static class HashService
         }
     }
 
+
+
+    /// <summary>
+    /// 校验内存中一段数据的 MD5
+    /// </summary>
+    public static bool CheckBufferMD5(ReadOnlySpan<byte> data, string md5)
+    {
+        if (string.IsNullOrWhiteSpace(md5))
+        {
+            return false;
+        }
+        Span<byte> hash = stackalloc byte[16];
+        MD5.HashData(data, hash);
+        return string.Equals(md5, Convert.ToHexStringLower(hash), StringComparison.OrdinalIgnoreCase);
+    }
 
 }

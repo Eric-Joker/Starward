@@ -1,8 +1,9 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 using Starward.Core;
 using Starward.Core.HoYoPlay;
 using Starward.GameInstall.Model;
 using Starward.GameInstall.Step;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
@@ -46,6 +47,28 @@ internal class GameInstallContext
     internal AudioLanguage AudioLanguage { get; set; }
 
     internal string CategoryScenario { get; set; }
+
+    /// <summary>
+    /// 本次修复的目标游戏版本，用于判断其他硬链接区服能否一并修复
+    /// </summary>
+    internal string? TargetGameVersion { get; set; }
+
+    /// <summary>
+    /// 修复时判断过的其他硬链接区服目录，值为能否一并修复。同一目录的 config.ini 只读一次
+    /// </summary>
+    internal ConcurrentDictionary<string, bool> SharedInstallRoots { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    private long _sharedInstallRelinkedFileCount;
+
+    /// <summary>
+    /// 修复时一并重新链接到修好文件的其他硬链接区服文件数
+    /// </summary>
+    internal long SharedInstallRelinkedFileCount => Interlocked.Read(ref _sharedInstallRelinkedFileCount);
+
+    internal void IncrementSharedInstallRelinkedFileCount(int count)
+    {
+        Interlocked.Add(ref _sharedInstallRelinkedFileCount, count);
+    }
 
     internal GameConfig GameConfig { get; set; }
 

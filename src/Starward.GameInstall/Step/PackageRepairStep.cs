@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Starward.Core;
 using Starward.Core.HoYoPlay;
@@ -103,7 +103,9 @@ internal class PackageRepairStep : PackageStepBase
 
             Lock _lock = new();
             List<PkgVersionItem> list = new();
-            await _polly.ForEachAsync(_pkgItems, cancellation, async (item, token) =>
+            // 修复要完整读一遍全部文件，瓶颈在磁盘：固态硬盘按 CPU 核数限流，机械硬盘只开少量并发
+            ParallelOptions verifyOptions = new() { MaxDegreeOfParallelism = GetRepairParallelism(chunkMode: false), CancellationToken = cancellation };
+            await _polly.ForEachAsync(_pkgItems, verifyOptions, async (item, token) =>
             {
                 if (!item.IsFinished)
                 {
@@ -134,7 +136,8 @@ internal class PackageRepairStep : PackageStepBase
         _context.NetworkTotalBytes = _repairPkgItems.Sum(x => x.FileSize);
         _context.StorageTotalBytes = _repairPkgItems.Sum(x => x.FileSize);
         _logger.LogInformation("Start downloading {count} repair files, total: {totalSize} bytes.", _repairPkgItems.Count, _context.NetworkTotalBytes);
-        await _polly.ForEachAsync(_repairPkgItems, cancellation, async (item, token) =>
+        ParallelOptions downloadOptions = new() { MaxDegreeOfParallelism = GetRepairParallelism(chunkMode: false), CancellationToken = cancellation };
+        await _polly.ForEachAsync(_repairPkgItems, downloadOptions, async (item, token) =>
         {
             if (item.IsFinished)
             {

@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Starward.Core.HoYoPlay;
 using Starward.GameInstall.Model;
@@ -24,6 +24,11 @@ internal class ChunkRepairStep : ChunkStepBase
 
     private List<SophonChunkItem> _repairItems;
 
+    /// <summary>
+    /// 本地版本落后时，新版本已移除的旧文件。修好后要一并删除，否则游戏里会留下新版本不再使用的文件
+    /// </summary>
+    private List<string>? _deleteFiles;
+
 
 
     public override async Task PrepareAsync(CancellationToken cancellation = default)
@@ -35,6 +40,25 @@ internal class ChunkRepairStep : ChunkStepBase
         }
         _branch ??= (await _hoYoPlayService.GetGameBranchAsync(_context.GameId, cancellation).ConfigureAwait(false)).EnsureNotNull(_context.GameId);
         _chunkItems ??= await _gameResourceService.GetSophonChunkItemsAsync(_context.GameId, _branch.Main, _context.InstallPath, _context.CategoryScenario, _context.AudioLanguage, null, cancellation).ConfigureAwait(false);
+        _context.TargetGameVersion = _branch.Main.Tag;
+
+        string localVersion = _context.ConfigIni.GameVersion?.ToString() ?? "";
+        if (_deleteFiles is null && !string.IsNullOrWhiteSpace(localVersion) && localVersion != _branch.Main.Tag)
+        {
+            // 本地版本落后时，修复等同于更新：先把本地版本的文件清单也取下来，修好后删除新版本已移除的旧文件
+            try
+            {
+                List<SophonChunkItem> localItems = await _gameResourceService.GetSophonChunkItemsAsync(_context.GameId, _branch.Main, _context.InstallPath, _context.CategoryScenario, _context.AudioLanguage, localVersion, cancellation).ConfigureAwait(false);
+                HashSet<string> newFiles = _chunkItems.Select(x => x.ChunkFile.File).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                _deleteFiles = localItems.Select(x => x.ChunkFile.File).Where(x => !newFiles.Contains(x)).ToList();
+                _logger.LogInformation("Chunk repair from version {localVersion} will delete {count} files removed in new version.", localVersion, _deleteFiles.Count);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // 取不到旧版本清单不影响修复本身，只是不清理旧文件
+                _logger.LogWarning(ex, "Failed to get local version chunk items, skip deleting removed files.");
+            }
+        }
     }
 
 
@@ -53,7 +77,9 @@ internal class ChunkRepairStep : ChunkStepBase
             _logger.LogInformation("Start verifying {count} chunk files.", _chunkItems.Count);
 
             Lock _lock = new();
-            await _polly.ForEachAsync(_chunkItems, cancellation, async (item, token) =>
+            // 修复要完整读一遍全部文件，瓶颈在磁盘：固态硬盘按 CPU 核数限流，机械硬盘只开少量并发
+            ParallelOptions verifyOptions = new() { MaxDegreeOfParallelism = GetRepairParallelism(chunkMode: true), CancellationToken = cancellation };
+            await _polly.ForEachAsync(_chunkItems, verifyOptions, async (item, token) =>
             {
                 if (AddBytesIfFinished(item))
                 {
@@ -94,13 +120,15 @@ internal class ChunkRepairStep : ChunkStepBase
         _context.NetworkTotalBytes = _repairItems.Sum(x => x.ChunkFile.Chunks.Sum(long (SophonChunk y) => y.CompressedSize));
         _context.StorageTotalBytes = _repairItems.Sum(x => x.ChunkFile.Size);
         _logger.LogInformation("Start downloading {count} repair files, network: {networkBytes} bytes, storage: {storageBytes} bytes.", _repairItems.Count, _context.NetworkTotalBytes, _context.StorageTotalBytes);
-        await _polly.ForEachAsync(_repairItems, cancellation, async (item, token) =>
+        using ChunkDownloadScheduler scheduler = new();
+        ParallelOptions downloadOptions = new() { MaxDegreeOfParallelism = GetRepairParallelism(chunkMode: true), CancellationToken = cancellation };
+        await _polly.ForEachAsync(_repairItems, downloadOptions, async (item, token) =>
         {
             if (AddBytesIfFinished(item))
             {
                 return;
             }
-            await DownloadSophonChunkFileAsync(item, token).ConfigureAwait(false);
+            await DownloadSophonChunkFileAsync(item, scheduler, token).ConfigureAwait(false);
             item.IsFinished = true;
         }).ConfigureAwait(false);
 
@@ -110,6 +138,18 @@ internal class ChunkRepairStep : ChunkStepBase
 
     protected override async Task PostAsync(CancellationToken cancellation = default)
     {
+        long relinked = _context.SharedInstallRelinkedFileCount;
+        if (relinked > 0)
+        {
+            _logger.LogInformation("Relinked {count} files of other hard-linked installs to repaired files.", relinked);
+        }
+        if (_deleteFiles is { Count: > 0 })
+        {
+            _context.ClearProgress();
+            _context.Step = RunnerStep.Cleaning;
+            int count = DeleteRemovedFiles(_deleteFiles);
+            _logger.LogInformation("Deleted {count} of {total} files removed in new version.", count, _deleteFiles.Count);
+        }
         _context.ConfigIni.GameVersion = new Version(_branch.Main.Tag);
         _logger.LogInformation("Set game version to {version}.", _context.ConfigIni.GameVersion);
     }

@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 using Starward.GameInstall.HotUpdate;
 using Starward.GameInstall.Service;
 
@@ -16,6 +16,7 @@ public static class GameInstallServiceCollectionExtensions
         services.AddSingleton<HttpService>();
         services.AddSingleton<DownloadService>();
         services.AddSingleton<GameInstallRunner>();
+        services.AddScoped<SharedInstallLinkService>();
         return services;
     }
 }

@@ -1,7 +1,8 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Starward.Core.HoYoPlay;
 using Starward.GameInstall.Model;
+using Starward.GameInstall.Service;
 using Starward.GameInstall.Sophon;
 
 namespace Starward.GameInstall.Step;
@@ -51,9 +52,11 @@ internal class ChunkInstallStep : ChunkStepBase
         _context.ProgressDisplay = ProgressDisplay.NetworkSpeed | ProgressDisplay.NetworkBytes | ProgressDisplay.StorageBytes;
         _logger.LogInformation("Start downloading {count} chunk files, network: {networkBytes} bytes, storage: {storageBytes} bytes.", _chunkItems.Count, _totalNetworkBytes, _totalStorageBytes);
 
+        // 块下载并行、按序写入，共用一个限流器限制同时下载的块数
+        using ChunkDownloadScheduler scheduler = new();
         await _polly.ForEachAsync(_chunkItems, cancellation, async (item, token) =>
         {
-            await DownloadSophonChunkFileAsync(item, token).ConfigureAwait(false);
+            await DownloadSophonChunkFileAsync(item, scheduler, token).ConfigureAwait(false);
         }).ConfigureAwait(false);
     }
 

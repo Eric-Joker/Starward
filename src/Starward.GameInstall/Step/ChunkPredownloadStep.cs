@@ -1,7 +1,8 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Starward.Core.HoYoPlay;
 using Starward.GameInstall.Model;
+using Starward.GameInstall.Service;
 using Starward.GameInstall.Sophon;
 
 namespace Starward.GameInstall.Step;
@@ -43,7 +44,7 @@ internal class ChunkPredownloadStep : ChunkStepBase
 
         if (_branch.PreDownload.DiffTags.Contains(localVersion))
         {
-            (var patchItems, _) = await _gameResourceService.GetSophonPatchItemsAsync(_context.GameId, _branch.PreDownload, _context.InstallPath, _context.CategoryScenario, _context.AudioLanguage, localVersion, cancellation).ConfigureAwait(false);
+            (var patchItems, _, _) = await _gameResourceService.GetSophonPatchItemsAsync(_context.GameId, _branch.PreDownload, _context.InstallPath, _context.CategoryScenario, _context.AudioLanguage, localVersion, cancellation).ConfigureAwait(false);
             _patchItems = patchItems.DistinctBy(x => x.DiffFile.Id).ToList();
             _logger.LogInformation("Pre-download uses patch of version {version}, patch count: {count}.", localVersion, _patchItems.Count);
         }
@@ -87,8 +88,10 @@ internal class ChunkPredownloadStep : ChunkStepBase
         if (_patchItems is not null)
         {
             _context.NetworkTotalBytes = _patchItems.Sum(x => x.DiffFile.DiffFileSize);
-            _logger.LogInformation("Start downloading pre-download patch files, count: {count}, network: {networkBytes} bytes.", _patchItems.Count, _context.NetworkTotalBytes);
-            await _polly.ForEachAsync(_patchItems, cancellation, async (item, token) =>
+            _logger.LogInformation("Start downloading pre-download patch files, count: {count}, network: {networkBytes} bytes, parallelism: {parallelism}.", _patchItems.Count, _context.NetworkTotalBytes, OfficialLdiffParallelism);
+            // 补丁文件少而大，用官方 ldiff 的固定并发数，不跟随 CPU 核数
+            ParallelOptions patchOptions = new() { MaxDegreeOfParallelism = OfficialLdiffParallelism, CancellationToken = cancellation };
+            await _polly.ForEachAsync(_patchItems, patchOptions, async (item, token) =>
             {
                 await DownloadSophonDiffFileAsync(item, token).ConfigureAwait(false);
             }).ConfigureAwait(false);
@@ -97,8 +100,10 @@ internal class ChunkPredownloadStep : ChunkStepBase
         if (_chunkItems is not null)
         {
             _context.NetworkTotalBytes = _chunkItems.Sum(x => x.Chunk!.CompressedSize);
-            _logger.LogInformation("Start downloading pre-download chunk files, count: {count}, network: {networkBytes} bytes.", _chunkItems.Count, _context.NetworkTotalBytes);
-            await _polly.ForEachAsync(_chunkItems, cancellation, async (item, token) =>
+            _logger.LogInformation("Start downloading pre-download chunk files, count: {count}, network: {networkBytes} bytes, parallelism: {parallelism}.", _chunkItems.Count, _context.NetworkTotalBytes, ChunkDownloadScheduler.MaxConcurrentDownloads);
+            // 每个任务就是一个块，并发数用块下载的固定上限，不跟随 CPU 核数
+            ParallelOptions chunkOptions = new() { MaxDegreeOfParallelism = ChunkDownloadScheduler.MaxConcurrentDownloads, CancellationToken = cancellation };
+            await _polly.ForEachAsync(_chunkItems, chunkOptions, async (item, token) =>
             {
                 await DownloadSophonChunkAsync(item, token).ConfigureAwait(false);
             }).ConfigureAwait(false);
