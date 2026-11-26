@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.Messaging;
+using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Logging;
 using Starward.Core;
 using Starward.Core.HoYoPlay;
@@ -946,7 +946,8 @@ internal partial class GameLauncherService
         }
         try
         {
-            // 全局开关仍是总闸；预设上的开关给「按预设分别决定要不要自动登录」留入口（账号运行时逻辑由通行证模块接入）。
+            // 全局开关仍是总闸；预设上的开关决定这个预设要不要自动登录。
+            // 登录用哪个账号由账号中心决定（当前通行证账号），这里只负责换票。
             if (AppConfig.AuthLoginGameByPassportAccount && profile.EnableAuthTicketLogin)
             {
                 string? ticket = await _passportService.CreateAuthTicketAsync(gameId, cancellation);

@@ -1,7 +1,9 @@
 using CommunityToolkit.Mvvm.Messaging;
+using Dapper;
 using Starward.Core;
 using Starward.Core.HoYoPlay;
 using Starward.Features.Background;
+using Starward.Features.Database;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -23,6 +25,7 @@ namespace Starward.Features.GameLauncher;
 /// 自动登录 / 显示游戏公告开关）造出第一个预设 <see cref="GameLaunchProfile.DefaultId"/> 并写回新键。
 /// 旧键不会被删除，降级回旧版本时仍然可用。
 /// </para>
+
 /// </summary>
 public static class GameLaunchProfileStore
 {

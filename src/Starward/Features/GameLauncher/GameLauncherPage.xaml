@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8" ?>
+<?xml version="1.0" encoding="utf-8" ?>
 <sf:PageBase x:Class="Starward.Features.GameLauncher.GameLauncherPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -189,6 +189,7 @@
 
 
         </Grid>
+
 
         <!--  崩坏三区服选择  -->
         <ComboBox Height="28"

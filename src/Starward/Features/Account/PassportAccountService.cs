@@ -22,7 +22,6 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 // 同名的命名空间 Starward.Features.GameAccount 会遮住 GameAccount 这个类型，这里给它起个别名。
-using GameAccountItem = Starward.Features.GameAccount.GameAccount;
 
 namespace Starward.Features.Account;
 
@@ -75,19 +74,6 @@ internal class PassportAccountService
         // 否则下一次写账号表就会把死令牌盖回去，账号中心随即显示「登录已过期」。
         WeakReferenceMessenger.Default.Register<PassportStokenRotatedMessage>(this, OnPassportStokenRotated);
     }
-
-
-    /// <summary>
-    /// 所有可能记录了「当前使用的通行证账号」的游戏区服。删除账号时要把这些记录一起清掉。
-    /// </summary>
-    private static readonly GameBiz[] AllGameBizs =
-    [
-        GameBiz.bh3_cn, GameBiz.bh3_global,
-        GameBiz.hk4e_cn, GameBiz.hk4e_global, GameBiz.hk4e_bilibili,
-        GameBiz.hkrpg_cn, GameBiz.hkrpg_global, GameBiz.hkrpg_bilibili,
-        GameBiz.nap_cn, GameBiz.nap_global, GameBiz.nap_bilibili,
-    ];
-
 
 
 
@@ -1693,156 +1679,6 @@ internal class PassportAccountService
 
 
     /// <summary>
-    /// 账号池里的账号，供启动页的切换器使用：昵称、头像、UID 取这个账号在这个游戏里的角色资料，
-    /// 还没有角色的账号退回账号本身的资料。
-    /// <para>
-    /// 这份列表和游戏注册表无关——开关关闭时国服的账号切换只切米游社账号，
-    /// 登录数据只通过启动参数传给游戏。
-    /// </para>
-    /// </summary>
-    public List<GameAccountItem> GetPassportGameAccounts(GameBiz gameBiz)
-    {
-        var list = new List<GameAccountItem>();
-        try
-        {
-            if (string.IsNullOrWhiteSpace(gameBiz.Value))
-            {
-                return list;
-            }
-            var roles = GameRecordRoleService.GetGameRoles(gameBiz);
-            var current = TokenSet;
-            string? currentKey = current?.HasStoken is true ? PassportAccountRecord.GetKey(current) : null;
-            foreach (var record in QueryOrderedAccountRecords())
-            {
-                var tokenSet = DecryptTokenSet(record);
-                if (tokenSet?.HasStoken is not true)
-                {
-                    continue;
-                }
-                var role = roles.FirstOrDefault(x => x.Uid > 0 && GameRecordRoleService.GetCookieAccountId(x.Cookie) == tokenSet.Aid);
-                list.Add(new GameAccountItem
-                {
-                    GameBiz = gameBiz,
-                    Uid = role?.Uid ?? 0,
-                    Name = role?.Nickname ?? tokenSet.DisplayName ?? Lang.PassportLogin_UnknownAccount,
-                    HeadIcon = role?.HeadIcon ?? GetAccountAvatarUrl(tokenSet.Aid),
-                    PassportAccountKey = record.Key,
-                    IsSaved = true,
-                    IsCurrent = record.Key == currentKey,
-                });
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Get game accounts of passport ({biz})", gameBiz);
-        }
-        return list;
-    }
-
-
-
-
-    /// <summary>
-    /// 让当前会话跟随游戏：打开某个游戏时，用这个游戏记录过的账号。
-    /// <para>
-    /// 一个通行证在一个游戏里只对应一个游戏账号，所以每个游戏各记一个账号即可；
-    /// 游戏还没记录过账号时，把当前账号记到它名下，行为与以前保持一致。
-    /// </para>
-    /// <para>
-    /// 「基于注册表的游戏账号切换」打开时整条线不参与：游戏账号由游戏客户端自己记住的那份数据决定，
-    /// 米游社这边不跟着游戏换账号，也不去读写注册表。
-    /// </para>
-    /// </summary>
-    public async Task UseAccountForGameAsync(GameBiz gameBiz, CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            if (AppConfig.EnableRegistryGameAccountSwitcher)
-            {
-                return;
-            }
-            if (string.IsNullOrWhiteSpace(gameBiz.Value))
-            {
-                return;
-            }
-            var current = TokenSet;
-            string? currentKey = current?.HasStoken is true ? PassportAccountRecord.GetKey(current) : null;
-            string? key = AppConfig.GetCurrentPassportAccountKey(gameBiz);
-            if (string.IsNullOrWhiteSpace(key))
-            {
-                if (currentKey is not null)
-                {
-                    AppConfig.SetCurrentPassportAccountKey(gameBiz, currentKey);
-                }
-                return;
-            }
-            if (key == currentKey)
-            {
-                return;
-            }
-            var tokenSet = QueryAccountRecords().Where(x => x.Key == key).Select(DecryptTokenSet).FirstOrDefault(x => x?.HasStoken is true);
-            if (tokenSet is null)
-            {
-                // 记录的账号已经不在了，退回当前账号。
-                if (currentKey is not null)
-                {
-                    AppConfig.SetCurrentPassportAccountKey(gameBiz, currentKey);
-                }
-                return;
-            }
-            if (current is not null)
-            {
-                TrySaveAccountRecord(current);
-            }
-            SaveTokenSet(tokenSet);
-            await SyncToToolboxAsync(tokenSet, cancellationToken);
-            WeakReferenceMessenger.Default.Send(new GameRecordRoleChangedMessage(null));
-            _logger.LogInformation("Use passport account of {biz} (aid: {aid}).", gameBiz, tokenSet.Aid);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Use passport account for game ({biz})", gameBiz);
-        }
-    }
-
-
-
-
-    /// <summary>
-    /// 按启动预设里保存的账号切换该区服的当前账号；账号已经不存在时**自动回退**：
-    /// 什么都不切，保持账号选择器里当前选中的账号。
-    /// <para>
-    /// 返回 false 表示这个 key 已经失效，调用方应该把它从预设里清掉。
-    /// 启用「基于注册表的游戏账号切换」时整项不生效（返回 true，调用方照常保留记录）。
-    /// </para>
-    /// </summary>
-    /// <param name="gameBiz">游戏业务线。</param>
-    /// <param name="key">预设里保存的账号 key。</param>
-    /// <param name="cancellationToken">取消令牌。</param>
-    public async Task<bool> TryApplyProfileAccountAsync(GameBiz gameBiz, string? key, CancellationToken cancellationToken = default)
-    {
-        if (AppConfig.EnableRegistryGameAccountSwitcher)
-        {
-            return true;
-        }
-        if (string.IsNullOrWhiteSpace(key))
-        {
-            return true;
-        }
-        if (!QueryAccountRecords().Any(x => x.Key == key))
-        {
-            return false;
-        }
-        await UsePassportAccountAsync(gameBiz, key, cancellationToken);
-        // 账号选择器 / 账号中心要跟着刷新：预设换号时它们不一定能收到角色变更消息。
-        WeakReferenceMessenger.Default.Send(new PassportAccountChangedMessage(IsLoggedIn));
-        return true;
-    }
-
-
-
-
-    /// <summary>
     /// 从列表里删除一个账号。删掉的正好是当前账号时，如果还有其它账号就直接顺延过去，
     /// 都没有了才回到登录界面——避免出现“账号还在列表里，界面却退不回去”的死角。
     /// </summary>
@@ -1877,14 +1713,7 @@ internal class PassportAccountService
                 }
                 WeakReferenceMessenger.Default.Send(new GameRecordRoleChangedMessage(null));
             }
-            // 清掉各游戏里指向这个账号的选择，下次打开游戏会落到当前账号上。
-            foreach (GameBiz gameBiz in AllGameBizs)
-            {
-                if (AppConfig.GetCurrentPassportAccountKey(gameBiz) == key)
-                {
-                    AppConfig.SetCurrentPassportAccountKey(gameBiz, null);
-                }
-            }
+
             if (tokenSet?.HasStoken is true)
             {
                 _ = LogoutFromServerAsync(tokenSet);
@@ -1985,104 +1814,6 @@ internal class PassportAccountService
         {
             _logger.LogError(ex, "Get account token set ({key})", key);
             return null;
-        }
-    }
-
-
-
-
-    /// <summary>
-    /// 用户在游戏账号切换器里选了这个游戏里的某个游戏账号，让通行证会话跟着它走。
-    /// 自动登录用的是通行证账号，不跟着走的话，界面上的选择和实际登录的账号会对不上。
-    /// <para>
-    /// 「基于注册表的游戏账号切换」打开时什么都不做：那条线里没有一个叫米游社账号的东西参与登录，
-    /// 会话跟过去只会让两边对不上。
-    /// </para>
-    /// </summary>
-    public async Task UsePassportAccountOfGameUidAsync(GameBiz gameBiz, long uid, CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            if (AppConfig.EnableRegistryGameAccountSwitcher)
-            {
-                return;
-            }
-            if (uid <= 0)
-            {
-                return;
-            }
-            var target = QueryAccountRecords()
-                .Select(DecryptTokenSet)
-                .FirstOrDefault(x => x?.HasStoken is true && GetGameRoleOfAccount(x, gameBiz)?.Uid == uid);
-            if (target is null)
-            {
-                // 这个游戏账号不属于任何一个已保存的通行证账号，保持现状。
-                return;
-            }
-            await UsePassportAccountAsync(gameBiz, PassportAccountRecord.GetKey(target), cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Use passport account of game uid ({uid})", uid);
-        }
-    }
-
-
-
-
-    /// <summary>
-    /// 把当前会话切到账号池里的某个账号，并把它记成这个游戏要用的账号。
-    /// <para>
-    /// 只换米游社这边的凭据（会话、工具箱 Cookie、该换的 LToken），不碰游戏注册表：
-    /// 启动游戏时用这个账号签授权票据，通过启动参数交给游戏。
-    /// </para>
-    /// </summary>
-    public async Task UsePassportAccountAsync(GameBiz gameBiz, string? key, CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            if (string.IsNullOrWhiteSpace(key))
-            {
-                return;
-            }
-            var current = TokenSet;
-            string? currentKey = current?.HasStoken is true ? PassportAccountRecord.GetKey(current) : null;
-            if (key == currentKey)
-            {
-                AppConfig.SetCurrentPassportAccountKey(gameBiz, key);
-                // 会话没变，但「最近选择的角色」可能还停在别的账号上，顺手对齐一次。
-                ApplyAccountGameRole(gameBiz, current!);
-                return;
-            }
-            var target = QueryAccountRecords()
-                .Where(x => x.Key == key)
-                .Select(DecryptTokenSet)
-                .FirstOrDefault(x => x?.HasStoken is true);
-            if (target is null)
-            {
-                return;
-            }
-            AppConfig.SetCurrentPassportAccountKey(gameBiz, key);
-            if (current is not null)
-            {
-                TrySaveAccountRecord(current);
-            }
-            SaveTokenSet(target);
-            // 切过去马上就要用这个账号的工具箱 Cookie，LToken 该换就先换一份。
-            if (target.NeedRefreshDerivedToken(DateTimeOffset.Now))
-            {
-                await RefreshAccountAsync(target, needVerify: false, needDerived: true, cancellationToken);
-            }
-            await SyncToToolboxAsync(target, cancellationToken);
-            // 让便笺 / 签到 / 公告这些按「最近选择的角色」解析的消费者跟着账号切换。
-            // 必须放在工具箱同步之后：新账号的角色就是那一步刚写进数据库的。
-            ApplyAccountGameRole(gameBiz, target);
-            WeakReferenceMessenger.Default.Send(new GameRecordRoleChangedMessage(null));
-            _logger.LogInformation("Switched passport account (biz: {biz}).", gameBiz);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Use passport account ({key})", key);
         }
     }
 
@@ -2266,27 +1997,6 @@ internal class PassportAccountService
             return null;
         }
     }
-
-
-
-    /// <summary>
-    /// 当前通行证账号在某个游戏里的角色。绝区零这类游戏的注册表里只有一份登录凭据、
-    /// 读不到 uid，界面上只能按当前通行证账号的角色来显示这个游戏账号。
-    /// </summary>
-    public GameRecordRole? GetCurrentGameRole(GameBiz gameBiz)
-    {
-        try
-        {
-            var tokenSet = TokenSet;
-            return tokenSet?.HasStoken is true ? GetGameRoleOfAccount(tokenSet, gameBiz) : null;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Get current game role ({biz})", gameBiz);
-            return null;
-        }
-    }
-
 
 
 

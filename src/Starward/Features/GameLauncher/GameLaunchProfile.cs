@@ -81,7 +81,7 @@ public sealed partial class GameLaunchProfile : ObservableObject
     /// 是否在启动时自动登录（用通行证令牌申请授权票据，仅国服游戏可用）。
     /// <para>
     /// 0.19 上游的全局开关 <see cref="AppConfig.AuthLoginGameByPassportAccount"/> 仍作为总闸，
-    /// 这里记录的是「这个预设要不要自动登录」，给后续通行证模块接入预设级账号时使用。
+    /// 这里记录的是「这个预设要不要自动登录」；用哪个账号由账号中心当前选中的账号决定。
     /// </para>
     /// </summary>
     [JsonPropertyName("enable_auth_ticket_login")]
@@ -122,18 +122,6 @@ public sealed partial class GameLaunchProfile : ObservableObject
     [JsonPropertyName("third_party_tool_path")]
     public string? ThirdPartyToolPath { get; set => SetProperty(ref field, value); }
 
-
-    /// <summary>
-    /// 用这个预设启动时使用的米游社账号（账号列表里那条记录的内部 key）。
-    /// 为空表示跟随账号选择器里当前选中的账号。
-    /// <para>
-    /// 0.19 上游的账号体系（<c>PassportUserInfo</c> 按区域 + aid 存）与主分支的账号池不同，
-    /// 本分支只保留这个数据字段与界面位置，**运行时换号逻辑由通行证模块后续接入**：
-    /// 在 <see cref="GameLauncherService.StartGameAsync"/> 申请授权票据之前读取这里并切号。
-    /// </para>
-    /// </summary>
-    [JsonPropertyName("account_key")]
-    public string? AccountKey { get; set => SetProperty(ref field, value); }
 
 
     /// <summary>
@@ -226,7 +214,6 @@ public sealed partial class GameLaunchProfile : ObservableObject
         EnableBannerAndPost = source.EnableBannerAndPost;
         EnableThirdPartyTool = source.EnableThirdPartyTool;
         ThirdPartyToolPath = source.ThirdPartyToolPath;
-        AccountKey = source.AccountKey;
         CustomBg = source.CustomBg;
         EnableCustomBg = source.EnableCustomBg;
         Bg = source.Bg;

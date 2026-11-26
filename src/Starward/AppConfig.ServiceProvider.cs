@@ -109,6 +109,8 @@ public static partial class AppConfig
         // 好感壁纸（仅绝区零）：启动页背景切换条里的入口与切换游戏时的随机壁纸都取它。
         sc.AddSingleton<FavorWallpaperService>();
         sc.AddSingleton<GameLauncherService>();
+        // 自动登录：按启动预设里的米游社账号申请游戏授权票据
+
         sc.AddSingleton<PlayTimeRecordService>();
         sc.AddSingleton<PlayTimeStatsService>();
         sc.AddSingleton<GameNoticeService>();
