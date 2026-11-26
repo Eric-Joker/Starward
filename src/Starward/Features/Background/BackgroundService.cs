@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.UI.Xaml;
 using Starward.Core.HoYoPlay;
 using Starward.GameInstall;
+using Starward.Features.GameLauncher;
 using Starward.Helpers;
 using System;
 using System.Collections.Generic;
@@ -45,21 +46,6 @@ public class BackgroundService
     /// <param name="gameId"></param>
     /// <param name="path"></param>
     /// <returns></returns>
-    /// <summary>
-    /// 当前预设的自定义背景文件名；预设存储不可用或没记过时返回 null（调用方回退旧键）。
-    /// </summary>
-    private static string? GetProfileCustomBgName(GameId gameId)
-    {
-        try
-        {
-            return Starward.Features.GameLauncher.GameLaunchProfileStore.GetCurrentProfile(gameId.GameBiz).CustomBg;
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
 
     /// <summary>
     /// 当前预设正在使用的背景文件名；预设存储不可用或没记过时返回 null（调用方回退旧键）。
@@ -68,7 +54,7 @@ public class BackgroundService
     {
         try
         {
-            return Starward.Features.GameLauncher.GameLaunchProfileStore.GetCurrentProfile(gameId.GameBiz).Bg;
+            return GameLaunchProfileStore.GetCurrentBackground(gameId.GameBiz);
         }
         catch
         {
@@ -86,14 +72,13 @@ public class BackgroundService
         }
         try
         {
-            // 自定义背景属于启动预设：先读当前预设，没记过时回退到上游按 GameId 记的旧键
-            string? name = GetProfileCustomBgName(gameId) ?? AppConfig.GetCustomBg(gameId);
-            if (string.IsNullOrWhiteSpace(name))
+            // 自定义背景属于启动预设，预设是文件名和开关唯一的 owner。
+            if (!GameLaunchProfileStore.GetCurrentEnableCustomBackground(gameId.GameBiz))
             {
                 return false;
             }
-            // main（0.18）的自定义背景开关：明确关掉过的，升级上来继续不显示自定义背景。
-            if (AppConfig.GetValue<bool?>(default, $"enable_custom_bg_{gameId.GameBiz}", "") is false)
+            string? name = GameLaunchProfileStore.GetCurrentCustomBackground(gameId.GameBiz);
+            if (string.IsNullOrWhiteSpace(name))
             {
                 return false;
             }
@@ -164,8 +149,8 @@ public class BackgroundService
         {
             return null;
         }
-        // 当前背景属于启动预设：先读当前预设，没记过时回退到上游按 GameId 记的旧键
-        string? name = GetProfileBgName(gameId) ?? AppConfig.GetBg(gameId);
+        // 当前背景属于启动预设（唯一 owner），0.19 上游按 GameId 的 Bg 只在迁移时读过。
+        string? name = GetProfileBgName(gameId);
         if (string.IsNullOrWhiteSpace(name))
         {
             return null;

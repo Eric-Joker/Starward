@@ -1006,7 +1006,6 @@ internal partial class GameLauncherService
         else
         {
             SetProfileThirdPartyToolPath(gameId.GameBiz, null);
-            AppConfig.SetThirdPartyToolPath(gameId, null);
             return null;
         }
     }
@@ -1055,15 +1054,13 @@ internal partial class GameLauncherService
         {
             path = Path.GetFullPath(path);
             string relativePath = GetRelativePathIfInRemovableStorage(path, out bool removable);
-            // 自定义启动程序路径属于启动预设：写当前预设，同时保留旧键供降级 / 回退使用
+            // 自定义启动程序路径属于启动预设（唯一 owner）
             SetProfileThirdPartyToolPath(gameId.GameBiz, relativePath);
-            AppConfig.SetThirdPartyToolPath(gameId, relativePath);
         }
         else
         {
             path = null;
             SetProfileThirdPartyToolPath(gameId.GameBiz, null);
-            AppConfig.SetThirdPartyToolPath(gameId, null);
         }
         return path;
     }

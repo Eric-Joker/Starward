@@ -1081,9 +1081,7 @@ public sealed partial class GameLauncherPage : PageBase
                 {
                     return;
                 }
-                CurrentLaunchProfile.CustomBg = name;
-                GameLaunchProfileStore.Save(CurrentGameBiz);
-                AppConfig.SetCustomBg(CurrentGameId, name);
+                GameLaunchProfileStore.SetCurrentCustomBackground(CurrentGameBiz, name);
                 await AppBackground.Current.UpdateBackgroundAsync();
             }
         }

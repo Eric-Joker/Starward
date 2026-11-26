@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Starward.Core;
 using Starward.Core.Blackboard;
 using Starward.Features.Database;
+using Starward.Features.GameLauncher;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -393,7 +394,7 @@ internal partial class FavorWallpaperService
     /// <returns>true 为满影画静态壁纸，false 为好感动态壁纸。</returns>
     private bool GetShuffleCategory(GameBiz gameBiz)
     {
-        string? current = AppConfig.GetCustomBg(gameBiz);
+        string? current = GameLaunchProfileStore.GetCurrentCustomBackground(gameBiz);
         if (!string.IsNullOrWhiteSpace(current))
         {
             if (ContainsCacheFile(GetCachedWallpapers(mindscape: false), current))
@@ -434,7 +435,7 @@ internal partial class FavorWallpaperService
             return null;
         }
         // 多于一张时排除当前这张，避免「随机」之后画面没变。
-        string? current = AppConfig.GetCustomBg(gameBiz);
+        string? current = GameLaunchProfileStore.GetCurrentCustomBackground(gameBiz);
         List<string> candidates = names.Count > 1
             ? names.Where(x => !string.Equals(x, current, StringComparison.OrdinalIgnoreCase)).ToList()
             : names;
@@ -445,9 +446,7 @@ internal partial class FavorWallpaperService
         string picked = candidates[Random.Shared.Next(candidates.Count)];
         // 与 SetAsCustomBackgroundAsync 同样三连：bg_ 不跟着改的话，
         // GetSuggestedGameBackgroundAsync 会认为自定义背景已过期而回落到官方背景。
-        AppConfig.SetCustomBg(gameBiz, picked);
-        AppConfig.SetEnableCustomBg(gameBiz, true);
-        AppConfig.SetBg(gameBiz, picked);
+        GameLaunchProfileStore.SetCurrentCustomBackground(gameBiz, picked);
         _logger.LogInformation("Random wallpaper {Name} applied for {GameBiz}", picked, gameBiz);
         return picked;
     }
@@ -468,7 +467,7 @@ internal partial class FavorWallpaperService
                 return false;
             }
             // 用户已经切回官方背景，不越俎代庖把自定义背景重新打开。
-            if (!AppConfig.GetEnableCustomBg(gameBiz))
+            if (!GameLaunchProfileStore.GetCurrentEnableCustomBackground(gameBiz))
             {
                 return false;
             }
@@ -585,9 +584,7 @@ internal partial class FavorWallpaperService
     public async Task SetAsCustomBackgroundAsync(GameBiz gameBiz, FavorWallpaperRecord item, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
     {
         string name = await DownloadToBgFolderAsync(item, progress, cancellationToken).ConfigureAwait(false);
-        AppConfig.SetCustomBg(gameBiz, name);
-        AppConfig.SetEnableCustomBg(gameBiz, true);
-        AppConfig.SetBg(gameBiz, name);
+        GameLaunchProfileStore.SetCurrentCustomBackground(gameBiz, name);
     }
 
 

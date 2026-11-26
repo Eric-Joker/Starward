@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Controls;
 using Starward.Core;
 using Starward.Core.HoYoPlay;
 using Starward.Helpers;
+using Starward.Features.GameLauncher;
 using Starward.Language;
 using System;
 using System.Collections.Generic;
@@ -214,8 +215,8 @@ public sealed partial class FavorWallpaperPanel : UserControl
     /// </summary>
     private List<FavorWallpaperView> BuildViews(IReadOnlyList<FavorWallpaperRecord> records)
     {
-        string? currentBg = AppConfig.GetCustomBg(CurrentGameBiz);
-        bool enabled = AppConfig.GetEnableCustomBg(CurrentGameBiz);
+        string? currentBg = GameLaunchProfileStore.GetCurrentCustomBackground(CurrentGameBiz);
+        bool enabled = GameLaunchProfileStore.GetCurrentEnableCustomBackground(CurrentGameBiz);
         var views = new List<FavorWallpaperView>(records.Count);
         foreach (FavorWallpaperRecord record in records)
         {
@@ -331,11 +332,11 @@ public sealed partial class FavorWallpaperPanel : UserControl
         try
         {
             string fileName = FavorWallpaperService.GetCacheFileName(view.Record);
-            string? currentBg = AppConfig.GetCustomBg(CurrentGameBiz);
+            string? currentBg = GameLaunchProfileStore.GetCurrentCustomBackground(CurrentGameBiz);
             bool inUse = view.IsInUse || string.Equals(currentBg, fileName, StringComparison.OrdinalIgnoreCase);
             if (inUse)
             {
-                AppConfig.SetCustomBg(CurrentGameBiz, null);
+                GameLaunchProfileStore.SetCurrentCustomBackground(CurrentGameBiz, null);
                 WeakReferenceMessenger.Default.Send(new BackgroundChangedMessage());
                 await Task.Delay(200);
             }
@@ -393,8 +394,8 @@ public sealed partial class FavorWallpaperPanel : UserControl
 
     private void RefreshInUseState()
     {
-        string? currentBg = AppConfig.GetCustomBg(CurrentGameBiz);
-        bool enabled = AppConfig.GetEnableCustomBg(CurrentGameBiz);
+        string? currentBg = GameLaunchProfileStore.GetCurrentCustomBackground(CurrentGameBiz);
+        bool enabled = GameLaunchProfileStore.GetCurrentEnableCustomBackground(CurrentGameBiz);
         foreach (FavorWallpaperView item in Items)
         {
             string fileName = FavorWallpaperService.GetCacheFileName(item.Record);

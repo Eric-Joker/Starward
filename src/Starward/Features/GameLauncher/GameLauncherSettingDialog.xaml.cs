@@ -675,7 +675,7 @@ public sealed partial class GameLauncherSettingDialog : ContentDialogBase
         try
         {
             GameLaunchProfile profile = CurrentLaunchProfile;
-            CustomBg = profile.CustomBg ?? AppConfig.GetCustomBg(CurrentGameId);
+            CustomBg = profile.CustomBg;
         }
         catch { }
     }
@@ -697,10 +697,8 @@ public sealed partial class GameLauncherSettingDialog : ContentDialogBase
                 return;
             }
             CustomBg = name;
-            // 自定义背景属于启动预设：写进当前预设，切换预设时背景跟着换
-            CurrentLaunchProfile.CustomBg = name;
-            GameLaunchProfileStore.Save(CurrentGameBiz);
-            AppConfig.SetCustomBg(CurrentGameId, name);
+            // 自定义背景属于启动预设：写进当前预设（唯一 owner），切换预设时背景跟着换
+            GameLaunchProfileStore.SetCurrentCustomBackground(CurrentGameBiz, name);
             await AppBackground.Current.UpdateBackgroundAsync();
         }
         catch (COMException ex)
@@ -743,9 +741,7 @@ public sealed partial class GameLauncherSettingDialog : ContentDialogBase
     private void DeleteCustomBg()
     {
         CustomBg = null;
-        CurrentLaunchProfile.CustomBg = null;
-        GameLaunchProfileStore.Save(CurrentGameBiz);
-        AppConfig.SetCustomBg(CurrentGameId, null);
+        GameLaunchProfileStore.SetCurrentCustomBackground(CurrentGameBiz, null);
         _ = AppBackground.Current.UpdateBackgroundAsync();
     }
 

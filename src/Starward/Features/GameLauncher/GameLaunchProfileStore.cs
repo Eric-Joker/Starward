@@ -69,6 +69,8 @@ public static class GameLaunchProfileStore
             Normalize(profiles);
             ResetMisSeededDX12(gameBiz, profiles);
             Save(gameBiz, profiles);
+            // 预设是这些配置唯一的 owner：写回成功后把旧键里的同份数据删掉（只在第一次读取该游戏时执行）。
+            DeleteLegacySettings(gameBiz);
             return profiles;
         }
     }
@@ -101,6 +103,132 @@ public static class GameLaunchProfileStore
         var profiles = GetProfiles(gameBiz);
         string? id = AppConfig.GetCurrentLaunchProfileId(gameBiz);
         return profiles.FirstOrDefault(x => string.Equals(x.Id, id, StringComparison.Ordinal)) ?? profiles[0];
+    }
+
+
+
+    /// <summary>
+    /// 当前预设保存的官方背景文件名（没有时返回 null）。背景属于启动预设，
+    /// 0.19 上游按 GameId 存在设置表里的 <c>Bg</c> 只作为迁移前的旧数据，不参与运行时读写。
+    /// </summary>
+    public static string? GetCurrentBackground(GameBiz gameBiz)
+    {
+        try
+        {
+            return GetCurrentProfile(gameBiz).Bg;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+
+
+    /// <summary>写当前预设的背景文件名。</summary>
+    public static void SetCurrentBackground(GameBiz gameBiz, string? name)
+    {
+        try
+        {
+            GetCurrentProfile(gameBiz).Bg = name;
+            Save(gameBiz);
+        }
+        catch
+        {
+            // 预设存储不可用时只影响背景，不影响调用方。
+        }
+    }
+
+
+
+    /// <summary>当前预设保存的自定义背景文件名（没有时返回 null）。</summary>
+    public static string? GetCurrentCustomBackground(GameBiz gameBiz)
+    {
+        try
+        {
+            return GetCurrentProfile(gameBiz).CustomBg;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+
+
+    /// <summary>当前预设的自定义背景开关。</summary>
+    public static bool GetCurrentEnableCustomBackground(GameBiz gameBiz)
+    {
+        try
+        {
+            return GetCurrentProfile(gameBiz).EnableCustomBg;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+
+
+    /// <summary>
+    /// 设置 / 清除当前预设的自定义背景。设置成功后同时打开自定义背景开关、并把当前背景换成这一张；
+    /// 清除时只清文件名，开关保持原样（和原来的行为一致）。
+    /// </summary>
+    public static void SetCurrentCustomBackground(GameBiz gameBiz, string? name)
+    {
+        try
+        {
+            GameLaunchProfile profile = GetCurrentProfile(gameBiz);
+            profile.CustomBg = name;
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                profile.EnableCustomBg = true;
+                profile.Bg = name;
+            }
+            Save(gameBiz);
+        }
+        catch
+        {
+            // 预设存储不可用时只影响背景，不影响调用方。
+        }
+    }
+
+
+
+
+    /// <summary>
+    /// 预设已经保存到设置键之后，把同一份数据在旧键里的副本删掉：
+    /// 0.19 上游按 GameId 存的单套启动配置、main 的全局自定义背景开关。
+    /// <para>
+    /// 这些配置现在只有启动预设一个 owner：旧键只在迁移时读一次，之后不再写，
+    /// 留着第二份的话两边迟早会对不上（改预设不会改旧键）。
+    /// </para>
+    /// </summary>
+    private static void DeleteLegacySettings(GameBiz gameBiz)
+    {
+        try
+        {
+            // 按区服删：崩坏三国际服一个区服对应多个 GameId（不同地区），旧配置只迁标准那个，
+            // 其余地区的旧值不会再被读到，留着只会是永远不同步的第二份。
+            DatabaseService.DeleteSettingsForGameBiz(gameBiz,
+                "StartArgument",
+                "EnableThirdPartyTool",
+                "ThirdPartyToolPath",
+                "EnableDX12",
+                "CustomBg",
+                "Bg",
+                "EnableCustomBg",
+                "UsePopupWindow");
+            if (!string.IsNullOrWhiteSpace(gameBiz.Value))
+            {
+                DatabaseService.DeleteSettings($"enable_custom_bg_{gameBiz.Value}");
+            }
+        }
+        catch
+        {
+            // 旧键清理失败不影响预设本身，下次读取还会再试。
+        }
     }
 
 

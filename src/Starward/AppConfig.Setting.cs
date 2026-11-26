@@ -965,48 +965,6 @@ public static partial class AppConfig
     }
 
 
-    // 0.19 的背景设置以 GameId 为键，主分支以 GameBiz 为键；这里补一层 GameBiz 便捷重载，
-    // 好让迁移过来的好感壁纸代码保持原样。
-
-    public static string? GetBg(GameBiz biz)
-    {
-        return GameId.FromGameBiz(biz) is GameId gameId ? GetBg(gameId) : null;
-    }
-
-    public static void SetBg(GameBiz biz, string? value)
-    {
-        if (GameId.FromGameBiz(biz) is GameId gameId)
-        {
-            SetBg(gameId, value);
-        }
-    }
-
-    public static string? GetCustomBg(GameBiz biz)
-    {
-        return GameId.FromGameBiz(biz) is GameId gameId ? GetCustomBg(gameId) : null;
-    }
-
-    public static void SetCustomBg(GameBiz biz, string? value)
-    {
-        if (GameId.FromGameBiz(biz) is GameId gameId)
-        {
-            SetCustomBg(gameId, value);
-        }
-    }
-
-    public static bool GetEnableCustomBg(GameBiz biz)
-    {
-        return GameId.FromGameBiz(biz) is GameId gameId && GetValue<bool>(default, "EnableCustomBg", gameId.ToString());
-    }
-
-    public static void SetEnableCustomBg(GameBiz biz, bool value)
-    {
-        if (GameId.FromGameBiz(biz) is GameId gameId)
-        {
-            SetValue(value, "EnableCustomBg", gameId.ToString());
-        }
-    }
-
 
     /// <summary>该游戏是否自动领取云游戏每日免费时长。默认关闭，要用户在云游戏浮窗里主动打开。</summary>
     public static bool GetAutoCloudGameFreeTimeEnabled(GameBiz gameBiz)
@@ -1098,7 +1056,7 @@ public static partial class AppConfig
     /// 当前通行证会话指向哪个账号，格式是「区域:账号 ID」（例如 <c>miHoYo:81107513</c>）。
     /// <para>
     /// 只存指针，不存令牌：SToken 在 <c>PassportUserInfo</c> 表里（唯一一份），
-    /// 派生令牌在侧表 <c>PassportAccountToken</c> 里，重启时按这个指针去读。
+    /// 派生令牌和上游一样只存在工具箱 Cookie 里，重启时按这个指针去上游表读回。
     /// </para>
     /// </summary>
     public static string? CurrentPassportAccount
