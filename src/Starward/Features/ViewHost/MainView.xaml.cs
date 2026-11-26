@@ -636,9 +636,6 @@ public sealed partial class MainView : UserControl
     #region 账号列表拖动排序
 
 
-    private const string PassportUserOrderKey = "PassportUserOrder";
-
-
     /// <summary>
     /// 按保存下来的顺序重排账号列表；没有记录过顺序的账号保持数据库返回的相对顺序排在后面。
     /// 账号中心（上游 HYP 浮窗）里的列表和 main 的账号中心一样支持拖动排序。
@@ -651,8 +648,7 @@ public sealed partial class MainView : UserControl
             {
                 return;
             }
-            string region = CurrentLauncherConfig.Region.ToString();
-            string? order = AppConfig.GetValue<string>(null, PassportUserOrderKey, region);
+            string? order = AppConfig.GetPassportUserOrder(CurrentLauncherConfig.Region);
             if (string.IsNullOrWhiteSpace(order))
             {
                 return;
@@ -692,7 +688,7 @@ public sealed partial class MainView : UserControl
             {
                 return;
             }
-            AppConfig.SetValue(string.Join(',', PassportUsers.Select(x => x.Aid)), PassportUserOrderKey, CurrentLauncherConfig.Region.ToString());
+            AppConfig.SetPassportUserOrder(CurrentLauncherConfig.Region, string.Join(',', PassportUsers.Select(x => x.Aid)));
         }
         catch (Exception ex)
         {

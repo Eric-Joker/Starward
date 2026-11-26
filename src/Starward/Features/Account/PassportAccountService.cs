@@ -11,9 +11,9 @@ using Starward.Features.Database;
 using Starward.Features.GameAccount;
 using Starward.Features.GameRecord;
 using Starward.Features.Passport;
-using Starward.Helpers;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -70,9 +70,6 @@ internal class PassportAccountService
         _logger = logger;
         _gameRecordRoleService = gameRecordRoleService;
         _client = client;
-        // 上游账号中心（HYP 浮窗）校验会话时服务端会换发新的 SToken，账号池里的副本要跟着换，
-        // 否则下一次写账号表就会把死令牌盖回去，账号中心随即显示「登录已过期」。
-        WeakReferenceMessenger.Default.Register<PassportStokenRotatedMessage>(this, OnPassportStokenRotated);
     }
 
 
@@ -165,22 +162,11 @@ internal class PassportAccountService
             }
             try
             {
-                string? stored = AppConfig.PassportTokenJson;
-                if (!string.IsNullOrWhiteSpace(stored))
+                // 当前账号只记一个指针（区域 + 账号 ID），令牌本身从上游账号表里读：
+                // SToken 只有 PassportUserInfo 一份，不存在第二份副本需要对齐。
+                if (PassportAccountMigration.ParsePointer(AppConfig.CurrentPassportAccount) is (ServerRegion region, long aid))
                 {
-                    // 令牌用 DPAPI 加密保存；解不开说明是旧版本的明文，直接按 JSON 解析并重新加密保存。
-                    string? json = DpapiHelper.Unprotect(stored);
-                    bool isPlainText = string.IsNullOrWhiteSpace(json);
-                    if (isPlainText)
-                    {
-                        json = stored;
-                    }
-                    _tokenSet = JsonSerializer.Deserialize<PassportTokenSet>(json!, PassportJson.Options);
-                    if (isPlainText && _tokenSet is not null)
-                    {
-                        _logger.LogInformation("Migrating plain text passport tokens to DPAPI protected storage.");
-                        SaveTokenSet(_tokenSet);
-                    }
+                    _tokenSet = LoadTokenSet(region, aid);
                 }
                 MigrateLegacyConfiguration();
             }
@@ -196,27 +182,33 @@ internal class PassportAccountService
     }
 
 
+    /// <summary>
+    /// 写入令牌。<paramref name="tokenSet"/> 为 null 表示退出当前会话。
+    /// <para>
+    /// SToken 只写上游 <c>PassportUserInfo</c> 表（唯一 owner），派生令牌交给工具箱 Cookie；
+    /// 当前会话只留一个指向账号的指针，不再整包存一份令牌。
+    /// </para>
+    /// </summary>
     private void SaveTokenSet(PassportTokenSet? tokenSet)
     {
         _tokenSet = tokenSet;
-        // 令牌属于敏感信息，落库前用 DPAPI 加密，只有当前 Windows 用户能够解密。
-        string? json = tokenSet is null ? null : JsonSerializer.Serialize(tokenSet, PassportJson.Options);
-        AppConfig.PassportTokenJson = DpapiHelper.Protect(json);
-        // 当前账号同时也是账号列表里的一条记录，切换账号时直接从列表取回。
         if (tokenSet is not null)
         {
-            TrySaveAccountRecord(tokenSet);
+            SaveTokenSetToStore(tokenSet);
+            AppConfig.CurrentPassportAccount = PassportAccountMigration.GetPointer(tokenSet);
             // 刚写入的令牌是有效的：把这个账号从“登录已失效”里移掉，界面上的红点跟着消失。
             lock (_lock)
             {
                 _expiredAccountKeys.Remove(PassportAccountRecord.GetKey(tokenSet));
             }
-            // 让上游 MainView / 自动登录读到的 PassportUserInfo 与账号池保持一致。
-            SyncAccountToPassportUserInfo(tokenSet);
             if (tokenSet.Aid > 0)
             {
                 AppConfig.SetLastPassportUserAid(tokenSet.Region, tokenSet.Aid);
             }
+        }
+        else
+        {
+            AppConfig.CurrentPassportAccount = null;
         }
         WeakReferenceMessenger.Default.Send(new PassportAccountChangedMessage(IsLoggedIn));
     }
@@ -235,8 +227,7 @@ internal class PassportAccountService
         }
         else
         {
-            TrySaveAccountRecord(tokenSet);
-            SyncAccountToPassportUserInfo(tokenSet);
+            SaveTokenSetToStore(tokenSet);
         }
     }
 
@@ -1032,13 +1023,10 @@ internal class PassportAccountService
             }
             // 只换到 ltoken、没换到 cookie_token 不算刷新完成：工具箱的部分接口需要 cookie_token。
             bool success = tokenSet.HasDerivedToken && !string.IsNullOrWhiteSpace(tokenSet.CookieToken);
-            if (success)
-            {
-                tokenSet.DerivedTokenTime = DateTimeOffset.Now;
-            }
             if (tokenSet.HasDerivedToken)
             {
-                // 换到什么就先存什么：下次刷新时只缺的那部分会再试一次。
+                // 换到什么就先写进工具箱 Cookie（派生令牌只存在那里）；
+                // 只换到 ltoken 时下次刷新会再试一次 cookie_token。
                 SaveTokenSetOrRecord(tokenSet);
             }
             return (success, success ? null : failureMessage);
@@ -1090,7 +1078,7 @@ internal class PassportAccountService
         }
         var now = DateTimeOffset.Now;
         bool needVerify = force || tokenSet.NeedVerifyStoken(now);
-        bool needDerived = force || tokenSet.NeedRefreshDerivedToken(now);
+        bool needDerived = force || tokenSet.NeedRefreshDerivedToken();
         if (!needVerify && !needDerived)
         {
             return true;
@@ -1195,14 +1183,14 @@ internal class PassportAccountService
             await PrepareDeviceAsync(cancellationToken);
             foreach (var record in QueryAccountRecords())
             {
-                var tokenSet = DecryptTokenSet(record);
+                var tokenSet = LoadTokenSet(record.Region, record.Aid);
                 if (tokenSet?.HasStoken is not true)
                 {
                     continue;
                 }
                 var now = DateTimeOffset.Now;
                 bool needVerify = tokenSet.NeedVerifyStoken(now);
-                bool needDerived = tokenSet.NeedRefreshDerivedToken(now);
+                bool needDerived = tokenSet.NeedRefreshDerivedToken();
                 if (!needVerify && !needDerived)
                 {
                     continue;
@@ -1228,7 +1216,6 @@ internal class PassportAccountService
                 }
             }
             _accountItems = null;
-            SyncToPassportUserInfo();
         }
         catch (Exception ex)
         {
@@ -1255,9 +1242,15 @@ internal class PassportAccountService
             await PrepareDeviceAsync(cancellationToken);
             foreach (var record in QueryAccountRecords())
             {
-                var tokenSet = DecryptTokenSet(record);
+                var tokenSet = LoadTokenSet(record.Region, record.Aid);
                 if (tokenSet?.HasStoken is not true || tokenSet.Aid <= 0 || string.IsNullOrWhiteSpace(tokenSet.Mid))
                 {
+                    // 令牌读不出来（解密失败 / 被截断）也是「需要重新登录」，
+                    // 账号仍然要在列表里带着红点出现，不能当成没这个账号。
+                    if (GetUpstreamPassportUserInfo(record.Region, record.Aid)?.ErrorType is not PassportErrorType.Success)
+                    {
+                        expiredKeys.Add(record.Key);
+                    }
                     continue;
                 }
                 if (await RefreshAccountAsync(tokenSet, needVerify: true, needDerived: false, cancellationToken))
@@ -1307,7 +1300,7 @@ internal class PassportAccountService
         {
             foreach (var record in QueryOrderedAccountRecords())
             {
-                var tokenSet = DecryptTokenSet(record);
+                var tokenSet = LoadTokenSet(record.Region, record.Aid);
                 if (tokenSet?.HasStoken is not true || tokenSet.Aid <= 0)
                 {
                     continue;
@@ -1528,7 +1521,6 @@ internal class PassportAccountService
                 tokenSet.Nickname = user.Nickname;
                 SaveTokenSet(tokenSet);
             }
-            SyncAccountToPassportUserInfo(tokenSet);
         }
         catch (Exception ex)
         {
@@ -1622,46 +1614,37 @@ internal class PassportAccountService
 
 
     /// <summary>
-    /// 已保存的全部账号（账号池），最近登录的排在前面。只读数据库，不会产生任何网络请求。
+    /// 已保存的全部账号（账号池），按用户拖动过的顺序排列。只读数据库，不会产生任何网络请求。
     /// <para>
-    /// 当前账号一定会出现在列表里：旧版本只保存了一个账号，第一次读取时会把它补成一条记录。
+    /// 账号列表直接来自上游的 <c>PassportUserInfo</c> 表：那张表本身就是多账号的，
+    /// 不需要再维护一份「账号池」副本。
     /// </para>
     /// </summary>
     public IReadOnlyList<PassportAccountItem> GetAccounts()
     {
         try
         {
-            var current = TokenSet;
-            string? currentKey = current?.HasStoken is true ? PassportAccountRecord.GetKey(current) : null;
             var records = QueryOrderedAccountRecords();
-            if (currentKey is not null && records.All(x => x.Key != currentKey))
-            {
-                // 旧版本只保存了当前账号，这里把它补进账号列表。
-                TrySaveAccountRecord(current!);
-                records = QueryOrderedAccountRecords();
-            }
             var list = new List<PassportAccountItem>(records.Count);
             foreach (var record in records)
             {
-                var tokenSet = DecryptTokenSet(record);
-                if (tokenSet is null)
-                {
-                    continue;
-                }
                 bool isExpired;
                 lock (_lock)
                 {
                     isExpired = _expiredAccountKeys.Contains(record.Key);
                 }
+                string displayName = record.Nickname
+                    ?? (record.Aid > 0 ? record.Aid.ToString() : record.Mid)
+                    ?? Lang.PassportLogin_UnknownAccount;
                 list.Add(new PassportAccountItem
                 {
                     Key = record.Key,
-                    DisplayName = tokenSet.DisplayName ?? Lang.PassportLogin_UnknownAccount,
-                    Detail = GetAccountIdText(tokenSet),
-                    AvatarUrl = GetAccountAvatarUrl(tokenSet.Aid) ?? PassportAccountItem.DefaultAvatarUrl,
-                    Pendant = GetAccountPendant(tokenSet.Aid, tokenSet.Region),
-                    Region = tokenSet.Region,
-                    LoginName = string.IsNullOrWhiteSpace(tokenSet.AccountName) ? tokenSet.Mid : tokenSet.AccountName,
+                    DisplayName = displayName,
+                    Detail = GetAccountIdText(record),
+                    AvatarUrl = GetAccountAvatarUrl(record.Aid) ?? PassportAccountItem.DefaultAvatarUrl,
+                    Pendant = GetAccountPendant(record.Aid, record.Region),
+                    Region = record.Region,
+                    LoginName = record.Mid,
                     IsExpired = isExpired,
                 });
             }
@@ -1690,22 +1673,23 @@ internal class PassportAccountService
             {
                 return false;
             }
-            PassportAccountRecord? record = DatabaseService.GetPassportAccount(key);
-            PassportTokenSet? tokenSet = record is null ? null : DecryptTokenSet(record);
-            if (!DatabaseService.DeletePassportAccount(key))
+            PassportAccountRecord? record = QueryAccountRecords().FirstOrDefault(x => x.Key == key);
+            if (record is null)
             {
                 return false;
             }
+            // 先读出令牌：删完行之后就再也读不到 stoken 了，而登出服务端还要用它。
+            PassportTokenSet? tokenSet = LoadTokenSet(record.Region, record.Aid);
+            DeleteAccountRows(record);
             _accountItems = null;
             lock (_lock)
             {
                 _expiredAccountKeys.Remove(key);
             }
-            RemovePassportUserInfoRow(tokenSet);
             var current = TokenSet;
             if (current?.HasStoken is true && PassportAccountRecord.GetKey(current) == key)
             {
-                var next = QueryOrderedAccountRecords().Select(DecryptTokenSet).FirstOrDefault(x => x?.HasStoken is true);
+                var next = QueryOrderedAccountRecords().Select(x => LoadTokenSet(x.Region, x.Aid)).FirstOrDefault(x => x?.HasStoken is true);
                 SaveTokenSet(next);
                 if (next is null)
                 {
@@ -1752,7 +1736,7 @@ internal class PassportAccountService
             }
             foreach (var record in QueryAccountRecords())
             {
-                var tokenSet = DecryptTokenSet(record);
+                var tokenSet = LoadTokenSet(record.Region, record.Aid);
                 if (tokenSet is null || !tokenSet.HasStoken || string.IsNullOrWhiteSpace(tokenSet.Mid))
                 {
                     continue;
@@ -1791,7 +1775,7 @@ internal class PassportAccountService
             }
             var tokenSet = QueryAccountRecords()
                 .Where(x => x.Key == key)
-                .Select(DecryptTokenSet)
+                .Select(x => LoadTokenSet(x.Region, x.Aid))
                 .FirstOrDefault(x => x?.HasStoken is true);
             if (tokenSet is null)
             {
@@ -1799,7 +1783,7 @@ internal class PassportAccountService
             }
             var now = DateTimeOffset.Now;
             bool needVerify = tokenSet.NeedVerifyStoken(now);
-            bool needDerived = tokenSet.NeedRefreshDerivedToken(now);
+            bool needDerived = tokenSet.NeedRefreshDerivedToken();
             if (needVerify || needDerived)
             {
                 await PrepareDeviceAsync(cancellationToken);
@@ -1880,7 +1864,7 @@ internal class PassportAccountService
             }
             var tokenSet = QueryAccountRecords()
                 .Where(x => x.Key == key)
-                .Select(DecryptTokenSet)
+                .Select(x => LoadTokenSet(x.Region, x.Aid))
                 .FirstOrDefault(x => x?.HasStoken is true);
             if (tokenSet is null)
             {
@@ -2062,9 +2046,9 @@ internal class PassportAccountService
 
 
     /// <summary>界面上的账号标识：米游社 ID，取不到时退回通行证 ID。</summary>
-    private static string? GetAccountIdText(PassportTokenSet tokenSet)
+    private static string? GetAccountIdText(PassportAccountRecord record)
     {
-        string? id = tokenSet.Aid > 0 ? tokenSet.Aid.ToString() : tokenSet.Mid;
+        string? id = record.Aid > 0 ? record.Aid.ToString() : record.Mid;
         return string.IsNullOrWhiteSpace(id) ? null : string.Format(Lang.PassportLogin_AccountId, id);
     }
 
@@ -2108,7 +2092,7 @@ internal class PassportAccountService
             bool changed = false;
             foreach (var record in QueryOrderedAccountRecords())
             {
-                var tokenSet = DecryptTokenSet(record);
+                var tokenSet = LoadTokenSet(record.Region, record.Aid);
                 if (tokenSet?.HasStoken is not true || tokenSet.Aid <= 0)
                 {
                     continue;
@@ -2135,31 +2119,60 @@ internal class PassportAccountService
 
 
 
+    /// <summary>
+    /// 账号列表：直接读上游 <c>PassportUserInfo</c> 表（身份 + SToken）。
+    /// 派生令牌不在这里，它和上游一样只存在工具箱 Cookie 里。
+    /// </summary>
     private List<PassportAccountRecord> QueryAccountRecords()
     {
-        return DatabaseService.GetPassportAccounts();
-    }
-
-
-
-
-    /// <summary>用户拖动过的账号顺序（账号标识）。</summary>
-    private static List<string> GetSavedAccountOrder()
-    {
-        return AppConfig.PassportAccountOrder?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList() ?? [];
+        try
+        {
+            using var dapper = DatabaseService.CreateConnection();
+            return dapper.Query<PassportAccountRecord>("""
+                SELECT CASE WHEN IFNULL(Mid, '') <> '' THEN 'mid:' || Mid ELSE 'aid:' || Aid END AS Key,
+                       Region,
+                       Aid,
+                       Mid,
+                       Nickname
+                FROM PassportUserInfo
+                ORDER BY Aid;
+                """).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Query passport account records");
+            return [];
+        }
     }
 
 
 
 
     /// <summary>
-    /// 保存账号列表的拖动排序结果。没有出现在列表里的账号（比如之后新登录的）排在最后。
+    /// 保存账号列表的拖动排序结果。顺序按服务器区域各存一份，与账号中心（上游 HYP 浮窗）共用
+    /// <c>PassportUserOrder</c> 这一个设置，不再各存一套。
     /// </summary>
     public void SaveAccountOrder(IEnumerable<string> keys)
     {
         try
         {
-            AppConfig.PassportAccountOrder = string.Join(',', keys.Where(x => !string.IsNullOrWhiteSpace(x)));
+            var records = QueryAccountRecords();
+            var byKey = records.ToDictionary(x => x.Key, x => x);
+            var orderedKeys = keys.Where(x => !string.IsNullOrWhiteSpace(x)).ToList();
+            foreach (var group in records.GroupBy(x => x.Region))
+            {
+                var ordered = new List<long>(group.Count());
+                foreach (string key in orderedKeys)
+                {
+                    if (byKey.TryGetValue(key, out PassportAccountRecord? record) && record.Region == group.Key)
+                    {
+                        ordered.Add(record.Aid);
+                    }
+                }
+                // 顺序里没列到的账号（之后新登录的）排在最后。
+                ordered.AddRange(group.Select(x => x.Aid).Where(x => !ordered.Contains(x)));
+                AppConfig.SetPassportUserOrder(group.Key, string.Join(',', ordered));
+            }
             _accountItems = null;
             // 顺序变了，所有展示账号列表的地方都得刷新。
             WeakReferenceMessenger.Default.Send(new PassportAccountChangedMessage(IsLoggedIn));
@@ -2173,100 +2186,231 @@ internal class PassportAccountService
 
 
 
-    /// <summary>
-    /// 把一个新账号的 key 追加到当前生效顺序的末尾（现有记录按它们现在的显示顺序排在前面）。
-    /// </summary>
-    private void AppendAccountOrder(string key)
-    {
-        var order = QueryOrderedAccountRecords().Select(x => x.Key).Where(x => x != key).ToList();
-        order.Add(key);
-        SaveAccountOrder(order);
-    }
-
-
-
-
-    /// <summary>按用户拖动过的顺序读取账号记录，没有排过的账号按最近登录时间排在最后。</summary>
-    private List<PassportAccountRecord> QueryOrderedAccountRecords()
-    {
-        var records = QueryAccountRecords();
-        var order = GetSavedAccountOrder();
-        if (order.Count == 0)
-        {
-            return records;
-        }
-        var index = new Dictionary<string, int>(order.Count);
-        for (int i = 0; i < order.Count; i++)
-        {
-            index.TryAdd(order[i], i);
-        }
-        return records.OrderBy(x => index.TryGetValue(x.Key, out int i) ? i : int.MaxValue).ThenByDescending(x => x.Time).ToList();
-    }
-
-
-
-
-    private void TrySaveAccountRecord(PassportTokenSet tokenSet)
+    /// <summary>把一个新账号追加到它所在区域的顺序末尾。</summary>
+    private void AppendAccountOrder(PassportAccountRecord record)
     {
         try
         {
-            SaveAccountRecord(tokenSet);
+            var order = (AppConfig.GetPassportUserOrder(record.Region) ?? "")
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(x => x != record.Aid.ToString())
+                .ToList();
+            order.Add(record.Aid.ToString());
+            AppConfig.SetPassportUserOrder(record.Region, string.Join(',', order));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Append passport account order");
+        }
+    }
+
+
+
+
+    /// <summary>按用户拖动过的顺序读取账号记录；没有排过的账号按账号 ID 排在后面。</summary>
+    private List<PassportAccountRecord> QueryOrderedAccountRecords()
+    {
+        var records = QueryAccountRecords();
+        var index = new Dictionary<(ServerRegion Region, long Aid), int>();
+        foreach (var group in records.GroupBy(x => x.Region))
+        {
+            string? order = AppConfig.GetPassportUserOrder(group.Key);
+            if (string.IsNullOrWhiteSpace(order))
+            {
+                continue;
+            }
+            int position = 0;
+            foreach (string item in order.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                if (long.TryParse(item, out long aid))
+                {
+                    index.TryAdd((group.Key, aid), position++);
+                }
+            }
+        }
+        return records.OrderBy(x => index.TryGetValue((x.Region, x.Aid), out int i) ? i : int.MaxValue)
+                      .ThenBy(x => x.Aid)
+                      .ToList();
+    }
+
+
+
+
+    /// <summary>
+    /// 写入令牌集合：只写上游 <c>PassportUserInfo</c>（SToken 的唯一一份）。
+    /// 派生令牌由 <see cref="SyncToToolboxAsync"/> 写进工具箱 Cookie，和上游的做法一致。
+    /// </summary>
+    private void SaveTokenSetToStore(PassportTokenSet tokenSet)
+    {
+        try
+        {
+            if (tokenSet.Aid <= 0)
+            {
+                return;
+            }
+            bool isNewAccount = !QueryAccountRecords().Any(x => x.Region == tokenSet.Region && x.Aid == tokenSet.Aid);
+            if (tokenSet.HasStoken)
+            {
+                SavePassportUserInfoRow(tokenSet);
+            }
+            if (isNewAccount)
+            {
+                AppendAccountOrder(new PassportAccountRecord { Region = tokenSet.Region, Aid = tokenSet.Aid });
+            }
+            _accountItems = null;
         }
         catch (Exception ex)
         {
             // 账号列表是附加功能，写不进去也不能影响登录本身。
-            _logger.LogError(ex, "Save passport account record");
+            _logger.LogError(ex, "Save passport token set");
         }
     }
 
 
 
 
-    private void SaveAccountRecord(PassportTokenSet tokenSet)
+    /// <summary>写上游账号表。昵称 / 头像沿用已有值，不要因为一次令牌刷新把资料清空。</summary>
+    private void SavePassportUserInfoRow(PassportTokenSet tokenSet)
     {
-        string json = JsonSerializer.Serialize(tokenSet, PassportJson.Options);
-        string? protectedJson = DpapiHelper.Protect(json);
-        if (string.IsNullOrWhiteSpace(protectedJson))
+        PassportUserInfoModel? existing = GetUpstreamPassportUserInfo(tokenSet.Region, tokenSet.Aid);
+        GameRecordUser? user = tokenSet.Region is ServerRegion.miHoYo ? GameRecordRoleService.GetRecordUser(tokenSet.Aid, false) : null;
+        if (string.IsNullOrWhiteSpace(tokenSet.Mid))
         {
+            // 上游这张表要求 Mid 非空；没有 mid 的会话写进去也校验不了，只记一条日志。
+            _logger.LogWarning("Passport account {aid} has no mid, the upstream account table can not hold its stoken.", tokenSet.Aid);
             return;
         }
-        var record = new PassportAccountRecord
+        PassportService.SavePassportUserInfo(new PassportUserInfoModel
         {
-            Key = PassportAccountRecord.GetKey(tokenSet),
             Region = tokenSet.Region,
             Aid = tokenSet.Aid,
-            Mid = tokenSet.Mid,
-            Nickname = tokenSet.Nickname,
-            AccountName = tokenSet.AccountName,
-            LoginMethod = tokenSet.LoginMethod,
-            LoginTime = tokenSet.LoginTime,
-            Token = Encoding.UTF8.GetBytes(protectedJson),
-            Time = DateTimeOffset.Now,
-        };
-        // 新登录的账号排到已有账号后面：先看这条 key 是不是新的，是新的就追加到当前顺序末尾。
-        bool isNewAccount = DatabaseService.SavePassportAccount(record);
-        if (isNewAccount)
-        {
-            AppendAccountOrder(record.Key);
-        }
-        _accountItems = null;
+            Mid = tokenSet.Mid!,
+            Stoken = tokenSet.Stoken!,
+            Nickname = !string.IsNullOrWhiteSpace(tokenSet.Nickname) ? tokenSet.Nickname : user?.Nickname ?? existing?.Nickname ?? "",
+            AvatarUrl = existing?.AvatarUrl ?? user?.AvatarUrl ?? "",
+            Pendant = existing?.Pendant,
+        });
     }
 
 
 
-
-    private PassportTokenSet? DecryptTokenSet(PassportAccountRecord record)
+    /// <summary>
+    /// 读出某个账号的令牌集合：SToken 解密自上游表，派生令牌（ltoken / cookie_token）从工具箱 Cookie 里解析。
+    /// <para>
+    /// 派生令牌不单独存：上游就是这么做的——<see cref="PassportService.GetWebCookiesAsync"/> 按需换票，
+    /// 换回来的结果只以 Cookie 的形式落在 <c>GameRecordUser.Cookie</c> / <c>GameRecordRole.Cookie</c> 里。
+    /// 再存一份就又多了一个 owner，失效时两边对不上。
+    /// </para>
+    /// 上游表里没有这个账号（或者解不开）时返回 null。
+    /// </summary>
+    private PassportTokenSet? LoadTokenSet(ServerRegion region, long aid)
     {
         try
         {
-            string? json = DpapiHelper.Unprotect(Encoding.UTF8.GetString(record.Token));
-            return string.IsNullOrWhiteSpace(json) ? null : JsonSerializer.Deserialize<PassportTokenSet>(json, PassportJson.Options);
+            if (aid <= 0)
+            {
+                return null;
+            }
+            PassportUserInfoModel? info = GetUpstreamPassportUserInfo(region, aid);
+            if (info is null || string.IsNullOrWhiteSpace(info.Stoken))
+            {
+                return null;
+            }
+            var tokenSet = new PassportTokenSet
+            {
+                Region = region,
+                Aid = aid,
+                Mid = string.IsNullOrWhiteSpace(info.Mid) ? null : info.Mid,
+                Stoken = info.Stoken,
+                StokenVersion = info.Stoken.StartsWith("v2_", StringComparison.Ordinal) ? 2 : 1,
+                Nickname = info.Nickname,
+            };
+            FillDerivedTokensFromToolbox(tokenSet);
+            return tokenSet.HasStoken ? tokenSet : null;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Decrypt passport account token");
+            _logger.LogError(ex, "Load passport token set ({region}, {aid})", region, aid);
             return null;
         }
+    }
+
+
+
+
+    /// <summary>
+    /// 从工具箱 Cookie 里取出这个账号的派生令牌，填进令牌集合（只读数据库，不发请求）。
+    /// 账号行没有 Cookie 时退回角色行里同一账号的那一份。
+    /// </summary>
+    private static void FillDerivedTokensFromToolbox(PassportTokenSet tokenSet)
+    {
+        if (tokenSet.Aid <= 0)
+        {
+            return;
+        }
+        try
+        {
+            bool isHoyolab = tokenSet.Region is ServerRegion.HoYoverse;
+            string? cookie = GameRecordRoleService.GetRecordUser(tokenSet.Aid, isHoyolab)?.Cookie;
+            if (string.IsNullOrWhiteSpace(cookie))
+            {
+                cookie = GameRecordRoleService.GetAllGameRoles()
+                    .FirstOrDefault(x => GameRecordRoleService.GetCookieAccountId(x.Cookie) == tokenSet.Aid)
+                    ?.Cookie;
+            }
+            (string? ltoken, string? cookieToken) = ReadDerivedTokens(cookie);
+            if (!string.IsNullOrWhiteSpace(ltoken))
+            {
+                tokenSet.Ltoken = ltoken;
+                // Cookie 里的 ltuid / account_id 就是账号自己，用它通过 HasDerivedToken 的归属校验。
+                tokenSet.LtokenUid = tokenSet.Aid;
+            }
+            if (!string.IsNullOrWhiteSpace(cookieToken))
+            {
+                tokenSet.CookieToken = cookieToken;
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine(ex);
+        }
+    }
+
+
+
+
+    /// <summary>从 Cookie 字符串里读 <c>ltoken</c> / <c>cookie_token</c>（V1 与 V2 键都认）。</summary>
+    private static (string? Ltoken, string? CookieToken) ReadDerivedTokens(string? cookie)
+    {
+        if (string.IsNullOrWhiteSpace(cookie))
+        {
+            return (null, null);
+        }
+        string? ltoken = null;
+        string? cookieToken = null;
+        foreach (string part in cookie.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            int index = part.IndexOf('=');
+            if (index <= 0)
+            {
+                continue;
+            }
+            ReadOnlySpan<char> key = part.AsSpan(0, index).Trim();
+            string value = part[(index + 1)..].Trim();
+            if (value.Length == 0)
+            {
+                continue;
+            }
+            if (key is "ltoken" or "ltoken_v2")
+            {
+                ltoken ??= value;
+            }
+            else if (key is "cookie_token" or "cookie_token_v2")
+            {
+                cookieToken ??= value;
+            }
+        }
+        return (ltoken, cookieToken);
     }
 
 
@@ -2283,7 +2427,7 @@ internal class PassportAccountService
 
 
     /// <summary>
-    /// 启动时调用一次（幂等）：加载当前账号、迁移旧配置、把账号池与上游 <c>PassportUserInfo</c> 表对齐。
+    /// 启动时调用一次（幂等）：加载当前账号、迁移旧配置、补齐工具箱角色行的账号 ID。
     /// <para>
     /// 必须在主窗口创建之前调用，否则 MainView 读到的还是旧账号列表、自动登录也找不到账号。
     /// 整个过程只读本机数据库与配置，不产生网络请求。
@@ -2304,9 +2448,7 @@ internal class PassportAccountService
             try
             {
                 _ = TokenSet;
-                ImportFromPassportUserInfo();
                 BackfillGameRecordRoleAid();
-                SyncToPassportUserInfo();
             }
             catch (Exception ex)
             {
@@ -2323,34 +2465,38 @@ internal class PassportAccountService
 
 
     /// <summary>
-    /// 把账号池里的国服账号同步进上游的 <c>PassportUserInfo</c> 表。
+    /// 把上游账号中心换发的新 SToken 写回账号池。
     /// <para>
-    /// 上游 0.19 的 MainView 账号浮窗、<see cref="GameLauncherService"/> 的自动登录、
-    /// <see cref="GameRecordRoleService"/> 的 Cookie 派生都读这张表；不写它的话，
-    /// 升到 0.19 之后这些已有功能会认为没有登录过。
+    /// 收口之后 SToken 只有 <c>PassportUserInfo</c> 一份，上游校验会话时已经把新令牌写进去了，
+    /// 这里只需要让内存里的当前会话跟上（否则本进程后续请求还拿着旧令牌）。
     /// </para>
     /// </summary>
-    public void SyncToPassportUserInfo()
+    public void OnPassportStokenRotated(ServerRegion region, long aid, string? stoken)
     {
         try
         {
-            foreach (var record in QueryAccountRecords())
+            if (aid <= 0 || string.IsNullOrWhiteSpace(stoken))
             {
-                var tokenSet = DecryptTokenSet(record);
-                if (tokenSet?.HasStoken is true)
-                {
-                    SyncAccountToPassportUserInfo(tokenSet);
-                }
+                return;
             }
-            var current = TokenSet;
-            if (current?.HasStoken is true && current.Aid > 0)
+            var current = _tokenSet;
+            if (current is null || current.Region != region || current.Aid != aid)
             {
-                AppConfig.SetLastPassportUserAid(current.Region, current.Aid);
+                // 不是当前会话：数据库里已经是新的了，下次切换账号时会读到。
+                return;
             }
+            if (string.Equals(current.Stoken, stoken, StringComparison.Ordinal))
+            {
+                return;
+            }
+            current.Stoken = stoken;
+            current.StokenVersion = stoken.StartsWith("v2_", StringComparison.Ordinal) ? 2 : 1;
+            current.StokenVerifyTime = DateTimeOffset.Now;
+            _logger.LogInformation("Synced the rotated stoken into the current passport session (aid: {aid}).", aid);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Sync passport accounts to PassportUserInfo");
+            _logger.LogError(ex, "Sync the rotated passport stoken ({aid})", aid);
         }
     }
 
@@ -2358,153 +2504,10 @@ internal class PassportAccountService
 
 
     /// <summary>
-    /// 上游账号中心换发了新的 SToken：把账号池里的副本换成同一枚。
+    /// 把上游 HYP 登录（<see cref="HypLoginWindow"/>）得到的账号收进账号池，返回账号标识。
     /// <para>
-    /// SToken 在本机存了两份（账号池与上游 <c>PassportUserInfo</c> 表），服务端换发之后旧的那枚
-    /// 随时作废。两边不同步的话，账号池留着旧令牌，下一次写账号表又把它盖回上游表，
-    /// 再校验时服务端只认新的那一枚，账号中心就会显示「登录已过期」——
-    /// 而此时体力 / 签到用的工具箱 Cookie 仍然是好的，所以表现为「功能都能用，账号却显示过期」。
-    /// </para>
-    /// </summary>
-    private void OnPassportStokenRotated(object recipient, PassportStokenRotatedMessage message)
-    {
-        try
-        {
-            if (message.Aid <= 0 || string.IsNullOrWhiteSpace(message.Stoken))
-            {
-                return;
-            }
-            string? key = GetAccountKeyOfPassportUser(message.Aid, message.Mid);
-            PassportAccountRecord? record = QueryAccountRecords().FirstOrDefault(x => x.Key == key && x.Region == message.Region);
-            if (record is null)
-            {
-                // 只存在于上游账号表（例如网页登录进来但没进账号池的国际服账号），不用管。
-                return;
-            }
-            PassportTokenSet? tokenSet = DecryptTokenSet(record);
-            if (tokenSet?.HasStoken is not true || string.Equals(tokenSet.Stoken, message.Stoken, StringComparison.Ordinal))
-            {
-                return;
-            }
-            tokenSet.Stoken = message.Stoken;
-            tokenSet.StokenVersion = message.Stoken.StartsWith("v2_", StringComparison.Ordinal) ? 2 : 1;
-            tokenSet.StokenVerifyTime = DateTimeOffset.Now;
-            var current = TokenSet;
-            if (current?.HasStoken is true && PassportAccountRecord.GetKey(current) == record.Key)
-            {
-                // 就是当前会话：连会话一起换（SaveTokenSet 会同时写账号池与上游账号表）。
-                SaveTokenSet(tokenSet);
-            }
-            else
-            {
-                TrySaveAccountRecord(tokenSet);
-            }
-            _logger.LogInformation("Synced the rotated stoken into the account pool (aid: {aid}).", message.Aid);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Sync the rotated passport stoken ({aid})", message.Aid);
-        }
-    }
-
-
-
-
-    /// <summary>
-    /// 把一个账号写到上游的 <c>PassportUserInfo</c> 表（按 Region + Aid 覆盖，保留已有的昵称 / 头像）。
-    /// 只在有 mid 的 V2 会话下同步：上游这张表要求 Mid 非空。
-    /// </summary>
-    private void SyncAccountToPassportUserInfo(PassportTokenSet? tokenSet)
-    {
-        try
-        {
-            if (tokenSet is null || !tokenSet.HasStoken || tokenSet.Aid <= 0 || string.IsNullOrWhiteSpace(tokenSet.Mid))
-            {
-                return;
-            }
-            PassportUserInfoModel? existing = GetUpstreamPassportUserInfo(tokenSet.Region, tokenSet.Aid);
-            GameRecordUser? user = tokenSet.Region is ServerRegion.miHoYo ? GameRecordRoleService.GetRecordUser(tokenSet.Aid, false) : null;
-            var model = new PassportUserInfoModel
-            {
-                Region = tokenSet.Region,
-                Aid = tokenSet.Aid,
-                Mid = tokenSet.Mid!,
-                Stoken = tokenSet.Stoken!,
-                AccountName = string.IsNullOrWhiteSpace(tokenSet.AccountName) ? existing?.AccountName ?? "" : tokenSet.AccountName,
-                Nickname = !string.IsNullOrWhiteSpace(tokenSet.Nickname) ? tokenSet.Nickname : user?.Nickname ?? existing?.Nickname ?? "",
-                AvatarUrl = existing?.AvatarUrl ?? user?.AvatarUrl ?? "",
-                Pendant = existing?.Pendant,
-            };
-            PassportService.SavePassportUserInfo(model);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Sync a passport account to PassportUserInfo");
-        }
-    }
-
-
-
-
-    /// <summary>
-    /// 上游 0.19 的库里已经有、但账号池里还没有的国服账号，导入账号池。
-    /// <para>
-    /// 只导入能解密、并且令牌校验成功过的国服行；国际服（HoYoverse）账号留给界面阶段再导入。
-    /// 导入的账号没有派生令牌，第一次切换时按需换取。
-    /// </para>
-    /// </summary>
-    public void ImportFromPassportUserInfo()
-    {
-        try
-        {
-            var existingAids = QueryAccountRecords()
-                .Where(x => x.Region is ServerRegion.miHoYo && x.Aid > 0)
-                .Select(x => x.Aid)
-                .ToHashSet();
-            foreach (var info in PassportService.GetPassportUserInfos(ServerRegion.miHoYo))
-            {
-                if (info.Aid <= 0 || info.ErrorType is not PassportErrorType.Success || string.IsNullOrWhiteSpace(info.Stoken))
-                {
-                    continue;
-                }
-                if (existingAids.Contains(info.Aid))
-                {
-                    continue;
-                }
-                var tokenSet = new PassportTokenSet
-                {
-                    Region = ServerRegion.miHoYo,
-                    Stoken = info.Stoken,
-                    StokenVersion = info.Stoken.StartsWith("v2_", StringComparison.Ordinal) ? 2 : 1,
-                    Mid = info.Mid,
-                    Aid = info.Aid,
-                    LoginTime = DateTimeOffset.Now,
-                    LoginMethod = "import",
-                    Nickname = info.Nickname,
-                };
-                if (!tokenSet.HasStoken)
-                {
-                    continue;
-                }
-                SaveAccountRecord(tokenSet);
-                _logger.LogInformation("Imported a passport account from PassportUserInfo (aid: {aid}).", info.Aid);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Import passport accounts from PassportUserInfo");
-        }
-    }
-
-
-
-
-    /// <summary>
-    /// 把上游 HYP 登录（<see cref="HypLoginWindow"/>）得到的账号写进账号池，返回账号标识。
-    /// <para>
-    /// 【界面阶段调用】现在 MainView 的 HYP 登录只写 <c>PassportUserInfo</c>，账号中心迁移完成后
-    /// 由登录成功的回调调用这里，把账号同时放进账号池（国际服账号也支持，Region 原样保存）。
-    /// 只入库，不切换当前会话、不发网络请求；国服账号会顺手把工具箱 Cookie 同步一次。
+    /// HYP 登录本身已经把 SToken 写进 <c>PassportUserInfo</c>（唯一 owner），这里只需要
+    /// 把工具箱 Cookie 同步一次；不切换当前会话、不发多余的通行证请求。
     /// </para>
     /// </summary>
     /// <param name="model">HYP 登录得到的账号。</param>
@@ -2514,23 +2517,16 @@ internal class PassportAccountService
     {
         try
         {
-            if (model is null || model.Aid <= 0 || string.IsNullOrWhiteSpace(model.Stoken))
+            if (model is null || model.Aid <= 0)
             {
                 return null;
             }
-            var tokenSet = new PassportTokenSet
+            PassportTokenSet? tokenSet = LoadTokenSet(model.Region, model.Aid);
+            if (tokenSet is null)
             {
-                Region = model.Region,
-                Stoken = model.Stoken,
-                StokenVersion = model.Stoken.StartsWith("v2_", StringComparison.Ordinal) ? 2 : 1,
-                Mid = model.Mid,
-                Aid = model.Aid,
-                AccountName = model.AccountName,
-                Nickname = model.Nickname,
-                LoginTime = DateTimeOffset.Now,
-                LoginMethod = "hyp",
-            };
-            SaveTokenSetOrRecord(tokenSet);
+                return null;
+            }
+            _accountItems = null;
             if (tokenSet.Region is ServerRegion.miHoYo)
             {
                 await SyncToToolboxAsync(tokenSet, cancellationToken);
@@ -2563,27 +2559,24 @@ internal class PassportAccountService
 
 
 
-    /// <summary>删掉上游 <c>PassportUserInfo</c> 表里对应的账号行，让 MainView 不再显示它。</summary>
-    private void RemovePassportUserInfoRow(PassportTokenSet? tokenSet)
+    /// <summary>删掉一个账号：上游 <c>PassportUserInfo</c> 表里的那一行。</summary>
+    private void DeleteAccountRows(PassportAccountRecord record)
     {
         try
         {
-            if (tokenSet is null || tokenSet.Aid <= 0 || string.IsNullOrWhiteSpace(tokenSet.Mid))
-            {
-                return;
-            }
             PassportService.DeletePassportUserInfo(new PassportUserInfoModel
             {
-                Region = tokenSet.Region,
-                Aid = tokenSet.Aid,
-                Mid = tokenSet.Mid!,
+                Region = record.Region,
+                Aid = record.Aid,
+                Mid = record.Mid ?? "",
             });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Delete the passport user info of the account (aid: {aid})", tokenSet?.Aid);
+            _logger.LogError(ex, "Delete the passport account rows (aid: {aid})", record.Aid);
         }
     }
+
 
 
 
@@ -2636,8 +2629,9 @@ internal class PassportAccountService
     /// <summary>
     /// 把旧版本写在 config.ini / 注册表里的 SToken 迁移到数据库，并清理配置文件中的敏感信息。
     /// <para>
-    /// 这是主分支在引入账号池之前用的存储位置；从更老的版本升级上来时，
-    /// 数据库里的账号池还是空的，需要把单账号凭据引导进来一次。
+    /// 这是主分支在引入账号池之前用的存储位置。那时只存 stoken + mid，没有账号 ID，
+    /// 而收口后的存储必须知道账号 ID 才能写上游 <c>PassportUserInfo</c> 表，
+    /// 所以这段凭据只能放进当前会话（重启前有效），并提示用户重新登录一次。
     /// </para>
     /// </summary>
     private void MigrateLegacyConfiguration()
@@ -2648,7 +2642,7 @@ internal class PassportAccountService
             if (_tokenSet is null && !string.IsNullOrWhiteSpace(stoken) && !string.IsNullOrWhiteSpace(mid))
             {
                 string value = stoken;
-                _tokenSet = new PassportTokenSet
+                var tokenSet = new PassportTokenSet
                 {
                     Region = ServerRegion.miHoYo,
                     Stoken = value,
@@ -2657,8 +2651,16 @@ internal class PassportAccountService
                     LoginTime = DateTimeOffset.Now,
                     LoginMethod = "legacy",
                 };
-                SaveTokenSet(_tokenSet);
-                _logger.LogInformation("Migrated the legacy stoken from the configuration file to the database.");
+                if (tokenSet.Aid > 0)
+                {
+                    SaveTokenSet(tokenSet);
+                    _logger.LogInformation("Migrated the legacy stoken from the configuration file to the database.");
+                }
+                else
+                {
+                    _tokenSet = tokenSet;
+                    _logger.LogWarning("The legacy stoken in the configuration file has no account id, it is only used for this session. Please sign in again.");
+                }
             }
             if (!string.IsNullOrWhiteSpace(stoken) || !string.IsNullOrWhiteSpace(mid))
             {

@@ -1095,22 +1095,36 @@ public static partial class AppConfig
 
 
     /// <summary>
-    /// 通行证令牌（JSON）。用 DPAPI 加密后保存在数据库中，不再写入 config.ini 或注册表。
+    /// 当前通行证会话指向哪个账号，格式是「区域:账号 ID」（例如 <c>miHoYo:81107513</c>）。
+    /// <para>
+    /// 只存指针，不存令牌：SToken 在 <c>PassportUserInfo</c> 表里（唯一一份），
+    /// 派生令牌在侧表 <c>PassportAccountToken</c> 里，重启时按这个指针去读。
+    /// </para>
     /// </summary>
-    public static string? PassportTokenJson
+    public static string? CurrentPassportAccount
     {
         get => GetValue<string>();
         set => SetValue(value);
     }
 
 
+    /// <summary>账号列表拖动排序用的设置键（按区域各存一份，值是逗号分隔的账号 ID）。</summary>
+    private const string PassportUserOrderKey = "PassportUserOrder";
+
+
     /// <summary>
-    /// 账号中心里账号列表的排列顺序（账号标识，逗号分隔）。拖动排序后保存，重启后仍然有效。
+    /// 账号中心里账号列表的排列顺序。账号中心（上游 HYP 浮窗）与账号池共用这一份，
+    /// 拖动排序后保存，重启后仍然有效。
     /// </summary>
-    public static string? PassportAccountOrder
+    public static string? GetPassportUserOrder(ServerRegion region)
     {
-        get => GetValue<string>();
-        set => SetValue(value);
+        return GetValue<string>(null, PassportUserOrderKey, region.ToString());
+    }
+
+
+    public static void SetPassportUserOrder(ServerRegion region, string? order)
+    {
+        SetValue(order, PassportUserOrderKey, region.ToString());
     }
 
 

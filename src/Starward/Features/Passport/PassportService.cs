@@ -1,5 +1,4 @@
 ﻿using CommunityToolkit.HighPerformance;
-using CommunityToolkit.Mvvm.Messaging;
 using Dapper;
 using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
@@ -60,11 +59,11 @@ internal class PassportService
             if (!string.IsNullOrWhiteSpace(result.NewSToken))
             {
                 // refresh = true 时服务端会换发一枚新的 SToken，旧的那枚随时可能作废。
-                // 账号池（<see cref="PassportAccountService"/>）里存的是另一份副本，不同步过去的话
-                // 它下次写入账号表就会把旧令牌盖回来，账号中心随即又显示「登录已过期」。
+                // SToken 在数据库里只有这一份（账号池不再另存副本），写完就是唯一权威，
+                // 只需要让账号池里的「当前会话」缓存跟上。
                 model.Stoken = result.NewSToken;
                 SavePassportUserInfo(model);
-                WeakReferenceMessenger.Default.Send(new PassportStokenRotatedMessage(model.Region, model.Aid, model.Mid, model.Stoken));
+                AppConfig.GetService<PassportAccountService>().OnPassportStokenRotated(model.Region, model.Aid, model.Stoken);
             }
             else
             {
@@ -342,6 +341,10 @@ internal class PassportService
         stokenAes.Encrypt(cipher.AsSpan()[..12], stokenBytes, cipher.AsSpan()[12..^16], cipher.AsSpan()[^16..]);
         return cipher;
     }
+
+
+    /// <summary>供数据库迁移把老账号池的 SToken 写进账号表，加密方式与账号表本身一致。</summary>
+    internal static byte[] ProtectStoken(string stoken) => EncryptStoken(stoken);
 
 
     private static string DecryptStoken(byte[] cipher)

@@ -4,6 +4,7 @@ using SharpSevenZip;
 using Starward.Core;
 using Starward.Core.HoYoPlay;
 using Starward.Features.Account;
+using Starward.Features.Passport;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -224,12 +225,6 @@ internal static class DatabaseService
         {
             con.Execute("ALTER TABLE GameRecordRole ADD COLUMN Aid INTEGER NOT NULL DEFAULT 0;");
         }
-        con.Execute(Sql_v24_CreatePassportAccount);
-        if (!HasColumn(con, "PassportAccount", "Region"))
-        {
-            con.Execute("ALTER TABLE PassportAccount ADD COLUMN Region INTEGER NOT NULL DEFAULT 1;");
-        }
-        con.Execute(Sql_v24_CreatePassportAccountIndexes);
         MigrateInstallPathsFromSettings(con);
         MigrateLegacySettings(con, legacyMainDatabase);
         con.Execute("PRAGMA USER_VERSION = 24;");
@@ -777,104 +772,6 @@ internal static class DatabaseService
 
 
 
-
-    #region Passport Account
-
-    // 通行证账号池（原 main 分支的账号中心模型）。账号本身只存在数据库里，
-    // 需要用到哪一个就把它写到「当前账号」的设置项 / 上游 PassportUserInfo 表里。
-    // 令牌由调用方用 DPAPI 加密后再写进 Token 列，数据库层不感知令牌内容。
-
-
-    /// <summary>
-    /// 读取账号池里的全部通行证账号，最近更新的排在前面。
-    /// </summary>
-    public static List<PassportAccountRecord> GetPassportAccounts()
-    {
-        try
-        {
-            using var con = CreateConnection();
-            return con.Query<PassportAccountRecord>("SELECT * FROM PassportAccount ORDER BY Time DESC;").ToList();
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine(ex);
-            return [];
-        }
-    }
-
-
-    /// <summary>
-    /// 按账号标识读取一条通行证账号记录，不存在时返回 null。
-    /// </summary>
-    public static PassportAccountRecord? GetPassportAccount(string key)
-    {
-        if (string.IsNullOrWhiteSpace(key))
-        {
-            return null;
-        }
-        try
-        {
-            using var con = CreateConnection();
-            return con.QueryFirstOrDefault<PassportAccountRecord>("SELECT * FROM PassportAccount WHERE Key = @key LIMIT 1;", new { key });
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine(ex);
-            return null;
-        }
-    }
-
-
-    /// <summary>
-    /// 写入（新增或更新）一条通行证账号记录。
-    /// </summary>
-    /// <returns>这条记录是本次新插入的（账号池里原来没有）时返回 true。</returns>
-    public static bool SavePassportAccount(PassportAccountRecord record)
-    {
-        using var con = CreateConnection();
-        bool isNew = con.ExecuteScalar<long>("SELECT COUNT(1) FROM PassportAccount WHERE Key = @Key;", new { record.Key }) == 0;
-        con.Execute("""
-            INSERT OR REPLACE INTO PassportAccount (Key, Region, Aid, Mid, Nickname, AccountName, LoginMethod, LoginTime, Token, Time)
-            VALUES (@Key, @Region, @Aid, @Mid, @Nickname, @AccountName, @LoginMethod, @LoginTime, @Token, @Time);
-            """, record);
-        return isNew;
-    }
-
-
-    /// <summary>
-    /// 从账号池里删除一条通行证账号记录。
-    /// </summary>
-    /// <returns>确实删掉了一行时返回 true。</returns>
-    public static bool DeletePassportAccount(string key)
-    {
-        if (string.IsNullOrWhiteSpace(key))
-        {
-            return false;
-        }
-        using var con = CreateConnection();
-        return con.Execute("DELETE FROM PassportAccount WHERE Key = @key;", new { key }) > 0;
-    }
-
-
-    /// <summary>
-    /// 直接查询账号池里的原始账号 ID，供迁移 / 去重这类只需要 ID 的场景使用。
-    /// </summary>
-    public static List<long> GetPassportAccountAids()
-    {
-        try
-        {
-            using var con = CreateConnection();
-            return con.Query<long>("SELECT Aid FROM PassportAccount WHERE Aid > 0;").ToList();
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine(ex);
-            return [];
-        }
-    }
-
-
-    #endregion
 
 
 
@@ -1847,39 +1744,6 @@ internal static class DatabaseService
 
         PRAGMA USER_VERSION = 23;
         COMMIT TRANSACTION;
-        """;
-    /// <summary>
-    /// v24 使用：本分支的通行证账号池表。
-    /// <para>
-    /// 与老 main 的 <c>PassportAccount</c> 表字段保持一致，另外补上 <c>Region</c>
-    /// （<see cref="Starward.Core.ServerRegion"/> 的整数值，1 = 国服 miHoYo），
-    /// 为后续把国际服 HYP 登录的账号也并入账号池做准备。
-    /// </para>
-    /// <para>
-    /// 老 main 的库里这张表已经存在且没有 Region，<see cref="ApplyMigrationV24"/> 会补列；
-    /// 这里必须带 Region 定义，保证全新安装一次到位。
-    /// </para>
-    /// </summary>
-    private const string Sql_v24_CreatePassportAccount = """
-        CREATE TABLE IF NOT EXISTS PassportAccount
-        (
-            Key         TEXT    NOT NULL PRIMARY KEY,
-            Region      INTEGER NOT NULL DEFAULT 1,
-            Aid         INTEGER NOT NULL,
-            Mid         TEXT,
-            Nickname    TEXT,
-            AccountName TEXT,
-            LoginMethod TEXT,
-            LoginTime   TEXT    NOT NULL,
-            Token       BLOB    NOT NULL,
-            Time        TEXT    NOT NULL
-        );
-        """;
-
-    private const string Sql_v24_CreatePassportAccountIndexes = """
-        CREATE INDEX IF NOT EXISTS IX_PassportAccount_Aid ON PassportAccount (Aid);
-        CREATE INDEX IF NOT EXISTS IX_PassportAccount_Time ON PassportAccount (Time);
-        CREATE INDEX IF NOT EXISTS IX_PassportAccount_Region ON PassportAccount (Region);
         """;
 
     #endregion

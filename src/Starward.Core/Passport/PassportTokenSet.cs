@@ -103,11 +103,6 @@ public class PassportTokenSet
     public DateTimeOffset StokenVerifyTime { get; set; }
 
 
-    /// <summary>最近一次获取派生令牌的时间。</summary>
-    [JsonPropertyName("derived_token_time")]
-    public DateTimeOffset DerivedTokenTime { get; set; }
-
-
     /// <summary>登录时间。</summary>
     [JsonPropertyName("login_time")]
     public DateTimeOffset LoginTime { get; set; }
@@ -155,10 +150,6 @@ public class PassportTokenSet
     public static TimeSpan StokenVerifyInterval { get; } = TimeSpan.FromHours(6);
 
 
-    /// <summary>派生令牌的强制刷新间隔。派生令牌会随时间失效，过期后由服务端返回鉴权失败。</summary>
-    public static TimeSpan DerivedTokenInterval { get; } = TimeSpan.FromDays(30);
-
-
     /// <summary>SToken 是否到了需要校验 / 续期的时间。</summary>
     public bool NeedVerifyStoken(DateTimeOffset now)
     {
@@ -166,10 +157,16 @@ public class PassportTokenSet
     }
 
 
-    /// <summary>派生令牌（LToken / CookieToken）是否缺失或已经过期。</summary>
-    public bool NeedRefreshDerivedToken(DateTimeOffset now)
+    /// <summary>
+    /// 派生令牌（LToken / CookieToken）是否需要重新换取。
+    /// <para>
+    /// 只按「缺了才换」判断：派生令牌和上游一样只存在工具箱 Cookie 里，没有自己的时间戳，
+    /// 什么时候失效由服务端说了算——真失效了由请求报鉴权失败再触发重取（上游也是这个策略）。
+    /// </para>
+    /// </summary>
+    public bool NeedRefreshDerivedToken()
     {
-        return !HasDerivedToken || string.IsNullOrWhiteSpace(CookieToken) || now - DerivedTokenTime > DerivedTokenInterval;
+        return !HasDerivedToken || string.IsNullOrWhiteSpace(CookieToken);
     }
 
 

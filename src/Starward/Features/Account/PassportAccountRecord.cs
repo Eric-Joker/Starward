@@ -5,7 +5,7 @@ using System;
 namespace Starward.Features.Account;
 
 /// <summary>
-/// 数据库里保存的一条通行证账号记录。
+/// 账号列表里的一条通行证账号（只读投影，不含任何令牌）。
 /// <para>
 /// 收口之后的存储：身份与 SToken 在上游 <c>PassportUserInfo</c> 表（唯一 owner），
 /// 派生令牌只存在工具箱 Cookie（<c>GameRecordUser</c> / <c>GameRecordRole</c>）里。
@@ -14,7 +14,7 @@ namespace Starward.Features.Account;
 /// <para>
 /// 本分支保留主分支（main）的账号池模型，同时吸收上游 0.19 的区域概念：
 /// <see cref="Region"/> 区分国服（<see cref="ServerRegion.miHoYo"/>）与国际服（<see cref="ServerRegion.HoYoverse"/>）。
-/// 主分支原来只支持国服通行证，所以升级上来的账号一律按miHoYo处理。
+/// 主分支原来只支持国服通行证，所以升级上来的账号一律按 miHoYo 处理。
 /// </para>
 /// </summary>
 internal class PassportAccountRecord
@@ -40,23 +40,9 @@ internal class PassportAccountRecord
     public string? Mid { get; set; }
 
 
+    /// <summary>米游社昵称，来自上游表。</summary>
     public string? Nickname { get; set; }
 
-
-    public string? AccountName { get; set; }
-
-
-    public string? LoginMethod { get; set; }
-
-
-    public DateTimeOffset LoginTime { get; set; }
-
-
-    /// <summary>用 DPAPI 加密后的令牌集合（JSON）。</summary>
-    public byte[] Token { get; set; } = [];
-
-
-    public DateTimeOffset Time { get; set; }
 
 
 

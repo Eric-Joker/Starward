@@ -1,5 +1,6 @@
 using Starward.Core.DeviceFp;
 using Starward.Core.GameRecord;
+using System.Collections.Concurrent;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
@@ -298,10 +299,13 @@ public class PassportClient
 
     /// <summary>
     /// 上游强类型接口的通行证请求头：按账号区域选择国服 / 国际服的应用标识与 SDK 版本。
+    /// <para>
+    /// 国服的 app_id 取决于令牌是哪个应用签发的，见 <see cref="SendChinaPassportAsync{T}"/>。
+    /// </para>
     /// </summary>
-    private void AddPassportHeaders(HttpRequestMessage request, PassportUserInfo userInfo)
+    private void AddPassportHeaders(HttpRequestMessage request, PassportUserInfo userInfo, string? chinaAppId = null)
     {
-        request.Headers.Add("x-rpc-app_id", userInfo.IsGlobalServer ? "ddxf6vlr1reo" : "ddxf5qt290cg");
+        request.Headers.Add("x-rpc-app_id", userInfo.IsGlobalServer ? "ddxf6vlr1reo" : chinaAppId ?? GetChinaAppId(userInfo));
         request.Headers.Add("x-rpc-client_type", "3");
         request.Headers.Add("x-rpc-game_biz", userInfo.IsGlobalServer ? "hyp_global" : "hyp_cn");
         request.Headers.Add("x-rpc-sdk_version", userInfo.IsGlobalServer ? "2.55.3" : "2.55.2");
@@ -311,6 +315,59 @@ public class PassportClient
         request.Headers.Add("x-rpc-device_name", Environment.MachineName);
         request.Headers.Add("x-rpc-device_os", Environment.OSVersion.Version.Build > 22000 ? "Windows 11 Version 2009" : "Windows 10 Version 1909");
         request.Headers.Add("x-rpc-language", Language);
+    }
+
+
+
+
+    /// <summary>国服通行证接口可用的 app_id：启动器（<see cref="AppIdHyp"/>）与 HYP 网页。</summary>
+    private const string AppIdWeb = "ddxf5qt290cg";
+
+
+    /// <summary>每个账号上一次验证通过的国服 app_id，避免每次启动都多打一次请求。</summary>
+    private readonly ConcurrentDictionary<long, string> _chinaPassportAppIds = new();
+
+
+
+
+    /// <summary>
+    /// 发一个国服通行证请求。
+    /// <para>
+    /// 同一枚 SToken 只认签发它的那枚 app_id：本分支的登录（密码 / 短信 / 扫码 / 令牌导入）走启动器
+    /// （<see cref="AppIdHyp"/>），HYP 网页登录拿到的是网页那枚（<see cref="AppIdWeb"/>），用错会被服务端
+    /// 判成 -100「登录状态失效」。这里先试记住的那一枚，失败再换另一枚，成功后记住这次用的。
+    /// </para>
+    /// </summary>
+    private async Task<T> SendChinaPassportAsync<T>(Func<string, HttpRequestMessage> createRequest, PassportUserInfo userInfo, CancellationToken cancellationToken) where T : class
+    {
+        string first = GetChinaAppId(userInfo);
+        string[] appIds = [first, first == AppIdHyp ? AppIdWeb : AppIdHyp];
+        miHoYoApiException? failure = null;
+        foreach (string appId in appIds)
+        {
+            try
+            {
+                using HttpRequestMessage request = createRequest(appId);
+                T result = await SendAsync<T>(request, cancellationToken).ConfigureAwait(false);
+                _chinaPassportAppIds[userInfo.Aid] = appId;
+                return result;
+            }
+            catch (miHoYoApiException ex) when (ex.ReturnCode is -100 or -111 or 10001 or -10001)
+            {
+                // 换另一枚 app_id 再试：另一种登录方式签发的令牌就是这种表现。
+                failure = ex;
+            }
+        }
+        throw failure!;
+    }
+
+
+
+
+    /// <summary>这个账号该用哪一枚国服 app_id：先看验证过的记录，没有就按启动器算。</summary>
+    private string GetChinaAppId(PassportUserInfo userInfo)
+    {
+        return _chinaPassportAppIds.TryGetValue(userInfo.Aid, out string? appId) ? appId : AppIdHyp;
     }
 
 
@@ -1030,10 +1087,9 @@ public class PassportClient
     /// </summary>
     public async Task<SessionVerifyResult> VerifySessionAsync(PassportUserInfo userInfo, CancellationToken cancellationToken = default)
     {
-        HttpRequestMessage request;
         if (userInfo.IsGlobalServer)
         {
-            request = new HttpRequestMessage(HttpMethod.Post, "https://passport-api-sg.hoyoverse.com/account/ma-passport/token/verifySToken")
+            using var request = new HttpRequestMessage(HttpMethod.Post, "https://passport-api-sg.hoyoverse.com/account/ma-passport/token/verifySToken")
             {
                 Content = JsonContent.Create(new VerifySTokenRequest
                 {
@@ -1041,10 +1097,19 @@ public class PassportClient
                     Stoken = userInfo.Stoken,
                 }, PassportJsonContext.Default.VerifySTokenRequest),
             };
+            AddPassportHeaders(request, userInfo);
+            return await SendAsync<SessionVerifyResult>(request, cancellationToken).ConfigureAwait(false);
         }
-        else if (userInfo.IsChinaServer)
+        if (userInfo.IsChinaServer)
         {
-            request = new HttpRequestMessage(HttpMethod.Post, "https://passport-api.mihoyo.com/account/ma-cn-session/app/verify")
+            return await SendChinaPassportAsync<SessionVerifyResult>(CreateChinaRequest, userInfo, cancellationToken).ConfigureAwait(false);
+        }
+        throw new NotSupportedException($"Passport region '{userInfo.Region}' is not supported.");
+
+
+        HttpRequestMessage CreateChinaRequest(string chinaAppId)
+        {
+            var request = new HttpRequestMessage(HttpMethod.Post, "https://passport-api.mihoyo.com/account/ma-cn-session/app/verify")
             {
                 Content = JsonContent.Create(new SessionVerifyRequest
                 {
@@ -1053,13 +1118,9 @@ public class PassportClient
                     Mid = userInfo.Mid,
                 }, PassportJsonContext.Default.SessionVerifyRequest),
             };
+            AddPassportHeaders(request, userInfo, chinaAppId);
+            return request;
         }
-        else
-        {
-            throw new NotSupportedException($"Passport region '{userInfo.Region}' is not supported.");
-        }
-        AddPassportHeaders(request, userInfo);
-        return await SendAsync<SessionVerifyResult>(request, cancellationToken).ConfigureAwait(false);
     }
 
 
@@ -1143,10 +1204,9 @@ public class PassportClient
     /// </summary>
     public async Task<AuthTicketResult> CreateAuthTicketAsync(PassportUserInfo userInfo, string gameBiz, CancellationToken cancellationToken = default)
     {
-        HttpRequestMessage request;
         if (userInfo.IsGlobalServer)
         {
-            request = new HttpRequestMessage(HttpMethod.Post, "https://passport-api-sg.hoyoverse.com/account/ma-verifier/api/createAuthTicketBySToken")
+            using var request = new HttpRequestMessage(HttpMethod.Post, "https://passport-api-sg.hoyoverse.com/account/ma-verifier/api/createAuthTicketBySToken")
             {
                 Content = JsonContent.Create(new CreateAuthTicketBySTokenRequest
                 {
@@ -1155,10 +1215,19 @@ public class PassportClient
                     BizName = gameBiz,
                 }, PassportJsonContext.Default.CreateAuthTicketBySTokenRequest),
             };
+            AddPassportHeaders(request, userInfo);
+            return await SendAsync<AuthTicketResult>(request, cancellationToken).ConfigureAwait(false);
         }
-        else if (userInfo.IsChinaServer)
+        if (userInfo.IsChinaServer)
         {
-            request = new HttpRequestMessage(HttpMethod.Post, "https://passport-api.mihoyo.com/account/ma-cn-verifier/app/createAuthTicketByGameBiz")
+            return await SendChinaPassportAsync<AuthTicketResult>(CreateChinaRequest, userInfo, cancellationToken).ConfigureAwait(false);
+        }
+        throw new NotSupportedException($"Passport region '{userInfo.Region}' is not supported.");
+
+
+        HttpRequestMessage CreateChinaRequest(string chinaAppId)
+        {
+            var request = new HttpRequestMessage(HttpMethod.Post, "https://passport-api.mihoyo.com/account/ma-cn-verifier/app/createAuthTicketByGameBiz")
             {
                 Content = JsonContent.Create(new CreateAuthTicketByGameBizRequest
                 {
@@ -1168,13 +1237,9 @@ public class PassportClient
                     Mid = userInfo.Mid,
                 }, PassportJsonContext.Default.CreateAuthTicketByGameBizRequest),
             };
+            AddPassportHeaders(request, userInfo, chinaAppId);
+            return request;
         }
-        else
-        {
-            throw new NotSupportedException($"Passport region '{userInfo.Region}' is not supported.");
-        }
-        AddPassportHeaders(request, userInfo);
-        return await SendAsync<AuthTicketResult>(request, cancellationToken).ConfigureAwait(false);
     }
 
 
