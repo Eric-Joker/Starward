@@ -2722,11 +2722,8 @@ internal class PassportAccountService
 
 
 
-#if DEBUG
-    private const string StarwardRegistryKey = @"Software\Starward.Debug";
-#else
+    // 安装版和调试版共用同一个数据目录，设备标识也必须共用，否则同一份账号池会带着两种设备号请求。
     private const string StarwardRegistryKey = @"Software\Starward";
-#endif
 
 
 

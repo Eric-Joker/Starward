@@ -88,11 +88,8 @@ public static partial class AppConfig
             string? userDataFolder = null;
             if (string.IsNullOrWhiteSpace(ConfigPath))
             {
-#if DEBUG
-                using RegistryKey key = Registry.CurrentUser.CreateSubKey(@"Software\Starward.Debug");
-#else
+                // 安装版和调试版共用同一个用户数据目录，升级 / 迁移测试才能看到同一份数据。
                 using RegistryKey key = Registry.CurrentUser.CreateSubKey(@"Software\Starward");
-#endif
                 userDataFolder = (key.GetValue("UserDataFolder") as string)?.Trim();
             }
             else if (File.Exists(ConfigPath))
@@ -213,11 +210,8 @@ public static partial class AppConfig
 
     private static void LoadConfigurationFromRegistry()
     {
-#if DEBUG
-        using var key = Registry.CurrentUser.CreateSubKey(@"Software\Starward.Debug");
-#else
+        // 安装版和调试版共用同一个注册表项（用户数据目录、语言等设置都在这里）。
         using var key = Registry.CurrentUser.CreateSubKey(@"Software\Starward");
-#endif
         string? lang = (key.GetValue("Language") as string)?.Trim();
         SetLanguage(lang);
     }
@@ -240,11 +234,8 @@ public static partial class AppConfig
     {
         try
         {
-#if DEBUG
-            using var key = Registry.CurrentUser.CreateSubKey(@"Software\Starward.Debug");
-#else
+            // 安装版和调试版共用同一个注册表项。
             using var key = Registry.CurrentUser.CreateSubKey(@"Software\Starward");
-#endif
             if (!string.IsNullOrWhiteSpace(Language))
             {
                 key.SetValue("Language", Language);
