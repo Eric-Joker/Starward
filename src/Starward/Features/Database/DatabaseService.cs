@@ -31,6 +31,10 @@ internal static class DatabaseService
     private static Lock _lock = new();
 
 
+    /// <summary>代码期望的数据库版本。低于它的库启动时都要先备份、再迁移。</summary>
+    private const int CurrentDatabaseVersion = 24;
+
+
     static DatabaseService()
     {
         SqlMapper.AddTypeHandler(new DapperSqlMapper.DateTimeOffsetHandler());
@@ -85,10 +89,15 @@ internal static class DatabaseService
             // 通行证账号表（PassportAccount），而不是上游 v22 的 Setting 表拆分（Key, GameId, Value）。
             // 这类库要从 21 开始重新执行上游的 v22 / v23，再把本分支合并后的 v24 补上。
             bool legacyMainDatabase = version >= 22 && !HasColumn(con, "Setting", "GameId");
+            // 版本更新前先备份一次数据库：复用退出时的那套自动备份逻辑（强制生成，忽略 7 天间隔与 DEBUG 判断），
+            // 这样任何一次升级前都有一份可回退的库。原先只为老 main 的 v22 库单独做的备份逻辑已经删掉。
+            if (version is > 0 and < CurrentDatabaseVersion)
+            {
+                AutoBackupToAppDataLocal(force: true);
+            }
             if (legacyMainDatabase)
             {
                 Debug.WriteLine("Legacy main database detected (user_version 22 without Setting.GameId), rerunning migrations from v21.");
-                BackupLegacyDatabase();
                 version = 21;
             }
             foreach (var sql in DatabaseSqls.Skip(version))
@@ -97,7 +106,7 @@ internal static class DatabaseService
             }
             // v24 需要按列是否已存在决定要不要 ALTER，SQL 里做不到，因此单独执行。
             // 本分支自己的 v24 / v25 / v26 从未发布，合并成一个 v24。
-            if (version <= 23)
+            if (version < CurrentDatabaseVersion)
             {
                 ApplyMigrationV24(con, legacyMainDatabase);
             }
@@ -171,38 +180,6 @@ internal static class DatabaseService
         }
     }
 
-
-    /// <summary>
-    /// 老 main 的库要从 v22 回退重跑上游迁移，先留一份备份，避免迁移失败时用户数据没有退路。
-    /// 只在一开始备份一次（文件已存在就跳过）。
-    /// <para>用 SQLite 的备份接口而不是复制文件：库可能是 WAL 模式，直接复制 .db 会漏掉还没合并的日志。</para>
-    /// </summary>
-    private static void BackupLegacyDatabase()
-    {
-        try
-        {
-            string backup = _databasePath + ".main-v22.bak";
-            if (File.Exists(backup) || !File.Exists(_databasePath))
-            {
-                return;
-            }
-            using var backupCon = new SqliteConnection(new SqliteConnectionStringBuilder
-            {
-                DataSource = backup,
-                Mode = SqliteOpenMode.ReadWriteCreate,
-                Pooling = false,
-            }.ToString());
-            backupCon.Open();
-            using var con = CreateConnection();
-            con.BackupDatabase(backupCon);
-            Debug.WriteLine($"Backed up the legacy main database to {backup}.");
-        }
-        catch (Exception ex)
-        {
-            // 备份失败也继续迁移：用户至少还能通过自动备份恢复。
-            Debug.WriteLine(ex);
-        }
-    }
 
 
     /// <summary>
@@ -298,12 +275,9 @@ internal static class DatabaseService
     /// <summary>
     /// 当前游戏：main 按区服记（<c>CurrentGameBiz</c>），0.19 按游戏 ID 记（<c>CurrentGameId</c>）。
     /// <para>
-    /// 升级前的真值优先从 v22 迁移前留下的备份库读：用户可能用旧版 0.18 又打开过迁移后的库，
-    /// 把 <c>CurrentGameBiz</c> 改成了别的区服（旧版不认新表结构，但读写老键仍然“正常”）。
-    /// 没有备份时才退回读 Setting 里的旧键。
-    /// </para>
-    /// <para>
-    /// 只在「还没选过游戏」或「能从迁移前备份读到真值」时写，避免覆盖用户在新版本里的选择。
+    /// 老 main 的库在重跑上游 v22 / v23 迁移时，<c>CurrentGameBiz</c> 这种没有被重命名的键会原样保留在
+    /// Setting 表里（见 <c>Sql_v22</c>），所以直接从当前库里读。只在还没选过游戏时写入，
+    /// 不覆盖用户在新版本里的选择。
     /// </para>
     /// </summary>
     private static void MigrateLegacyCurrentGame(SqliteConnection con)
@@ -312,22 +286,17 @@ internal static class DatabaseService
         {
             string? currentGameId = con.QueryFirstOrDefault<string>(
                 "SELECT Value FROM Setting WHERE Key = 'CurrentGameId' AND GameId = '' LIMIT 1;");
-            string? fromBackup = ReadLegacyCurrentGameBizFromBackup();
-            string? legacyGameBiz = fromBackup;
-            if (string.IsNullOrWhiteSpace(legacyGameBiz))
+            if (!string.IsNullOrWhiteSpace(currentGameId))
             {
-                legacyGameBiz = con.QueryFirstOrDefault<string>(
-                    "SELECT Value FROM Setting WHERE Key = 'CurrentGameBiz' AND GameId = '' LIMIT 1;");
+                return;
             }
+            string? legacyGameBiz = con.QueryFirstOrDefault<string>(
+                "SELECT Value FROM Setting WHERE Key = 'CurrentGameBiz' AND GameId = '' LIMIT 1;");
             if (string.IsNullOrWhiteSpace(legacyGameBiz) || !GameBiz.TryParse(legacyGameBiz, out GameBiz gameBiz))
             {
                 return;
             }
             if (GameId.FromGameBiz(gameBiz) is not GameId gameId)
-            {
-                return;
-            }
-            if (!string.IsNullOrWhiteSpace(currentGameId) && string.IsNullOrWhiteSpace(fromBackup))
             {
                 return;
             }
@@ -350,34 +319,6 @@ internal static class DatabaseService
         }
     }
 
-
-    /// <summary>
-    /// 读 v22 迁移前留下的备份库里的 main 当前游戏（<c>CurrentGameBiz</c>）。备份不存在或读不到时返回 null。
-    /// </summary>
-    private static string? ReadLegacyCurrentGameBizFromBackup()
-    {
-        try
-        {
-            string backup = _databasePath + ".main-v22.bak";
-            if (!File.Exists(backup))
-            {
-                return null;
-            }
-            using var con = new SqliteConnection(new SqliteConnectionStringBuilder
-            {
-                DataSource = backup,
-                Mode = SqliteOpenMode.ReadOnly,
-                Pooling = false,
-            }.ToString());
-            con.Open();
-            con.Execute("PRAGMA busy_timeout = 5000;");
-            return con.QueryFirstOrDefault<string>("SELECT Value FROM Setting WHERE Key = 'CurrentGameBiz' LIMIT 1;");
-        }
-        catch
-        {
-            return null;
-        }
-    }
 
 
     /// <summary>
@@ -620,36 +561,51 @@ internal static class DatabaseService
 
 
 
+    /// <summary>退出时调用：DEBUG 构建跳过，最多每 7 天备份一次。</summary>
     public static void AutoBackupToAppDataLocal()
+    {
+        AutoBackupToAppDataLocal(false);
+    }
+
+
+    /// <summary>
+    /// 把数据库自动备份到 <c>%APPDATA%\Starward\DatabaseBackup</c>（按用户数据目录哈希区分）。
+    /// <para>
+    /// 退出时调用（<paramref name="force"/> = false）：DEBUG 构建跳过，最多每 7 天备份一次。
+    /// 版本更新前调用（<paramref name="force"/> = true）：忽略 DEBUG 与 7 天间隔，强制留一份更新前的库。
+    /// </para>
+    /// </summary>
+    private static void AutoBackupToAppDataLocal(bool force)
     {
         try
         {
+            if (!force)
+            {
 #if DEBUG
-            return;
+                return;
 #endif
-#pragma warning disable CS0162 // 检测到无法访问的代码
+            }
             string folder = Path.Join(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), @"Starward\DatabaseBackup");
-#pragma warning restore CS0162 // 检测到无法访问的代码
             Directory.CreateDirectory(folder);
             string hash = Convert.ToHexStringLower(XxHash3.Hash(MemoryMarshal.AsBytes(AppConfig.UserDataFolder.AsSpan())));
             string file = Path.Combine(folder, $"StarwardDatabase_AutoBackup_{hash}_{DateTime.Now:yyyyMMdd_HHmmss}.db");
             string archive = Path.ChangeExtension(file, ".7z");
             string archive_tmp = archive + ".tmp";
             string[] files = Directory.GetFiles(folder, $"StarwardDatabase_AutoBackup_{hash}_*.7z");
-            if (files.Length == 0)
+            string? last = null;
+            bool needBackup = true;
+            if (!force && files.Length > 0)
+            {
+                last = files.OrderByDescending(File.GetLastWriteTime).First();
+                needBackup = DateTime.Now - File.GetLastWriteTime(last) > TimeSpan.FromDays(7);
+            }
+            if (needBackup)
             {
                 BackupDatabase(file);
                 new SharpSevenZipCompressor().CompressFiles(archive_tmp, file);
                 File.Move(archive_tmp, archive, true);
-            }
-            else
-            {
-                string last = files.OrderByDescending(File.GetLastWriteTime).First();
-                if (DateTime.Now - File.GetLastWriteTime(last) > TimeSpan.FromDays(7))
+                if (last is not null)
                 {
-                    BackupDatabase(file);
-                    new SharpSevenZipCompressor().CompressFiles(archive_tmp, file);
-                    File.Move(archive_tmp, archive, true);
                     File.Delete(last);
                 }
             }
